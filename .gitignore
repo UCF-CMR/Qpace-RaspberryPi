@@ -1,0 +1,9 @@
+# Don't include compiled python.
+*/__pycache__
+
+# Don't include text editor .swp files.
+*.swp
+
+# Don't share logs with each other from the log directory. That could get tedious.
+logs/system_*.csv
+logs/error_*.csv
