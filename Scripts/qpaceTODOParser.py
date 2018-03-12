@@ -51,7 +51,7 @@ def getTodoList():
 				todo_list.append(task.split(" "))
 			qpaceLogger.logSystem([["Closing todo file."]])
 
-	except (OSError,IOError) as e:
+	except OSError as e:
 		# Couldn't open the todo file. Send an error to the error log.
 		qpaceLogger.logError("Could not open todo file for reading.", e)
 		qpaceLogger.logSystem([["Error opening the todo file."]])
