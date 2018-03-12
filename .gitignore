@@ -2,13 +2,13 @@
 */__pycache__
 
 # Don't include text editor .swp files.
-*/*.swp
+**/*.swp
 
 # Don't include temp files
-*/*.tmp
+**/*.tmp
 
 # Don't include qp packet files
-*/*.qp
+**/*.qp
 
 # Don't share logs with each other from the log directory. That could get tedious.
 logs/system_*.csv

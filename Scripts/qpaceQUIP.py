@@ -124,7 +124,7 @@ class Packet():
 
 
 class Encoder():
-    def __init__(self,path_for_encode,path_for_packets):
+    def __init__(self,path_for_encode,path_for_packets, suppress=False,destructive=False):
         """
         Constructor for the Encoder.
 
@@ -132,9 +132,13 @@ class Encoder():
         ----------
         path_for_encode - str - The path with a filename on it to encode the file.
         path_for_packets - str - where to store the packets.
+        suppress - bool - suppress output to the terminal.
+        destructive - bool - delete the file when done with it.
         """
         self.file = path_for_encode
         self.packets = path_for_packets
+        self.suppress = suppress
+        self.destructive = destructive
 
     def run(self):
         """
@@ -142,6 +146,7 @@ class Encoder():
         """
         try:
             #file_size = os.path.getsize(self.file) # in bytes
+            if not self.suppress: print("Beginning to encode file into packets.")
             with open(self.file,'rb') as fileToEncode:
                 pid = -1
                 try:
@@ -154,14 +159,18 @@ class Encoder():
                 except IOError:
                     print("Could not write to the directory: ", self.packets)
                     print("Could not write packet: ", pid)
+                else:
+                    if not self.suppress: print("Successfully built ", pid, " packets.")
+                    if self.destructive: os.remove(fileToEncode.name)
         except FileNotFoundError:
             print("Can not find file: ", self.file)
         except IOError:
             print("There was a problem encoding: ",self.file)
-
+        else:
+            if not self.suppress: print("Successfully encoded file into packets.")
 
 class Decoder():
-    def __init__(self, path_for_decode, path_for_packets):
+    def __init__(self, path_for_decode, path_for_packets, suppress=False,destructive=False):
         """
         Constructor for the Encoder.
 
@@ -169,15 +178,21 @@ class Decoder():
         ----------
         path_for_encode - str - The path with a filename on it to decode to.
         path_for_packets - str - where the packets are stored.
+        suppress - bool - suppress output to terminal
+        destructive - bool - delete the packets when done with them.
         """
         self.file = path_for_decode
         self.packets = path_for_packets
+        self.suppress = suppress
+        self.destructive = destructive
 
     def run(self):
         """
         Main method to run for the decoder. Takes packets and decodes them into a file.
         """
         try:
+            if not self.suppress: print("Beginning to decode packets into a file.")
+            if os.path.exists(self.file): raise FileExistsError
             with open(self.file, 'ab') as fileToBuild:
                 pid = -1
                 try:
@@ -189,22 +204,38 @@ class Decoder():
                             information = packet_data[9:len(packet_data)-4]
                             footer = packet_data[len(packet_data)-4:]
                             fileToBuild.write(information)
+                            if self.destructive: os.remove(packet.name)
                 except FileNotFoundError as e:
-                    print("Completed read of packets. Packets read: ", pid)
+                    if not self.suppress: print("Completed read of packets. Packets read: ", pid)
                 except IOError:
                     print("Could not open packet for reading: packet ", pid)
+                else:
+                    if not self.suppress: print("Successfully built ", pid, " packets.")
+        except FileExistsError:
+            print("The file already exists. Please choose a file that does not yet exist (" + self.file +")")
         except IOError:
             print("Could not open file for writing: ", self.file)
+        else:
+            if not self.suppress: print("Successfully decoded packets into a file.")
+
 # Code to be run after importing everything.
 # -------------------------------------------
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Interat with QUIP and encode/decode packets.')
-    parser.add_argument('-v','--version',action='version', version = 'Version: 1.2')
+    parser.add_argument('--version',action='version', version = 'Version: 1.2')
     mutex_group = parser.add_mutually_exclusive_group(required=True)
 
+    parser.add_argument('-s','--suppress',
+                        help="hide the terminal outputs.",
+                        default=False,
+                        action='store_true')
+    parser.add_argument('--destructive',
+                        help="delete the file or packets when the script is done with them",
+                        default=False,
+                        action='store_true')
     mutex_group.add_argument('-e','--encode',
-                        help="set to encode",
+                        help="set to encode.",
                         default=False,
                         action='store_true')
     mutex_group.add_argument('-d','--decode',
@@ -221,13 +252,14 @@ if __name__ == '__main__':
                         help="set the path of the file.",
                         type=str,
                         required=True)
+
     args = parser.parse_args()
 
     if args.encode:
-        en = Encoder(args.file_location,args.packet_location)
+        en = Encoder(args.file_location,args.packet_location,suppress=args.suppress,destructive=args.destructive)
         en.run()
     else:
-        de = Decoder(args.file_location,args.packet_location)
+        de = Decoder(args.file_location,args.packet_location,suppress=args.suppress,destructive=args.destructive)
         de.run()
 
 
