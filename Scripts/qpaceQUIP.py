@@ -9,13 +9,14 @@ import sys
 import os
 import struct
 import time
+import glob, os.path
 from math import ceil,log
 from itertools import zip_longest
 
 class Packet():
     sync = 0xFFFF           # 2 bytes
     start = 0xABCD          # 2 bytes
-    end = 0xDCBA            # 2 bytes
+    end = 0xFAFA            # 2 bytes
     id_bits = 32            # 4 bytes
     overflow = 0            # 0 for false. (1 bit)
     placeholder_bits = 4    # in bits
@@ -182,11 +183,12 @@ class Encoder():
 
         except Warning:
             print("All packets could not be created.")
-            if self.destructive: os.remove(self.packets+"*.qp")
+            if self.destructive: self.removePacketFragments()
             return False
 
 
     def encode(self):
+        self.removePacketFragments()
         try:
             with open(self.file,'rb') as fileToEncode:
                 if not self.suppress: print("Beginning to encode file into packets.")
@@ -240,6 +242,11 @@ class Encoder():
         packet.op_code = 0x7
         with open(self.packets+str(packet.pid)+".qp",'wb') as packetToReWrite:
             packetToReWrite.write(packet.build())
+
+    def removePacketFragments(self):
+        filelist = glob.glob(os.path.join(self.packets, "*.qp"))
+        for f in filelist:
+            os.remove(f)
 
 class Decoder():
     def __init__(self, path_for_decode, path_for_packets, suppress=False,destructive=False):
@@ -303,7 +310,7 @@ class Decoder():
             with open(self.packets+"init.qp",'rb') as init:
                 information = init.read()
                 information = Decoder.resolveExpansion(information[19:information.find(bytes.fromhex(hex(Packet.end)[2:]))])
-                information = information.decode('utf-8').split(' ')
+                information = information.decode('raw_unicode_escape').split(' ')
         except OSError:
             print("Could not read init file from ", self.packets)
             raise OSError
@@ -339,7 +346,7 @@ class Decoder():
                             # header = self.decipherHeader(Decoder.resolveExpansion(packet_data[4:19]))
                             # We only care about the data here, so 19 onward
                             information = Decoder.resolveExpansion(packet_data[19:packet_data.find(bytes.fromhex(hex(Packet.end)[2:]))])
-                            scaffold_data = self.ammendScaffoldData(scaffold_data,information.decode('utf-8'),pid)
+                            scaffold_data = self.ammendScaffoldData(scaffold_data,information.decode('raw_unicode_escape'),pid)
 
                     except FileNotFoundError as e:
                         # If the next packet exists
@@ -352,7 +359,7 @@ class Decoder():
                         else:
                             try:
                                 # Write the scaffold data to the file
-                                scaffoldToBuild.write(bytearray(scaffold_data,'utf-8'))
+                                scaffoldToBuild.write(bytearray(scaffold_data,'raw_unicode_escape'))
                             except OSError:
                                 print("Failed to write scaffold data.")
                             else:
@@ -415,7 +422,7 @@ class Decoder():
             try:
                 scaffold_data = None
                 with open(self.file_path+self.file_name+".scaff",'rb') as scaffold:
-                    scaffold_data = self.ammendScaffoldData(scaffold.read().decode('utf-8'),information.decode('utf-8'),pid)
+                    scaffold_data = self.ammendScaffoldData(scaffold.read().decode('raw_unicode_escape'),information.decode('raw_unicode_escape'),pid)
                 with open(self.file_path+self.file_name+".scaff",'w') as scaffold:
                     # Write the scaffold data to the file
                     scaffold.write(scaffold_data)
@@ -439,6 +446,10 @@ class Decoder():
             return True #If successful
         return False #If unsuccessful
 
+    def removePacketFragments(self):
+        filelist = glob.glob(os.path.join(self.packets, "*.qp"))
+        for f in filelist:
+            os.remove(f)
 
     @staticmethod
     def resolveExpansion(information,size=None):
@@ -486,6 +497,8 @@ if __name__ == '__main__':
     print("TODO: Determine exceptions and where they will be raised")
     print("TODO: Line 343")
     print("TODO: what if the packet missing is the last packet?")
+    print("TODO: get destructive to work.")
+    print("TODO: 'non hex' hex not working for end sequence")
     parser = argparse.ArgumentParser(description='Interat with QUIP and encode/decode packets.')
     parser.add_argument('--version',action='version', version = 'Version: 1.2')
     mutex_group = parser.add_mutually_exclusive_group(required=True)
