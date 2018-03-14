@@ -136,7 +136,7 @@ class Packet():
         footer = self.buildFooter()
         packet = header + data + footer
         while len(packet) < Packet.max_size:
-            packet += bytearray.fromhex('ff')
+            packet += bytearray(b'\xff')
         return packet
 
 class Encoder():
@@ -287,14 +287,14 @@ class Decoder():
         """
         # Controller will deal with the packets and naming them
         self.init()
-        self.prepareFileLocation()
+        #self.prepareFileLocation()
         missedPackets = self.bulkDecode()
         if missedPackets is None:
             print("complete")
         else:
             print("Attempting an async")
-            time.sleep(10)
-            self.asyncDecode(1)
+            time.sleep(20)
+            self.asyncBulkDecode([0,3,7,10])
 
     def init(self):
         initPacket = self.readInit()
@@ -309,12 +309,25 @@ class Decoder():
 
             with open(self.packets+"init.qp",'rb') as init:
                 information = init.read()
-                information = Decoder.resolveExpansion(information[19:information.find(bytes.fromhex(hex(Packet.end)[2:]))])
+                information = Decoder.resolveExpansion(information[19:information.rfind(bytes.fromhex(hex(Packet.end)[2:]))])
                 information = information.split(b' ')
         except OSError:
             print("Could not read init file from ", self.packets)
             raise OSError
         return information
+
+    def readPacketInfo(self,pid):
+        packet_data = None
+        try:
+            with open(self.packets+str(pid)+".qp",'br') as packet:
+                # Read the packet, give us only the information field. Resolve the TMR expansion.
+                packet_data = packet.read()
+        except FileNotFoundError as err:
+            raise err
+        except OSError as err:
+            raise err
+        else:
+            return Decoder.resolveExpansion(packet_data[19:packet_data.rfind(bytes.fromhex(hex(Packet.end)[2:]))])
 
     def bulkDecode(self):
         """
@@ -322,76 +335,82 @@ class Decoder():
         -------
         None if successful
         A list of pids of packets missed.
+
+        Raises OSError if init file can't be read.
         """
         missedPackets = []
-        newFile = None
+        directoryPackets = [int(item) for item in [item.replace('.qp','') for item in os.listdir('./packets')] if item.isdigit()]
+        if not self.suppress: print("Beginning to decode packets into a file.")
         try:
-            if not self.suppress: print("Beginning to decode packets into a file.")
-            newFile = self.file_path+self.file_name
-            if os.path.exists(newFile):
-                if not self.suppress: print("File already exists. Overwriting with new data (", newFile,")")
-                os.remove(newFile)
-            with open(newFile+".scaff", 'rb+') as scaffoldToBuild:
-                pid = -1 # -1 to start at zero
-                scaffold_data = []
-                while True: # Until we are done...
+            if self.file_name is None: self.init()
+        except OSError as err:
+            raise err
+
+        newFile = self.file_path+self.file_name
+
+        if os.path.exists(newFile):
+            if not self.suppress: print("File already exists. Overwriting with new data (", newFile,")")
+            os.remove(newFile)
+
+        pid = -1 # -1 to start at zero
+        scaffold_data = []
+        while True: # Until we are done...
+            try:
+                pid += 1
+                # Try to open the file. If it can't find it, then it will throw a
+                # FileNotFoundError to indicate that we are complete.
+                # Remove the sync and start bits, thus [4:19]
+                # header = self.decipherHeader(Decoder.resolveExpansion(packet_data[4:19]))
+                # We only care about the data here, so 19 onward
+                information = self.readPacketInfo(pid)
+                scaffold_data = self.ammendScaffoldData(scaffold_data,information,pid)
+
+            except FileNotFoundError as e:
+                if pid == self.expected_packets: #If the PID is the expected packets then we are done.
                     try:
-                        pid += 1
-                        # Try to open the file. If it can't find it, then it will throw a
-                        # FileNotFoundError to indicate that we are complete.
-                        with open(self.packets+str(pid)+".qp",'rb') as packet:
-                            packet_data = packet.read()
-
-                            # Remove the sync and start bits, thus [4:19]
-                            # header = self.decipherHeader(Decoder.resolveExpansion(packet_data[4:19]))
-                            # We only care about the data here, so 19 onward
-                            information = Decoder.resolveExpansion(packet_data[19:packet_data.find(bytes.fromhex(hex(Packet.end)[2:]))])
-                            scaffold_data = self.ammendScaffoldData(scaffold_data,information,pid)
-
-                    except FileNotFoundError as e:
-                        # If the next packet exists
-                        #TODO what if two packets were lost!!! REDO to handle a big jump in packets
-                        if os.path.exists(self.packets+str(pid+1)+".qp"):
-                            missedPackets.append(pid)
-                            # Ammend the scaffold with placeholder bytes
-                            # ÿ if 0xFF
-                            scaffold_data = self.ammendScaffoldData(scaffold_data,'ÿ'*Packet.data_size,pid)
-                        else:
-                            try:
-                                # Write the scaffold data to the file. We first need to flatten the list
-                                scaffoldToBuild.write(bytearray([item for sublist in scaffold_data for item in sublist]))
-                            except OSError:
-                                print("Failed to write scaffold data.")
-                            else:
-                                if not self.suppress: print("Completed read of packets.")
-                                break #This is important to get out of the While Loop
+                        with open(newFile+".scaff", 'wb') as scaffoldToBuild:
+                            # Write the scaffold data to the file. We first need to flatten the list
+                            scaffoldToBuild.write(bytearray([item for sublist in scaffold_data for item in sublist]))
                     except OSError:
-                        print("Could not open packet for reading: packet ", pid)
-        except OSError:
-            print("Could not open file for writing: ", newFile or self.file_path)
+                        print("Failed to write scaffold data: ", newFile or self.file_path)
+                    else:
+                        if not self.suppress: print("Completed read of packets.")
+                    finally:
+                        break #This is important to get out of the While Loop
+
+                # If there are any packets after the packet we are missing.
+                for item in directoryPackets:
+                    if item > pid:
+                        missedPackets.append(pid)
+                        # Ammend the scaffold with placeholder bytes if there is no packet for it.
+                        scaffold_data = self.ammendScaffoldData(scaffold_data,bytearray(b'_')*Packet.data_size,pid)
+                        break
+
+
+            except OSError:
+                print("Unable to read the packet: ",self.packets+str(pid)+".qp")
+
+        if missedPackets:
+            if not self.suppress: print("Packets missing during decoding. Scaffold intact.")
+            return missedPackets
         else:
-            if missedPackets:
-                if not self.suppress: print("Packets missing during decoding. Scaffold intact.")
-                return missedPackets
-            else:
-                if not self.suppress: print("Successfully decoded packets into a file.")
-                self.buildScaffold()
-                return None
+            self.buildScaffold()
+            if not self.suppress: print("Successfully decoded packets into a file.")
+            return None
 
 
-    def prepareFileLocation(self):
-        # Open a file and write to it placeholder characters for the actual data.
-        with open(self.file_path+self.file_name+".scaff",'wb') as tempFile:
-            tempFile.write(b' '*self.file_size)
+    #def prepareFileLocation(self):
+    #    # Open a file and write to it placeholder characters for the actual data.
+    #    with open(self.file_path+self.file_name+".scaff",'wb') as tempFile:
+    #        tempFile.write(b' '*self.file_size)
 
     def ammendScaffoldData(self,scaffold_data,to_write,pid):
         """
-        scaffold_data-list of strings
-        to_write-str
+        scaffold_data-list of bytearrays
+        to_write-bytearray
         pid - int
         returns a string
         """
-
         # Every Packet.data_size bytes, split into a list.
         try:
             scaffold_data[pid]=to_write
@@ -403,47 +422,50 @@ class Decoder():
         newFile = self.file_path+self.file_name
         os.rename(newFile+".scaff",newFile)
 
-    def asyncDecode(self,pid):
+    def asyncBulkDecode(self,pid):
         """
-        pid - int - pid of the packet to be integrated into the file asynchronously
-        """
-        try:
-            if self.file_name is None: raise Warning("File name is not set. This can happen if an Asynchronous Decode is done before the Bulk Decode.")
-            information = None
-            with open(self.packets+str(pid)+".qp",'br') as packet:
-                # Read the packet, give us only the information field. Resolve the TMR expansion.
-                try:
-                    packet_data = packet.read()
-                except OSError as err:
-                    print("Unable to read the packet: ",self.packets+str(pid)+".qp")
-                    raise err
-                information = Decoder.resolveExpansion(packet_data[19:packet_data.find(bytes.fromhex(hex(Packet.end)[2:]))])
-            try:
-                scaffold_data = None
-                with open(self.file_path+self.file_name+".scaff",'rb') as scaffold:
-                    scaffold_data = self.ammendScaffoldData(scaffold.read(),information,pid)
-                with open(self.file_path+self.file_name+".scaff",'w') as scaffold:
-                    # Write the scaffold data to the file
-                    scaffold.write(scaffold_data)
-            except OSError as err:
-                print("Unable to write to the scaffold: ", self.file_path+self.file_name+".scaff")
-                raise err
-        except FileNotFoundError:
-            print("Packet(",pid,") not found. Maybe it is not in the correct directory? (",self.packets,")")
-        except OSError:
-            pass
-        except Warning as err:
-            print(err,"\nAttempting to read init packet and resolve the problem...")
-            try:
-                self.init()
-            except OSError as err:
-                newErr = OSError("Unable to read the init packet.")
-                print(err,"\n",newErr)
-                raise newErr
+        pid - list of ints - pids of the packet to be integrated into the file asynchronously
 
+        raises oserror if init file can't be read
+        """
+        if isinstance(pid,int):
+            pid = [pid]
+        elif not isinstance(pid,list):
+            raise TypeError("Argument must be an int or a list of ints")
+
+        try:
+            if self.file_name is None: self.init()
+        except OSError as err:
+            raise err
+
+        try:
+
+            scaffold_data = None
+            with open(self.file_path+self.file_name+".scaff",'rb') as scaffold:
+                scaffold_data = scaffold.read()
+                split = Packet.data_size
+                # Split the data into a list that is seperated by 77 bytes that way the packet information can be overwritten.
+                scaffold_data = [scaffold_data[i:i+split] for i in range(0, len(scaffold_data), split)]
+            while pid:
+                try:
+                    tempPID = pid.pop()
+                    information = self.readPacketInfo(tempPID)
+                    scaffold_data = self.ammendScaffoldData(scaffold_data,information,tempPID)
+                except FileNotFoundError:
+                    print("Packet(",tempPID,") not found. (",self.packets,")")
+                    if not self.suppress: print("Continuing to build scaffold with other packets if there are any.")
+                except OSError:
+                    print("There was a problem accessing the packet directory: ",self.packets)
+                    raise OSError
+            with open(self.file_path+self.file_name+".scaff",'wb') as scaffold:
+                # Write the scaffold data to the file
+                scaffold.write(bytearray([item for sublist in scaffold_data for item in sublist]))
+        except OSError:
+            print("Unable to access the scaffold: ", self.file_path+self.file_name+".scaff")
         else:
-            return True #If successful
-        return False #If unsuccessful
+            return True # If successful
+
+        return False # If unsuccessful
 
     def removePacketFragments(self):
         filelist = glob.glob(os.path.join(self.packets, "*.qp"))
@@ -469,9 +491,6 @@ class Decoder():
         header_dict['op_code'] =  (header[4] >> 4) & 7  # Bit mask to get the 2nd - 4th bits
         return header_dict
 
-
-
-
 class Controller():
     def __init__(self, coder):
 
@@ -491,13 +510,12 @@ class Controller():
 # -------------------------------------------
 
 if __name__ == '__main__':
-    print("TODO: Asynchronous file building based on pid.")
     print("TODO: Add function comments!!!!!")
     print("TODO: Determine exceptions and where they will be raised")
-    print("TODO: Line 343")
-    print("TODO: what if the packet missing is the last packet?")
     print("TODO: get destructive to work.")
     print("TODO: 'non hex' hex not working for end sequence")
+    print("TODO: TEST THE BULK DECODE WITH PACKETS THAT ARE MISSING IN ANY CAPACITY. CHECK ALL EDGE CASES")
+    exit()
     parser = argparse.ArgumentParser(description='Interat with QUIP and encode/decode packets.')
     parser.add_argument('--version',action='version', version = 'Version: 1.2')
     mutex_group = parser.add_mutually_exclusive_group(required=True)
