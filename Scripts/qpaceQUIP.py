@@ -299,7 +299,7 @@ class Decoder():
     def init(self):
         initPacket = self.readInit()
         if self.file_name is None:
-            self.file_name = initPacket[0] # Return what the filename should be.
+            self.file_name = initPacket[0].decode('utf-8') # Return what the filename should be.
         self.expected_packets = int(initPacket[1])
         self.file_size = int(initPacket[2])
 
@@ -310,7 +310,7 @@ class Decoder():
             with open(self.packets+"init.qp",'rb') as init:
                 information = init.read()
                 information = Decoder.resolveExpansion(information[19:information.find(bytes.fromhex(hex(Packet.end)[2:]))])
-                information = information.decode('raw_unicode_escape').split(' ')
+                information = information.split(b' ')
         except OSError:
             print("Could not read init file from ", self.packets)
             raise OSError
@@ -333,7 +333,7 @@ class Decoder():
                 os.remove(newFile)
             with open(newFile+".scaff", 'rb+') as scaffoldToBuild:
                 pid = -1 # -1 to start at zero
-                scaffold_data = ""
+                scaffold_data = []
                 while True: # Until we are done...
                     try:
                         pid += 1
@@ -346,7 +346,7 @@ class Decoder():
                             # header = self.decipherHeader(Decoder.resolveExpansion(packet_data[4:19]))
                             # We only care about the data here, so 19 onward
                             information = Decoder.resolveExpansion(packet_data[19:packet_data.find(bytes.fromhex(hex(Packet.end)[2:]))])
-                            scaffold_data = self.ammendScaffoldData(scaffold_data,information.decode('raw_unicode_escape'),pid)
+                            scaffold_data = self.ammendScaffoldData(scaffold_data,information,pid)
 
                     except FileNotFoundError as e:
                         # If the next packet exists
@@ -358,8 +358,8 @@ class Decoder():
                             scaffold_data = self.ammendScaffoldData(scaffold_data,'ÿ'*Packet.data_size,pid)
                         else:
                             try:
-                                # Write the scaffold data to the file
-                                scaffoldToBuild.write(bytearray(scaffold_data,'raw_unicode_escape'))
+                                # Write the scaffold data to the file. We first need to flatten the list
+                                scaffoldToBuild.write(bytearray([item for sublist in scaffold_data for item in sublist]))
                             except OSError:
                                 print("Failed to write scaffold data.")
                             else:
@@ -393,12 +393,11 @@ class Decoder():
         """
 
         # Every Packet.data_size bytes, split into a list.
-        scaffold_data = list(map(''.join, zip_longest(*[iter(scaffold_data)]*Packet.data_size, fillvalue='')))
         try:
             scaffold_data[pid]=to_write
         except IndexError:
             scaffold_data.append(to_write)
-        return ''.join(scaffold_data)
+        return scaffold_data # Flatten the list
 
     def buildScaffold(self):
         newFile = self.file_path+self.file_name
@@ -422,7 +421,7 @@ class Decoder():
             try:
                 scaffold_data = None
                 with open(self.file_path+self.file_name+".scaff",'rb') as scaffold:
-                    scaffold_data = self.ammendScaffoldData(scaffold.read().decode('raw_unicode_escape'),information.decode('raw_unicode_escape'),pid)
+                    scaffold_data = self.ammendScaffoldData(scaffold.read(),information,pid)
                 with open(self.file_path+self.file_name+".scaff",'w') as scaffold:
                     # Write the scaffold data to the file
                     scaffold.write(scaffold_data)
