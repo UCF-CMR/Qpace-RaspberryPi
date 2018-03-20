@@ -13,10 +13,14 @@ import glob, os.path
 from math import ceil,log
 from itertools import zip_longest
 
+class Corrupted(Exception):
+    def __init__(self, message):
+        super(Exception, self).__init__(message)
+
 class Packet():
-    sync = 0xFFFF           # 2 bytes (stored as an int)
-    start = 0xABCD          # 2 bytes (stored as an int)
-    end = 0xDBCA            # 2 bytes (stored as an int)
+    sync = b'\xff\xff'      # 2 bytes
+    start = b'\xab\xcd'     # 2 bytes
+    end = b'\xdc\xba'       # 2 bytes
     id_bits = 32            # 4 bytes
     overflow = 0            # 0 for false. (1 bit)
     placeholder_bits = 4    # in bits
@@ -42,6 +46,7 @@ class Packet():
         ValueError - if the data passed to the packet is too large to fit in the packet.
                      or the pid is out of order.
                      or the pid is negative.
+        TypeError - if the data is not a string,int,bytes,or bytearray.
         """
         if pid < 0:
             raise ValueError("Packet pid is invalid. Must be a positive number.")
@@ -57,7 +62,6 @@ class Packet():
                 data = bytearray.fromhex(data)
             except ValueError:
                 data = bytearray(map(ord,data))
-
         else:
             raise TypeError("Input data is of incorrect type. Must input str, int, bytes, or bytearray")
 
@@ -95,11 +99,9 @@ class Packet():
             bytearray - packet header data.
         """
         # The byte order will be bigendian
-        sync = bytearray(Packet.sync.to_bytes(2,byteorder='big'))   # 2 bytes
-        start = bytearray(Packet.start.to_bytes(2,byteorder='big')) # 2 bytes
         pid = bytearray(self.pid.to_bytes(4,byteorder='big'))       # 4 bytes
         header_end = bytearray(((Packet.overflow << 7) | (self.op_code << 4)).to_bytes(1,byteorder='big'))
-        return sync + start + (pid + header_end)*3
+        return Packet.sync + Packet.start + (pid + header_end)*3
 
     def buildData(self):
         """
@@ -122,9 +124,7 @@ class Packet():
             bytearray - packet footer data.
         """
         # The byte order will be big endian
-        sync = bytearray(Packet.sync.to_bytes(2,byteorder='big'))  # 2 bytes
-        end = bytearray(Packet.end.to_bytes(2,byteorder='big'))# 2 bytes
-        return end + sync
+        return Packet.end + Packet.sync
 
     def build(self):
         """
@@ -142,7 +142,7 @@ class Packet():
         # After constructing the packet's contents, pad the end of the packet until we reach the max size.
         # This will force the packets to always be 256 bytes.
         while len(packet) < Packet.max_size:
-            packet += bytearray(b'\xff')
+            packet += b'\xff'
         return packet
 
 class Encoder():
@@ -229,10 +229,10 @@ class Encoder():
                             break #If there's nothing else to read, back out. We are done.
                         with open(self.packets+str(pid)+".qp", 'wb') as packet:
                             packet.write(packetToBuild.build())
-                except OSError:
+                except OSError as err:
                     print("Could not write to the directory: ", self.packets)
                     print("Could not write packet: ", pid)
-                    raise OSError
+                    raise err
                 else:
                     if not self.suppress: print("Successfully built ", pid, " packets.")
                     #self.setAsLastPacket(pid-1) # Set the last packet we wrote as the last packet to transmit.
@@ -335,19 +335,25 @@ class Decoder():
     def run(self):
         """
         Main method to run for the decoder. Takes the packets from a path and decodes them into a file.
+
+        Exception
+        ---------
+        If there was an exception thrown up the call stack then continue throwing it up.
         """
-        # Controller will deal with the packets and naming them
-        self.init()
-        #self.prepareFileLocation()
-        missedPackets = self.bulkDecode()
-        # If missedPackets is none then we know we are good to go. Otherwise, we'll need
-        # to asynchronously decode the file
-        if missedPackets is None:
-            if not self.suppress: print("There are no missing packets.")
-            self.buildScaffold()
-        else:
-            self.fullAsyncDecode(missedPackets)
-            self.buildScaffold()
+        try:
+            # Controller will deal with the packets and naming them
+            self.init()
+            #self.prepareFileLocation()
+            missedPackets = self.bulkDecode()
+            # If missedPackets is none then we know we are good to go. Otherwise, we'll need
+            # to asynchronously decode the file
+            if missedPackets is None:
+                if not self.suppress: print("There are no missing packets.")
+                self.buildScaffold()
+            else:
+                self.fullAsyncDecode(missedPackets)
+                self.buildScaffold()
+        except: raise
 
     def init(self):
         """
@@ -360,6 +366,7 @@ class Decoder():
         ----------
         OSError - the init file could not be read.
         ValueError - converting the bytes to ints or strings did not work as expected.
+        Corrupted - if the init packet is corrupted throw a Corrupted exception
         """
         try:
             initPacket = self.readInit()
@@ -367,8 +374,9 @@ class Decoder():
                 self.file_name = initPacket[0].decode('utf-8')
             self.expected_packets = int(initPacket[1])
             self.file_size = int(initPacket[2])
-        except (OSError,ValueError) as err:
-            raise err
+        except (OSError,ValueError,Corrupted): raise
+
+
 
     def readInit(self):
         """
@@ -382,6 +390,7 @@ class Decoder():
         Exceptions
         ----------
         OSError - cannot read the init file for any reason.
+        Corrupted - if the init packet was corrupted throw a Corrupted exception
         """
         information = None
         try:
@@ -389,11 +398,14 @@ class Decoder():
                 information = init.read()
                 # Resolve the TMR expansion from the packet. Since we have 19 bytes of header,
                 # Start from 19 and go until the ending sequence (but search for it from the back)
-                information = Decoder.resolveExpansion(information[19:information.rfind(bytes.fromhex(hex(Packet.end)[2:]))])
+                Decoder.isWrapperCorrupted(information)
+                information = Decoder.resolveExpansion(information[19:information.rfind(Packet.end + Packet.sync)])
                 # Split on the ':' since that should not be in any data
                 information = information.split(b':')
         except OSError as err:
             print("Could not read init file from ", self.packets)
+            raise err
+        except Corrupted as err:
             raise err
         return information
 
@@ -413,18 +425,16 @@ class Decoder():
         ----------
         FileNotFoundError - It cannot find the packet.
         OSError - It cannot access the packet for some other reason.
+        Corrupted - If the packet is found to be corrupted throw the Corrupted exception up the stack
         """
-        packet_data = None
         try:
             with open(self.packets+str(pid)+".qp",'br') as packet:
                 packet_data = packet.read()
-        except FileNotFoundError as err:
-            raise err
-        except OSError as err:
-            raise err
-        else:
-            # Reolved the TMR expansion. Since we have 19 bytes of header, start at 19.
-            return Decoder.resolveExpansion(packet_data[19:packet_data.rfind(bytes.fromhex(hex(Packet.end)[2:]))])
+                Decoder.isWrapperCorrupted(packet_data)
+                # Resolve the TMR expansion. Since we have 19 bytes of header, start at 19.
+                return Decoder.resolveExpansion(packet_data[19:packet_data.rfind(Packet.end + Packet.sync)])
+        except (FileNotFoundError,OSError,Corrupted): raise
+
 
     def bulkDecode(self):
         """
@@ -451,8 +461,7 @@ class Decoder():
         # Make sure the init packet has been read for the data we need.
         try:
             if self.file_name is None or self.expected_packets is None: self.init()
-        except OSError as err:
-            raise err
+        except (OSError,Corrupted): raise
 
         newFile = self.file_path+self.file_name
         # Delete the file if it already exists.
@@ -490,6 +499,11 @@ class Decoder():
                     continue # Not necessary but good for readability. Hop back to the top of the while loop.
             except OSError:
                 print("Unable to read the packet: ",self.packets+str(pid)+".qp")
+            except Corrupted as err:
+                missedPackets.append(pid)
+                # Ammend the scaffold with placeholder bytes if there is no packet for it.
+                scaffold_data = self.ammendScaffoldData(scaffold_data,bytearray(b'_')*Packet.data_size,pid)
+                continue # Not necessary but good for readability. Hop back to the top of the while loop.
         if missedPackets:
             if not self.suppress: print("Packets missing during decoding. Scaffold intact.")
             return missedPackets
@@ -547,6 +561,7 @@ class Decoder():
         ----------
         OSError - init file can't be read.
         TypeError - input is not a list
+        Corrupted - if the init file is corrupted
         """
         # Make sure we have an integer or list
         if isinstance(pidList,int):
@@ -558,8 +573,7 @@ class Decoder():
             # Make sure the init file has already been read and read it if not.
             try:
                 if self.file_name is None: self.init()
-            except OSError as err:
-                raise OSError(str(err) + "\nInit file could not be read.")
+            except (OSError,Corrupted): raise
             missedPackets = []
             # Begin to asynchronously add the packets
             try:
@@ -580,11 +594,11 @@ class Decoder():
                         tempPID = pidList.pop()
                         information = self.readPacketInfo(tempPID)
                         scaffold_data = self.ammendScaffoldData(scaffold_data,information,tempPID)
-                    except FileNotFoundError:
+                    except (FileNotFoundError,Corrupted):
                         # If the packet can't be found, add it to the missedPackets list.
                         missedPackets.append(tempPID)
                     except OSError as err:
-                        raise OSError(str(err) + "\nThere was a problem accessing the packet directory: " +self.packets)
+                        raise OSError(str(err) + "\nThere was a problem accessing the packet directory: " + self.packets)
                 with open(self.file_path+self.file_name+".scaff",'wb') as scaffold:
                     # Write the scaffold data to the file by flattening the scaffold_data
                     scaffold.write(bytearray([item for sublist in scaffold_data for item in sublist]))
@@ -666,7 +680,7 @@ class Decoder():
 
         Exception
         ---------
-        Warning - If the three bytes do not agree, then there was a problem in transfering the data
+        Corrupted - If the three bytes do not agree, then there was a problem in transfering the data
                   and we should consider the data corrupt.
         """
         majority_info = bytearray()
@@ -676,7 +690,11 @@ class Decoder():
             tmr = (information[i], information[i + size], information[i + size * 2])
             # Choose the data iff it has the maximum count. If all three are different. Then
             # we know the file is corrupt. turn the tuple into a set to collapse the data
-            majority_info += bytes([(max(set(tmr), key = tmr.count))])
+            tmr_set = set(tmr)
+            if len(tmr_set) < 3:
+                majority_info += bytes([(max(tmr_set, key = tmr.count))])
+            else:
+                raise Corrupted("The file is determined to be corrupted based on resolving the TMR expansion.")
         return majority_info
 
     @staticmethod
@@ -703,6 +721,34 @@ class Decoder():
         header_dict['overflow'] = (header[4] >> 7) & 1  # Bit mask to get the first bit
         header_dict['op_code'] =  (header[4] >> 4) & 7  # Bit mask to get the 2nd - 4th bits
         return header_dict
+
+    @staticmethod
+    def isWrapperCorrupted(data):
+        """
+        Check if the header, footer, or sync is corrupted. Also check the file size.
+
+        Parameter
+        ---------
+        data - bytes - the bytes of the data of a packet. This should be the whole packet (i.e. 256 bytes)
+
+        Exception
+        ---------
+        Corrupted - If the packet is corrupted, raise a Corrupted Exception
+        """
+        try:
+            Decoder.resolveExpansion(data[4:19])
+            rindex = data.rfind(Packet.end + Packet.sync)
+            # data[0:2] are the sync bytes, data[2:4] are the start bytes
+            # rindex will be -1 if it cannot find the end and sync sequence at the end of the packet
+            # even if it found it, check to see if all the final padding bits are \xff. If they aren't
+            # then the padding was corrupted OR the ending sequence was corrupted
+            # add 4 to the rindex to ignore the end/sync and subtract 4 from the max size to ignore them as well.
+            if len(data) != 256 or data[0:2] != Packet.sync or data[2:4] != Packet.start or\
+               rindex < 0 or data[rindex+4:Packet.max_size] != b'\xff'*(Packet.max_size - rindex - 4):
+                raise Corrupted("The wrapper is corrupted.")
+        except Corrupted: raise
+
+
 
 class Controller():
     def __init__(self, coder,asyncList=[]):
@@ -734,20 +780,43 @@ class Controller():
         if isinstance(coder,Decoder) and self.asyncList:
             self.coder.fullAsyncDecode(self.asyncList)
         elif not self.asyncList:
-            self.coder.run()
+            try:
+                self.coder.run()
+            except Corrupted:
+                print("Something was corrupted. Most likely the init packet. Requesting that it is sent again.")
+                Controller.sendAgain(['init'])
+                try:
+                    self.coder.run()
+                except Corrupted:
+                    print("Something was corrupted. Most likely the init packet. Since this is the second attempt, the controller will exit.\nCheck your data and try again.")
+    @staticmethod
+    def sendAgain(listOfPid):
+        """
+        Send the following packets again...must be a list of ints or strings of specific identifiers.
+
+        Parameters
+        ----------
+        listOfPid - list - list of ints for the pids of the packets that should be sent again.
+                           If there is a string, it should be a specific identifier:
+                           init
+        """
+        if isinstance(listOfPid,list):
+            for packet in listOfPid:
+                # Send the packets somehow
+                pass
 # Code to be run after importing everything.
 # -------------------------------------------
 
 # Python handles hex stored as ints as the least amount of nibbles possible.
 # To ensure that there are 4 bytes stored, throw an error if the hex is at least 4 bytes.
-if Packet.end < 0x1000 or Packet.start < 0x1000 or Packet.sync < 0x1000:
-    raise ValueError("Packet Starting,Ending, and sync must be greater than 0x0FFF.")
+# if int.from_bytes(Packet.end,'big') < 0x1000 or int.from_bytes(Packet.start,'big') < 0x1000 or int.from_bytes(Packet.sync,'big') < 0x1000:
+#     raise ValueError("Packet Starting,Ending, and sync must be greater than 0x0FFF.")
 
 if __name__ == '__main__':
+    print("TODO: figure out how packets will actually be sent from ground station to vehicle")
     print("TODO: Determine exceptions and where they will be raised")
     print("TODO: get destructive to work.")
-    print("TODO: resolveExpansion needs to detect corruptions")
-    print('TODO: HANDLE CORRUPTIONS PROPERLY')
+    print("TODO: Some methods raise exceptions. Modify comments to reflect this.")
 
     # Set up all the argument parsing options.
     parser = argparse.ArgumentParser(description='Interat with QUIP and encode/decode packets.')
