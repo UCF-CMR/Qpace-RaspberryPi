@@ -23,9 +23,9 @@ class Packet():
 
     max_size = 256          # in bytes
     data_size = 77          # in bytes
-    max_id = 0xFFFFFFFF     # as an int
+    max_id = 0xFFFFFFFF     # 4 bytes. Stored as an int.
     packet_data_size = None # packet_data_size in bytes
-    last_id = -1            # -1 if there are no packets.
+    last_id = -1            # -1 if there are no packets yet.
 
     def __init__(self,data, pid,**kwargs):
         """
@@ -61,6 +61,7 @@ class Packet():
         else:
             raise TypeError("Input data is of incorrect type. Must input str, int, bytes, or bytearray")
 
+        # If we need to set an op_code, do it. Otherwise the opcode will just be 0x0
         if 'op_code' in kwargs:
             self.op_code = kwargs['op_code']
         else:
@@ -93,9 +94,10 @@ class Packet():
             -------
             bytearray - packet header data.
         """
-        sync = bytearray(Packet.sync.to_bytes(2,byteorder='big'))  # 2 bytes
-        start = bytearray(Packet.start.to_bytes(2,byteorder='big'))# 2 bytes
-        pid = bytearray(self.pid.to_bytes(4,byteorder='big'))    # 4 bytes
+        # The byte order will be bigendian
+        sync = bytearray(Packet.sync.to_bytes(2,byteorder='big'))   # 2 bytes
+        start = bytearray(Packet.start.to_bytes(2,byteorder='big')) # 2 bytes
+        pid = bytearray(self.pid.to_bytes(4,byteorder='big'))       # 4 bytes
         header_end = bytearray(((Packet.overflow << 7) | (self.op_code << 4)).to_bytes(1,byteorder='big'))
         return sync + start + (pid + header_end)*3
 
@@ -119,6 +121,7 @@ class Packet():
             -------
             bytearray - packet footer data.
         """
+        # The byte order will be big endian
         sync = bytearray(Packet.sync.to_bytes(2,byteorder='big'))  # 2 bytes
         end = bytearray(Packet.end.to_bytes(2,byteorder='big'))# 2 bytes
         return end + sync
@@ -134,7 +137,10 @@ class Packet():
         header = self.buildHeader()
         data = self.buildData()
         footer = self.buildFooter()
+        # Construct the packet's data
         packet = header + data + footer
+        # After constructing the packet's contents, pad the end of the packet until we reach the max size.
+        # This will force the packets to always be 256 bytes.
         while len(packet) < Packet.max_size:
             packet += bytearray(b'\xff')
         return packet
@@ -155,7 +161,7 @@ class Encoder():
         ------
         TypeError - raises if the paths aren't valid paths.
         """
-        # We want a path for the packets and a file for the decoding.
+        # We want a path for the packets and a file for the decoding that's useable.
         if path_for_packets[-1] != '/' or path_for_encode[-1] == '/':
             if path_for_packets == ".":
                 path_for_packets = ''
@@ -173,21 +179,38 @@ class Encoder():
 
         Returns
         -------
-        True if successful
-        False if unsuccessful
+        True - successful
+        False - unsuccessful for any reason
         """
         try:
+            # If we are successful at encoding the file build the init packet.
             if self.encode():
                 self.buildInitPacket()
-            return True
+                return True
+            return False
 
         except Warning:
             print("All packets could not be created.")
             if self.destructive: self.removePacketFragments()
             return False
 
-
     def encode(self):
+        """
+        The main encoding method for creating the packets. It will take a file and encode it
+        into many packets (size defined by Packet.max_size) split up by certain amounts of
+        information (defined by Packet.data_size) and will make sure they all are placed in the
+        packet directory
+
+
+        DANGER: This method will destroy any packets in the packet directory before running.
+                Make sure you no longer need any '.qp' files in the packet directory
+
+        Returns
+        -------
+        True - Completed Successfully.
+        False - There was some error. See console output.
+        """
+        # Delete old '.qp' files
         self.removePacketFragments()
         try:
             with open(self.file,'rb') as fileToEncode:
@@ -219,12 +242,20 @@ class Encoder():
             print("Can not find file: ", self.file)
         except OSError:
             print("There was a problem encoding: ",self.file)
-        else:
+        else: # success
             if not self.suppress: print("Finished encoded file into packets.")
             return True
         return False
 
     def buildInitPacket(self):
+        """
+        Create the init packet. This packet is crucial and without sending one, the decoder may
+        not have all the information it needs.
+
+        Exceptions
+        ----------
+        Warning - The init packet could not be created.
+        """
         if not self.suppress: print("Creating initialization packet.")
         try:
             info = []
@@ -233,23 +264,38 @@ class Encoder():
                 info.append(str(self.packets_built))
                 info.append(str(os.path.getsize(self.file)))
                 #info.append(checksum)
-                packet.write(Packet(" ".join(info),0,op_code=0x1).build())
+                # Write to the actual packet. Make sure the op_code is 0x1 since it's the init packet
+                # Separate the data with a ':' since filenames should not have that anyway.
+                packet.write(Packet(":".join(info),0,op_code=0x1).build())
         except OSError:
-            print("Could not write to initialization packet: init.qp")
-            raise Warning
+            err = Warning("Could not write to initialization packet: init.qp")
+            print(err)
+            raise err
 
     def setLastPacket(self,packet):
+        """
+        Set a packet as the last packet.
+
+        Parameters
+        ----------
+        packet - Packet - an instance of the Packet that we'd like to build. Change it's op_code
+                          and then re-write the packet.
+        """
+        # 0x7 is for the last packet to be received.
         packet.op_code = 0x7
-        with open(self.packets+str(packet.pid)+".qp",'wb') as packetToReWrite:
-            packetToReWrite.write(packet.build())
+        with open(self.packets+str(packet.pid)+".qp",'wb') as packetToRewrite:
+            packetToRewrite.write(packet.build())
 
     def removePacketFragments(self):
+        """
+        Delete all the packets in the packet directory.
+        """
         filelist = glob.glob(os.path.join(self.packets, "*.qp"))
         for f in filelist:
             os.remove(f)
 
 class Decoder():
-    waitDelay = 1 # In seconds
+    waitDelay = 1 # In seconds. This is for the asynchronous decoding.
 
     def __init__(self, path_for_decode, path_for_packets, suppress=False,destructive=False,rush=False):
         """
@@ -266,7 +312,7 @@ class Decoder():
         ------
         TypeError - raises if the paths aren't valid paths.
         """
-        # We want a path for the packets and a file for the decoding.
+        # We want a path for the packets and a file for the decoding that's useable
         if path_for_packets[-1] !='/':
             if path_for_packets == ".":
                 path_for_packets = ''
@@ -283,17 +329,19 @@ class Decoder():
         self.suppress = suppress
         self.destructive = destructive
         self.rush = rush
+        self.expected_packets = None
+        self.file_size = None
 
     def run(self):
         """
-        Main method to run for the decoder. Takes packets and decodes them into a file.
-        If it does not decode all the packets then it will poll for them until they all
-        appear OR it receives a SIGINT
+        Main method to run for the decoder. Takes the packets from a path and decodes them into a file.
         """
         # Controller will deal with the packets and naming them
         self.init()
         #self.prepareFileLocation()
         missedPackets = self.bulkDecode()
+        # If missedPackets is none then we know we are good to go. Otherwise, we'll need
+        # to asynchronously decode the file
         if missedPackets is None:
             if not self.suppress: print("There are no missing packets.")
             self.buildScaffold()
@@ -302,57 +350,112 @@ class Decoder():
             self.buildScaffold()
 
     def init(self):
-        initPacket = self.readInit()
-        if self.file_name is None:
-            self.file_name = initPacket[0].decode('utf-8') # Return what the filename should be.
-        self.expected_packets = int(initPacket[1])
-        self.file_size = int(initPacket[2])
+        """
+        Initialize the decoder. This must be done to make sure the filename is read properly from
+        the init packet. If this is not done, then some data may not be initialized.
+
+        This method should always be called before using any data that comes from the init packet.
+
+        Exceptions
+        ----------
+        OSError - the init file could not be read.
+        ValueError - converting the bytes to ints or strings did not work as expected.
+        """
+        try:
+            initPacket = self.readInit()
+            if self.file_name is None:
+                self.file_name = initPacket[0].decode('utf-8')
+            self.expected_packets = int(initPacket[1])
+            self.file_size = int(initPacket[2])
+        except (OSError,ValueError) as err:
+            raise err
 
     def readInit(self):
+        """
+        Read the data from the special initialization packet. This data is important to the
+        decoding process.
+
+        Returns
+        -------
+        list - list of bytearrays of the data in the init packet (after resolving the TMR expansion)
+
+        Exceptions
+        ----------
+        OSError - cannot read the init file for any reason.
+        """
         information = None
         try:
-
             with open(self.packets+"init.qp",'rb') as init:
                 information = init.read()
+                # Resolve the TMR expansion from the packet. Since we have 19 bytes of header,
+                # Start from 19 and go until the ending sequence (but search for it from the back)
                 information = Decoder.resolveExpansion(information[19:information.rfind(bytes.fromhex(hex(Packet.end)[2:]))])
-                information = information.split(b' ')
-        except OSError:
+                # Split on the ':' since that should not be in any data
+                information = information.split(b':')
+        except OSError as err:
             print("Could not read init file from ", self.packets)
-            raise OSError
+            raise err
         return information
 
     def readPacketInfo(self,pid):
+        """
+        Open up a packet and get it's data after resolving the TMR expansion.
+
+        Parameters
+        ----------
+        pid - int - the integer of the pid of the packet we want to read.
+
+        Returns
+        -------
+        bytearray - the bytearray of the resolved TMR expansion.
+
+        Exceptions
+        ----------
+        FileNotFoundError - It cannot find the packet.
+        OSError - It cannot access the packet for some other reason.
+        """
         packet_data = None
         try:
             with open(self.packets+str(pid)+".qp",'br') as packet:
-                # Read the packet, give us only the information field. Resolve the TMR expansion.
                 packet_data = packet.read()
         except FileNotFoundError as err:
             raise err
         except OSError as err:
             raise err
         else:
+            # Reolved the TMR expansion. Since we have 19 bytes of header, start at 19.
             return Decoder.resolveExpansion(packet_data[19:packet_data.rfind(bytes.fromhex(hex(Packet.end)[2:]))])
 
     def bulkDecode(self):
         """
+        The main bulk decoding of a directory of packets. Takes the directory where the packets are
+        and attempts to decode them all. This is really the method that should be called when first
+        attempting to decode a file.
+
+        DANGER: if the file we are trying to create already exists, then it will get removed
+                immediately.
+
         Returns
         -------
-        None if successful
-        A list of pids of packets missed.
+        None - if successful
+        list - list of pids of packets not able to be decoded for any reason.
 
-        Raises OSError if init file can't be read.
+        Raises
+        ------
+        OSError - init file can't be read.
         """
         missedPackets = []
-        directoryPackets = [int(item) for item in [item.replace('.qp','') for item in os.listdir('./packets')] if item.isdigit()]
+        # get all the packets in the directory that have an integer name.
+        # directoryPackets = [int(item) for item in [item.replace('.qp','') for item in os.listdir('./packets')] if item.isdigit()]
         if not self.suppress: print("Beginning to decode packets into a file.")
+        # Make sure the init packet has been read for the data we need.
         try:
-            if self.file_name is None: self.init()
+            if self.file_name is None or self.expected_packets is None: self.init()
         except OSError as err:
             raise err
 
         newFile = self.file_path+self.file_name
-
+        # Delete the file if it already exists.
         if os.path.exists(newFile):
             if not self.suppress: print("File already exists. Overwriting with new data (", newFile,")")
             os.remove(newFile)
@@ -362,11 +465,9 @@ class Decoder():
         while True: # Until we are done...
             try:
                 pid += 1
-                # Try to open the file. If it can't find it, then it will throw a
-                # FileNotFoundError to indicate that we are complete.
                 # Remove the sync and start bits, thus [4:19]
                 # header = self.decipherHeader(Decoder.resolveExpansion(packet_data[4:19]))
-                # We only care about the data here, so 19 onward
+                # If the packet cannot be found, throw a FileNotFoundError to indicate that.
                 information = self.readPacketInfo(pid)
                 scaffold_data = self.ammendScaffoldData(scaffold_data,information,pid)
 
@@ -382,17 +483,13 @@ class Decoder():
                         if not self.suppress: print("Completed read of packets.")
                     finally:
                         break #This is important to get out of the While Loop
-
                 else: # If there are any packets after the packet we are missing.
                     missedPackets.append(pid)
                     # Ammend the scaffold with placeholder bytes if there is no packet for it.
                     scaffold_data = self.ammendScaffoldData(scaffold_data,bytearray(b'_')*Packet.data_size,pid)
-                    continue
-
-
+                    continue # Not necessary but good for readability. Hop back to the top of the while loop.
             except OSError:
                 print("Unable to read the packet: ",self.packets+str(pid)+".qp")
-
         if missedPackets:
             if not self.suppress: print("Packets missing during decoding. Scaffold intact.")
             return missedPackets
@@ -400,112 +497,206 @@ class Decoder():
             if not self.suppress: print("Successfully decoded packets into a file.")
             return None
 
-
-    #def prepareFileLocation(self):
-    #    # Open a file and write to it placeholder characters for the actual data.
-    #    with open(self.file_path+self.file_name+".scaff",'wb') as tempFile:
-    #        tempFile.write(b' '*self.file_size)
-
     def ammendScaffoldData(self,scaffold_data,to_write,pid):
         """
-        scaffold_data-list of bytearrays
-        to_write-bytearray
-        pid - int
-        returns a string
+        Decide how to ammend to the scaffold data. This method just takes some of the decision
+        logic out of the bulk of the code.
+
+        Parameters
+        ----------
+        scaffold_data - list - list of bytearrays to be written to the scaffold later
+        to_write - bytearray - what will be ammended to the scaffold_data
+        pid - int - which packet the data in 'to_write' belongs to. This must be an int or the
+                    method will ignore the data.
+
+        Returns
+        -------
+        list of bytearrays - list of the data to be written to the file where each index is a
+                             bytearray representation of the information in a packet
         """
         # Every Packet.data_size bytes, split into a list.
         try:
-            scaffold_data[pid]=to_write
+            scaffold_data[int(pid)]=to_write
         except IndexError:
             scaffold_data.append(to_write)
-        return scaffold_data # Flatten the list
+        except ValueError:
+            pass
+        return scaffold_data
 
     def buildScaffold(self):
+        """
+        Turn the file from a scaffold to a useable file.
+        """
         newFile = self.file_path+self.file_name
         os.rename(newFile+".scaff",newFile)
 
     def asyncBulkDecode(self,pidList):
         """
+        Decode the file asynchronously based on a list if pids.
+
+        Parameters
+        ----------
         pidList - list of ints - pids of the packet to be integrated into the file asynchronously
 
-        returns a list of pids that it did not decode or None if it's done
+        Returns
+        --------
+        list - list of pids that it did not decode
+        None - it has no more pids to decode
 
-        raises oserror if init file can't be read.
-        raises typeerror if the input is not a list of ints
+        Exceptions
+        ----------
+        OSError - init file can't be read.
+        TypeError - input is not a list
         """
+        # Make sure we have an integer or list
         if isinstance(pidList,int):
             pidList = [pidList]
         elif not isinstance(pidList,list):
-            raise TypeError("Argument must be an int or a list of ints.")
+            raise TypeError("Argument must be a list of integers.")
+
         if pidList:
+            # Make sure the init file has already been read and read it if not.
             try:
                 if self.file_name is None: self.init()
             except OSError as err:
                 raise OSError(str(err) + "\nInit file could not be read.")
             missedPackets = []
+            # Begin to asynchronously add the packets
             try:
                 scaffold_data = None
                 filePath = self.file_path+self.file_name+".scaff"
+                # Make sure the file exists before trying to do anything. There must be a '.scaff' file in the file directory.
                 if not os.path.exists(filePath):
-                    raise OSError('Scaffold does not exist.')
+                    raise FileNotFoundError('Scaffold does not exist.')
+                # Open and read the file.
                 with open(filePath,'rb') as scaffold:
                     scaffold_data = scaffold.read()
                     split = Packet.data_size
-                    # Split the data into a list that is seperated by 77 bytes that way the packet information can be overwritten.
+                    # Split the data into a list that is separated by 77 bytes that way the
+                    # packet information placeholders can be overwritten.
                     scaffold_data = [scaffold_data[i:i+split] for i in range(0, len(scaffold_data), split)]
-                while pidList:
+                while pidList: # While there are packets to ammend...
                     try:
-                        tempPID = pidList.pop(0)
+                        tempPID = pidList.pop()
                         information = self.readPacketInfo(tempPID)
                         scaffold_data = self.ammendScaffoldData(scaffold_data,information,tempPID)
                     except FileNotFoundError:
+                        # If the packet can't be found, add it to the missedPackets list.
                         missedPackets.append(tempPID)
                     except OSError as err:
                         raise OSError(str(err) + "\nThere was a problem accessing the packet directory: " +self.packets)
                 with open(self.file_path+self.file_name+".scaff",'wb') as scaffold:
-                    # Write the scaffold data to the file
+                    # Write the scaffold data to the file by flattening the scaffold_data
                     scaffold.write(bytearray([item for sublist in scaffold_data for item in sublist]))
             except OSError as err:
                 raise OSError(str(err) + "\nUnable to access the scaffold: " + self.file_path + self.file_name + ".scaff")
-            return missedPackets or None
+            return missedPackets or None # Return None instead of an empty list. This makes detecting completion easier.
         return None
 
     def fullAsyncDecode(self, missedPackets):
         """
-        Danger! If this is used and the missing packets are not included, then the file
-        will be corrupted.
+        Asynchronously decode a file. As long as there are packets left to decode
+        (missedPackets evaluates to True) then wait for Decoder.waitDelay seconds and check to
+        see if the packets have arrived again.
+
+        If we want to rush the job, do it once and then return.
+        If it does not decode all the packets then it will poll for them until they all
+        appear OR it receives a SIGINT.
+
+        DANGER: If this is used for a previously built scaffold and the missing packets are not
+        included, then the file will appear corrupted until the original missing packets are included.
+
+        Parameters
+        ----------
+        missedPackets - list - list of ints for the pids of the packets that are missing.
         """
+        if not self.suppress: print("Attempting an async for: ", missedPackets)
+        # If we want to rush, only do this once and don't wait for any packets it couldn't do.
         if self.rush:
-            print("There were packets missing: ", missedPackets,"\n Your scaffold will be intact at", self.file_path)
-        else:
+            missedPackets = self.asyncBulkDecode(missedPackets)
+            if missedPackets:
+                print("There were packets missing: ", missedPackets,"\n Your scaffold will be intact at", self.file_path)
+            else:
+                if not self.suppress: print("Completed asynchronously building the scaffold.")
+        else: # otherwise, attempt to decode and then poll to get the erst of the packets.
             try:
-                if not self.suppress: print("Attempting an async for: ", missedPackets)
-                while missedPackets:
+                while missedPackets: # While there are still packets to wait for
                     time.sleep(Decoder.waitDelay)
                     missedPackets = self.asyncBulkDecode(missedPackets)
                     if not self.suppress: print("Waiting for packets:",missedPackets)
             except OSError as err:
                 print(err)
-            except KeyboardInterrupt:
+            except KeyboardInterrupt: # If a SIGINT is sent, then it's time to stop.
                 print("\nNo longer waiting for packets...\nYour scaffold will be intact at", self.file_path)
 
     def removePacketFragments(self):
+        """
+        Delete all the packets in the packet directory.
+        """
         filelist = glob.glob(os.path.join(self.packets, "*.qp"))
         for f in filelist:
             os.remove(f)
 
+    #def prepareFileLocation(self):
+    #     """
+    #     Create a blank file that is the size of the current file we want, we'll then substitute
+    #     the placeholders for real data.
+    #     """
+    #    # Open a file and write to it placeholder characters for the actual data.
+    #    with open(self.file_path+self.file_name+".scaff",'wb') as tempFile:
+    #        tempFile.write(b'_'*self.file_size)
+
     @staticmethod
-    def resolveExpansion(information,size=None):
+    def resolveExpansion(information):
+        """
+        Resolves our TMR expansion by resolving errors up to one bit. Look into Triple Modular
+        Redundancy for more information on the theory behind this method.
+        The expansion is also offset by it's own size, this is to avoid burst errors.
+        This method will vote based on a whole byte. If all three bytes are different, then
+        the packet was corrupted.
+
+        Parameters
+        ----------
+        information - bytearray - the information that has been TMR expanded.
+
+        Returns
+        -------
+        bytearray - The information that has been decided to be the correct data. (this will
+                    be 1/3 the size of the information coming in)
+
+        Exception
+        ---------
+        Warning - If the three bytes do not agree, then there was a problem in transfering the data
+                  and we should consider the data corrupt.
+        """
         majority_info = bytearray()
-        if size is None:
-            size = len(information)//3
+        size = len(information)//3
         for i in range(0,size):
-            vote = (information[i],information[i + size],information[i + size * 2])
-            majority_info += bytes([(max(set(vote), key = vote.count))])
+            # Create a tuple for the data.
+            tmr = (information[i], information[i + size], information[i + size * 2])
+            # Choose the data iff it has the maximum count. If all three are different. Then
+            # we know the file is corrupt. turn the tuple into a set to collapse the data
+            majority_info += bytes([(max(set(tmr), key = tmr.count))])
         return majority_info
 
     @staticmethod
     def decipherHeader(header):
+        """
+        Reads what would be the header of a packet and returns a dictionary to easily read each
+        field of the header.
+
+        Parameters
+        ----------
+        header - bytearray - bytearray of the header that does not include the sync or start
+                             bytes.
+
+        Returns
+        -------
+        dictonary for the header information with the following keys:
+            pid
+            overflow
+            op_code
+        """
         header_dict = {}
         # Header: sync(2) - start(2)- pid(4)- [overflow(1),op(3),reserved(4)](1)
         header_dict['pid'] = struct.unpack('>L',header[0:4])[0] # Convert byte array to int.
@@ -515,23 +706,35 @@ class Decoder():
 
 class Controller():
     def __init__(self, coder,asyncList=[]):
+        """
+        Constructor for the controller.
+        The Controller acts as the default use case of QUIP.
 
-        if isinstance(coder,Encoder) or isinstance(coder,Decoder):
-            self.coder = coder
-            self.asyncList = asyncList
-        else: raise TypeError("Invalid type: "+str(type(coder))+". Must initialize an encoder or decoder.")
+        Parameters
+        ----------
+        coder - Encoder or Decoder - An instance of an Encoder or Decoder.
+        asyncList - If a list of integers that are the pid to the packets that are missing.
+                    If it is given then the Controller will assume that you need to asynchronously
+                    build up the scaffold because it already exists
+
+        Raises
+        ------
+        TypeError - If the coder is not an Encoder or Decoder
+        """
+        if not isinstance(coder,Encoder) and not isinstance(coder,Decoder):
+             raise TypeError("Invalid type: " + str(type(coder)) + ". Must initialize an encoder or decoder.")
+        self.coder = coder
+        self.asyncList = asyncList
 
     def begin(self):
-        if isinstance(coder,Encoder):
+        """
+        The default method for the controller. Handles the coder properly, as well as working with
+        an asynchronous decoding.
+        """
+        if isinstance(coder,Decoder) and self.asyncList:
+            self.coder.fullAsyncDecode(self.asyncList)
+        elif not self.asyncList:
             self.coder.run()
-        else: # If it's not an encoder, we know it's a decoder.
-            if self.asyncList:
-                self.coder.fullAsyncDecode(self.asyncList)
-            else:
-                self.coder.run()
-
-    def communicate(self):
-        pass
 # Code to be run after importing everything.
 # -------------------------------------------
 
@@ -540,12 +743,13 @@ class Controller():
 if Packet.end < 0x1000 or Packet.start < 0x1000 or Packet.sync < 0x1000:
     raise ValueError("Packet Starting,Ending, and sync must be greater than 0x0FFF.")
 
-
 if __name__ == '__main__':
-    print("TODO: Add function comments!!!!!")
     print("TODO: Determine exceptions and where they will be raised")
     print("TODO: get destructive to work.")
+    print("TODO: resolveExpansion needs to detect corruptions")
+    print('TODO: HANDLE CORRUPTIONS PROPERLY')
 
+    # Set up all the argument parsing options.
     parser = argparse.ArgumentParser(description='Interat with QUIP and encode/decode packets.')
     parser.add_argument('--version',action='version', version = 'Version: 1.2')
     mutex_group = parser.add_mutually_exclusive_group(required=True)
@@ -571,7 +775,7 @@ if __name__ == '__main__':
                         default=False,
                         action='store_true')
     parser.add_argument('-a','--async',
-                        help="a comma seperated list of packets to decode asynchronously",
+                        help="a comma separated list of packets to decode asynchronously",
                         dest='asyncList',
                         default='',
                         type=str)
@@ -587,13 +791,12 @@ if __name__ == '__main__':
     args = parser.parse_args()  # Parse the args coming in from the user
     ctrl = None
 
-
-
-
     try:
         if bool(args.asyncList):
             print("Warning: if all the packets missing are not given the file will appear corrupted.")
+            # Turn all the asynchronous pids into ints. This will throw a ValueError if one is not an int.
             args.asyncList = list(map(lambda x: int(x),args.asyncList.split(',')))
+
         if args.encode: # If set to encode
             coder = Encoder(args.file_location,args.packet_location,suppress=args.suppress,destructive=args.destructive)
         else: # If set to decode or async
@@ -603,11 +806,11 @@ if __name__ == '__main__':
         print("Error: ",err)
         exit()
     except ValueError:
-        print("Invalid async list values. Must be a comma seperated list of integers.")
+        print("Invalid async list values. Must be a comma separated list of integers.")
         exit()
 
+    # Actually start working.
     ctrl.begin()
-
 
 
 
