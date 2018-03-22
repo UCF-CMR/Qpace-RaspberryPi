@@ -838,18 +838,20 @@ if __name__ == '__main__':
                         help="Set the mode to Decode.",
                         default=False,
                         action='store_true')
+    parser.add_argument('-p','--packets',
+                        dest="packet_location",
+                        help="Set the path for the packets to be sent/found.",
+                        type=str,
+                        required=True)
+    parser.add_argument('-f','--file',
+                        dest='file_location',
+                        help="Set the path for the file to be written/read.",
+                        type=str,
+                        required=True)
     parser.add_argument('-a','--async',
                         help="Comma separated list of packets to decode asynchronously. Danger: Failure to supply correct packets could result in a non-built or corrupted file.",
                         dest='asyncList',
                         default='',
-                        type=str)
-    parser.add_argument('-p','--packets',
-                        dest="packet_location",
-                        help="Set the path for the packets to be sent/found.",
-                        type=str)
-    parser.add_argument('-f','--file',
-                        dest='file_location',
-                        help="Set the path for the file to be written/read.",
                         type=str)
 
     args = parser.parse_args()  # Parse the args coming in from the user
