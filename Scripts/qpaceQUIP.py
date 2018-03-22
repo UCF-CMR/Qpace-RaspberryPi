@@ -1,15 +1,17 @@
 #! /usr/bin/env python3
-# qpaceLogger.py by Jonathan Kessluk
-# 2-20-2018, Rev. 1.2
+# qpaceQUIP.py by Jonathan Kessluk
+# 2-20-2018, Rev. 1
 # Q-Pace project, Center for Microgravity Research
 # University of Central Florida
+#
+# The Qpace Unornamented Information Protocol module. Provides the necessary tools needed to use QUIP
 
 import argparse
 import sys
-import os
+import os, os.path
 import struct
 import time
-import glob, os.path
+import glob
 from math import ceil,log
 from itertools import zip_longest
 
@@ -753,8 +755,6 @@ class Decoder():
                 raise Corrupted("The wrapper is corrupted.")
         except Corrupted: raise
 
-
-
 class Controller():
     def __init__(self, coder,asyncList=[]):
         """
@@ -814,42 +814,42 @@ class Controller():
 if __name__ == '__main__':
     print("TODO: OPCODES")
     # Set up all the argument parsing options.
-    parser = argparse.ArgumentParser(description='Interat with QUIP and encode/decode packets.')
-    parser.add_argument('--version',action='version', version = 'Version: 1.2')
+    parser = argparse.ArgumentParser(description='Interact with QUIP and encode/decode packets.')
+    parser.add_argument('--version',action='version', version = 'Version: 1')
     mutex_group = parser.add_mutually_exclusive_group(required=True)
 
     parser.add_argument('-s','--suppress',
-                        help="hide the terminal outputs.",
+                        help="Hide the terminal outputs.",
                         default=False,
                         action='store_true')
     parser.add_argument('--destructive',
-                        help="delete the file or packets when the script is done with them",
+                        help="Delete the file or packets when the script is done with them. Be careful!",
                         default=False,
                         action='store_true')
     parser.add_argument('-r','--rush',
-                        help="Decoding: don't wait for packets if they are not available",
+                        help="Decoding: don't wait for packets if they are not available.",
                         default=False,
                         action='store_true')
     mutex_group.add_argument('-e','--encode',
-                        help="set to Encode.",
+                        help="Set the mode to Encode.",
                         default=False,
                         action='store_true')
     mutex_group.add_argument('-d','--decode',
-                        help="set to Decode.",
+                        help="Set the mode to Decode.",
                         default=False,
                         action='store_true')
     parser.add_argument('-a','--async',
-                        help="a comma separated list of packets to decode asynchronously",
+                        help="Comma separated list of packets to decode asynchronously. Danger: Failure to supply correct packets could result in a non-built or corrupted file.",
                         dest='asyncList',
                         default='',
                         type=str)
     parser.add_argument('-p','--packets',
                         dest="packet_location",
-                        help="set the path for the packets to be sent/found",
+                        help="Set the path for the packets to be sent/found.",
                         type=str)
     parser.add_argument('-f','--file',
                         dest='file_location',
-                        help="set the path for the file to be written/read",
+                        help="Set the path for the file to be written/read.",
                         type=str)
 
     args = parser.parse_args()  # Parse the args coming in from the user
@@ -875,6 +875,3 @@ if __name__ == '__main__':
 
     # Actually start working.
     ctrl.begin()
-
-
-

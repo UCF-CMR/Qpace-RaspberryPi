@@ -3,6 +3,8 @@
 # 2-20-2018, Rev. 1.2
 # Q-Pace project, Center for Microgravity Research
 # University of Central Florida
+#
+# This program handles logging data to specific directories.
 
 import csv
 import os.path
