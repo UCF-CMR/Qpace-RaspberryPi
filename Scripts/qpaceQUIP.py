@@ -184,10 +184,14 @@ class Encoder():
         """
         try:
             # If we are successful at encoding the file build the init packet.
-            if self.encode():
-                self.buildInitPacket()
+            try:
+                if self.encode():
+                    self.buildInitPacket()
+                    if self.destructive: os.remove(fileToEncode.name)
+            except:
+                return False
+            else:
                 return True
-            return False
 
         except Warning:
             print("All packets could not be created.")
@@ -237,7 +241,6 @@ class Encoder():
                     if not self.suppress: print("Successfully built ", pid, " packets.")
                     #self.setAsLastPacket(pid-1) # Set the last packet we wrote as the last packet to transmit.
                     self.packets_built = pid
-                    if self.destructive: os.remove(fileToEncode.name)
         except FileNotFoundError:
             print("Can not find file: ", self.file)
         except OSError:
@@ -352,7 +355,6 @@ class Decoder():
                 self.buildScaffold()
             else:
                 self.fullAsyncDecode(missedPackets)
-                self.buildScaffold()
         except: raise
 
     def init(self):
@@ -453,6 +455,7 @@ class Decoder():
         Raises
         ------
         OSError - init file can't be read.
+        Corrupted - init file can't be read due to corruption
         """
         missedPackets = []
         # get all the packets in the directory that have an integer name.
@@ -543,6 +546,7 @@ class Decoder():
         """
         newFile = self.file_path+self.file_name
         os.rename(newFile+".scaff",newFile)
+        if self.destructive: self.removePacketFragments()
 
     def asyncBulkDecode(self,pidList):
         """
@@ -638,6 +642,7 @@ class Decoder():
                     time.sleep(Decoder.waitDelay)
                     missedPackets = self.asyncBulkDecode(missedPackets)
                     if not self.suppress: print("Waiting for packets:",missedPackets)
+                self.buildScaffold()
             except OSError as err:
                 print(err)
             except KeyboardInterrupt: # If a SIGINT is sent, then it's time to stop.
@@ -806,18 +811,8 @@ class Controller():
                 pass
 # Code to be run after importing everything.
 # -------------------------------------------
-
-# Python handles hex stored as ints as the least amount of nibbles possible.
-# To ensure that there are 4 bytes stored, throw an error if the hex is at least 4 bytes.
-# if int.from_bytes(Packet.end,'big') < 0x1000 or int.from_bytes(Packet.start,'big') < 0x1000 or int.from_bytes(Packet.sync,'big') < 0x1000:
-#     raise ValueError("Packet Starting,Ending, and sync must be greater than 0x0FFF.")
-
 if __name__ == '__main__':
-    print("TODO: figure out how packets will actually be sent from ground station to vehicle")
-    print("TODO: Determine exceptions and where they will be raised")
-    print("TODO: get destructive to work.")
-    print("TODO: Some methods raise exceptions. Modify comments to reflect this.")
-
+    print("TODO: OPCODES")
     # Set up all the argument parsing options.
     parser = argparse.ArgumentParser(description='Interat with QUIP and encode/decode packets.')
     parser.add_argument('--version',action='version', version = 'Version: 1.2')
