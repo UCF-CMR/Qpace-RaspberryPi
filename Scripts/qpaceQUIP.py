@@ -50,8 +50,6 @@ class Packet():
                      or the pid is negative.
         TypeError - if the data is not a string,int,bytes,or bytearray.
         """
-        if pid < 0:
-            raise ValueError("Packet pid is invalid. Must be a positive number.")
         # Is the data in a valid data type? If so, convert it to a bytearray.
         if isinstance(data,int):
             data = bytearray(data.to_bytes(data.bit_length()//8+1,byteorder='big'))
@@ -63,7 +61,9 @@ class Packet():
             try:
                 data = bytearray.fromhex(data)
             except ValueError:
-                data = bytearray(map(ord,data))
+                data = bytearray(data.encode('utf-8'))
+        elif data is None:
+            data = bytearray(b'')
         else:
             raise TypeError("Input data is of incorrect type. Must input str, int, bytes, or bytearray")
 
@@ -76,14 +76,16 @@ class Packet():
         data_in_bytes = len(data)
         if data_in_bytes <= Packet.data_size: # Make sure the data is below the max bytes
             # Only worry about the PID for packets of code 0x0 and 0x7. anything else does not need a PID
-            if self.op_code == 0x0 or self.op_code == 0x7 and (Packet.last_id + 1) == pid:
+            if (self.op_code == 0x0 or self.op_code == 0x7) and (Packet.last_id + 1) == pid:
+                if pid < 0:
+                    raise ValueError("Packet pid is invalid. Must be a positive number.")
                 Packet.last_id = pid
                 self.pid = pid % Packet.max_id # If the pid is > max_id, force it to be smaller!
-            elif self.op_code > 0x0 and self.op_code < 0x7:
+            elif self.op_code in range(0x1,0x7):
                 self.pid = 0
             else:
                 raise ValueError("Packet pid out of order.")
-            if pid > Packet.max_id:
+            if self.pid > Packet.max_id:
                 # Set the overflow to 0 for even multiples of pid and 1 for odd.
                 Packet.overflow = (Packet.max_id / pid) % 2
             self.data = data
@@ -147,6 +149,16 @@ class Packet():
             packet += b'\xff'
         return packet
 
+    @staticmethod
+    def writeControlPacket(write_path,op_code,data=None):
+        try:
+            if op_code in range(1,7):
+                with open(write_path+'info.qp','wb') as ready:
+                    ready.write(Packet(data,None,op_code=op_code).build())
+                return True
+        except: raise
+        return False
+
 class Encoder():
     def __init__(self,path_for_encode,path_for_packets, suppress=False,destructive=False):
         """
@@ -169,7 +181,7 @@ class Encoder():
                 path_for_packets = ''
             else:
                 raise TypeError("Please provide a valid path for the packets to be found and a valid file to save the data.")
-        self.file = path_for_encode
+        self.file = path_for_encode[:path_for_encode.rfind('/')+1] + path_for_encode[path_for_encode.rfind('/')+1:].replace(' ','_')
         self.packets = path_for_packets
         self.suppress = suppress
         self.destructive = destructive
@@ -231,7 +243,7 @@ class Encoder():
                             packetToBuild = Packet(data,pid)
                         else:
                             # If there's no more data set the last packet created as op_code 0x7
-                            self.setLastPacket(packetToBuild)
+                            self.setAsLastPacket(packetToBuild)
                             break #If there's nothing else to read, back out. We are done.
                         with open(self.packets+str(pid)+".qp", 'wb') as packet:
                             packet.write(packetToBuild.build())
@@ -252,6 +264,11 @@ class Encoder():
             return True
         return False
 
+    def buildFileInfo(self):
+        # TODO Implement checksum module
+        # info.append(checksum)
+        return [self.file.split("/")[-1],str(self.packets_built),str(os.path.getsize(self.file))]
+
     def buildInitPacket(self):
         """
         Create the init packet. This packet is crucial and without sending one, the decoder may
@@ -263,21 +280,29 @@ class Encoder():
         """
         if not self.suppress: print("Creating initialization packet.")
         try:
-            info = []
             with open(self.packets+"init.qp",'wb') as packet:
-                info.append(self.file.split("/")[-1])
-                info.append(str(self.packets_built))
-                info.append(str(os.path.getsize(self.file)))
-                #info.append(checksum)
                 # Write to the actual packet. Make sure the op_code is 0x1 since it's the init packet
                 # Separate the data with a ':' since filenames should not have that anyway.
-                packet.write(Packet(":".join(info),0,op_code=0x1).build())
+                packet.write(Packet(" ".join(self.buildFileInfo()),0,op_code=0x1).build())
         except OSError:
             err = Warning("Could not write to initialization packet: init.qp")
             print(err)
             raise err
 
-    def setLastPacket(self,packet):
+    def buildChecksumPacket(self):
+            """
+            Write a control packet for op code 0x3: Here's a cool checksum.
+
+            Exceptions
+            ----------
+            OSError - If packet cannot be written
+            Misc. - Any other error thrown will pop up the stack.
+            """
+        #TODO Implement cheksum module
+        checksum = None
+        return Packet.writeControlPacket(0x3, checksum)
+
+    def setAsLastPacket(self,packet):
         """
         Set a packet as the last packet.
 
@@ -285,11 +310,21 @@ class Encoder():
         ----------
         packet - Packet - an instance of the Packet that we'd like to build. Change it's op_code
                           and then re-write the packet.
+
+        Returns
+        -------
+        True - if successful
+        False - if failed
         """
         # 0x7 is for the last packet to be received.
         packet.op_code = 0x7
-        with open(self.packets+str(packet.pid)+".qp",'wb') as packetToRewrite:
-            packetToRewrite.write(packet.build())
+        try:
+            with open(self.packets+str(packet.pid)+".qp",'wb') as packetToRewrite:
+                packetToRewrite.write(packet.build())
+        except:
+            return False
+        else:
+            return True
 
     def removePacketFragments(self):
         """
@@ -326,10 +361,13 @@ class Decoder():
         if path_for_decode[-1] == '/':
             self.file_path = path_for_decode
             self.file_name = None
+        elif path_for_decode == '.':
+            self.file_path = ''
+            self.file_name = None
         else:
             # Split the path and the name apart.
             self.file_path = path_for_decode[:path_for_decode.rfind('/')+1]
-            self.file_name = path_for_decode[path_for_decode.rfind('/')+1:]
+            self.file_name = path_for_decode[path_for_decode.rfind('/')+1:].replace(' ','_')
         self.packets = path_for_packets
         self.suppress = suppress
         self.destructive = destructive
@@ -380,8 +418,6 @@ class Decoder():
             self.file_size = int(initPacket[2])
         except (OSError,ValueError,Corrupted): raise
 
-
-
     def readInit(self):
         """
         Read the data from the special initialization packet. This data is important to the
@@ -404,8 +440,8 @@ class Decoder():
                 # Start from 19 and go until the ending sequence (but search for it from the back)
                 Decoder.isWrapperCorrupted(information)
                 information = Decoder.resolveExpansion(information[19:information.rfind(Packet.end + Packet.sync)])
-                # Split on the ':' since that should not be in any data
-                information = information.split(b':')
+                # Split on the ' ' since that should not be in any data
+                information = information.split(b' ')
         except OSError as err:
             print("Could not read init file from ", self.packets)
             raise err
@@ -438,7 +474,6 @@ class Decoder():
                 # Resolve the TMR expansion. Since we have 19 bytes of header, start at 19.
                 return Decoder.resolveExpansion(packet_data[19:packet_data.rfind(Packet.end + Packet.sync)])
         except (FileNotFoundError,OSError,Corrupted): raise
-
 
     def bulkDecode(self):
         """
@@ -653,10 +688,14 @@ class Decoder():
     def removePacketFragments(self):
         """
         Delete all the packets in the packet directory.
+
+        Ignore all exception
         """
-        filelist = glob.glob(os.path.join(self.packets, "*.qp"))
-        for f in filelist:
-            os.remove(f)
+        try:
+            filelist = glob.glob(os.path.join(self.packets, "*.qp"))
+            for f in filelist:
+                os.remove(f)
+        except: pass
 
     #def prepareFileLocation(self):
     #     """
@@ -666,6 +705,60 @@ class Decoder():
     #    # Open a file and write to it placeholder characters for the actual data.
     #    with open(self.file_path+self.file_name+".scaff",'wb') as tempFile:
     #        tempFile.write(b'_'*self.file_size)
+
+    def buildRepeatPacket(self, missedPackets):
+        """
+        Write a control packet for op code 0x4: re-transmit packets
+
+        Parameters
+        ----------
+        missedPackets - list of ints - how many packets were actually received and are in the packets directory.
+
+        Exceptions
+        ----------
+        OSError - If packet cannot be written
+        ValueError - If the missedPackets list is evaluated to non or is not a list
+        Misc. - Any other error thrown will pop up the stack.
+        """
+        try:
+            if missedPackets and isinstance(missedPackets,list):
+                return Packet.writeControlPacket(self.packets,0x4,b' '.join([bytes([item]) for item in missedPackets if isinstance(item,int)]))
+            else:
+                raise ValueError("Missing packets list is empty or not a list")
+        except: raise
+
+    def buildSuccessPacket(self,packetsReceived=None):
+        """
+        Write a control packet for op code 0x5: Decode succeeded.
+
+        Parameters
+        ----------
+        packetsReceived - int - Optional: how many packets were actually received and are in the packets directory.
+
+        Exceptions
+        ----------
+        OSError - If packet cannot be written
+        Misc. - Any other error thrown will pop up the stack.
+        """
+        try:
+            return Packet.writeControlPacket(self.packets,0x5,bytes(" ".join([self.file_name,str(packetsReceived or self.expected_packets or 0),str(os.path.getsize(self.file_path + self.file_name))]),'utf-8'))
+        except: raise
+    def buildFailedPacket(self,packetsReceived=None):
+        """
+        Write a control packet for op code 0x6: Decode failed.
+
+        Parameters
+        ----------
+        packetsReceived - int - Optional: how many packets were actually received and are in the packets directory.
+
+        Exceptions
+        ----------
+        OSError - If packet cannot be written
+        Misc. - Any other error thrown will pop up the stack.
+        """
+        try:
+            return Packet.writeControlPacket(self.packets,0x6,bytes(" ".join([self.file_name,str(packetsReceived or self.expected_packets or 0),str(os.path.getsize(self.file_path + self.file_name))]),'utf-8'))
+        except: raise
 
     @staticmethod
     def resolveExpansion(information):
@@ -794,6 +887,16 @@ class Controller():
                     self.coder.run()
                 except Corrupted:
                     print("Something was corrupted. Most likely the init packet. Since this is the second attempt, the controller will exit.\nCheck your data and try again.")
+
+    def ready(self):
+        """
+        TODO: incomplete. Error checking and sending methods needed
+        Write a ready packet and send it to say we are ready for transmission.
+
+        """
+        #TODO write the code to actually send the packet off.
+        Packet.writeControlPacket(self.coder.packets,0x2)
+
     @staticmethod
     def sendAgain(listOfPid):
         """
@@ -812,7 +915,7 @@ class Controller():
 # Code to be run after importing everything.
 # -------------------------------------------
 if __name__ == '__main__':
-    print("TODO: OPCODES")
+    print("TODO: Controller.ready()")
     # Set up all the argument parsing options.
     parser = argparse.ArgumentParser(description='Interact with QUIP and encode/decode packets.')
     parser.add_argument('--version',action='version', version = 'Version: 1')
