@@ -67,6 +67,9 @@ def getComHandler(directoryOfPackets, serialInfo, cv, run_event):
     except (TypeError,ValueError) as err:
         print(err)
         raise err
+    except ConnectionError as err:
+        print(err)
+
 
 
 if __name__ == '__main__':
@@ -85,12 +88,13 @@ if __name__ == '__main__':
         def stopHandler(signal,frame):
             run_event.clear()
 
-        signal.signal(signal.SIGUSR1,nextBlock)
+        signal.signal(signal.SIGTERM,nextBlock)
         signal.signal(signal.SIGINT,stopHandler)
 
         # Start the thread and wait for it to end.
-        sendThread.start()
-        sendThread.join()
+        if sendThread is not None:
+            sendThread.start()
+            sendThread.join()
     else:
         print("Requires 1 arguemnt: path to packets directory")
 

@@ -109,7 +109,7 @@ def init(vid = None, pid = None):
     -----------
     ValueError - if the pid and vid weren't set.
     """
-    if vid and pid:
+    if not vid and not pid:
         raise ValueError("Must set the pid and vid")
     # configure the serial connections (the parameters differs on the device you are connecting to)
     connection = serial.Serial(
