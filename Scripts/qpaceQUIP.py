@@ -153,7 +153,7 @@ class Packet():
     def writeControlPacket(write_path,op_code,data=None):
         try:
             if op_code in range(1,7):
-                with open(write_path+'info.qp','wb') as ready:
+                with open(write_path+'ctrl.qp','wb') as ready:
                     ready.write(Packet(data,None,op_code=op_code).build())
                 return True
         except: raise
@@ -180,7 +180,7 @@ class Encoder():
             if path_for_packets == ".":
                 path_for_packets = ''
             else:
-                raise TypeError("Please provide a valid path for the packets to be found and a valid file to save the data.")
+                raise TypeError("Please provide a valid directory for the packets to be placed and a valid file to encode.")
         self.file = path_for_encode[:path_for_encode.rfind('/')+1] + path_for_encode[path_for_encode.rfind('/')+1:].replace(' ','_')
         self.packets = path_for_packets
         self.suppress = suppress
@@ -196,21 +196,17 @@ class Encoder():
         True - successful
         False - unsuccessful for any reason
         """
+        # If we are successful at encoding the file build the init packet.
         try:
-            # If we are successful at encoding the file build the init packet.
-            try:
-                if self.encode():
-                    self.buildInitPacket()
-                    if self.destructive: os.remove(fileToEncode.name)
-            except:
-                return False
+            if self.encode():
+                self.buildInitPacket()
+                if self.destructive: os.remove(fileToEncode.name)
             else:
-                return True
-
-        except Warning:
-            print("All packets could not be created.")
-            if self.destructive: self.removePacketFragments()
+                return False
+        except:
             return False
+        else:
+            return True
 
     def encode(self):
         """
@@ -290,14 +286,14 @@ class Encoder():
             raise err
 
     def buildChecksumPacket(self):
-            """
-            Write a control packet for op code 0x3: Here's a cool checksum.
+        """
+        Write a control packet for op code 0x3: Here's a cool checksum.
 
-            Exceptions
-            ----------
-            OSError - If packet cannot be written
-            Misc. - Any other error thrown will pop up the stack.
-            """
+        Exceptions
+        ----------
+        OSError - If packet cannot be written
+        Misc. - Any other error thrown will pop up the stack.
+        """
         #TODO Implement cheksum module
         checksum = None
         return Packet.writeControlPacket(0x3, checksum)
@@ -714,6 +710,11 @@ class Decoder():
         ----------
         missedPackets - list of ints - how many packets were actually received and are in the packets directory.
 
+        Returns
+        -------
+        True if successful
+        False is unsuccessful
+
         Exceptions
         ----------
         OSError - If packet cannot be written
@@ -735,6 +736,11 @@ class Decoder():
         ----------
         packetsReceived - int - Optional: how many packets were actually received and are in the packets directory.
 
+        Returns
+        -------
+        True if successful
+        False is unsuccessful
+
         Exceptions
         ----------
         OSError - If packet cannot be written
@@ -743,6 +749,7 @@ class Decoder():
         try:
             return Packet.writeControlPacket(self.packets,0x5,bytes(" ".join([self.file_name,str(packetsReceived or self.expected_packets or 0),str(os.path.getsize(self.file_path + self.file_name))]),'utf-8'))
         except: raise
+
     def buildFailedPacket(self,packetsReceived=None):
         """
         Write a control packet for op code 0x6: Decode failed.
@@ -751,6 +758,11 @@ class Decoder():
         ----------
         packetsReceived - int - Optional: how many packets were actually received and are in the packets directory.
 
+        Returns
+        -------
+        True if successful
+        False is unsuccessful
+
         Exceptions
         ----------
         OSError - If packet cannot be written
@@ -758,6 +770,24 @@ class Decoder():
         """
         try:
             return Packet.writeControlPacket(self.packets,0x6,bytes(" ".join([self.file_name,str(packetsReceived or self.expected_packets or 0),str(os.path.getsize(self.file_path + self.file_name))]),'utf-8'))
+        except: raise
+
+    def buildReadyPacket(self):
+        """
+        Write a ready packet.
+
+        Returns
+        -------
+        True if successful
+        False is unsuccessful
+
+        Exceptions
+        ----------
+        OSError - If packet cannot be written
+        Misc. - Any other error thrown will pop up the stack.
+        """
+        try:
+            return Packet.writeControlPacket(self.packets,0x2)
         except: raise
 
     @staticmethod
@@ -887,15 +917,6 @@ class Controller():
                     self.coder.run()
                 except Corrupted:
                     print("Something was corrupted. Most likely the init packet. Since this is the second attempt, the controller will exit.\nCheck your data and try again.")
-
-    def ready(self):
-        """
-        TODO: incomplete. Error checking and sending methods needed
-        Write a ready packet and send it to say we are ready for transmission.
-
-        """
-        #TODO write the code to actually send the packet off.
-        Packet.writeControlPacket(self.coder.packets,0x2)
 
     @staticmethod
     def sendAgain(listOfPid):
