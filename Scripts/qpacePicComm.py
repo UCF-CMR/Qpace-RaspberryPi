@@ -10,83 +10,120 @@
 import os
 import re
 
+import threading
 import serial
 import serial.tools.list_ports
 import time
 
-PICCOMM_RF_VID = 0x04D8
-PICCOMM_RF_PID = 0x000A
-PICCOMM_PAK_SIZE = 512
-PICCOMM_SER =  None
+PICCOMM_PACKET_SIZE = 512
 
-def getRFPort():
+PICCOMM_PACTOSEND = 4 # How many packets to send.
+
+def getRFPort(vid,pid):
+    """
+    Get the port that matches the VID and PID of what is defined (defined above)
+
+    Exceptions
+    -----------
+    ConnectionError - If it can't find the RF deck
+    """
     # produce a list of all serial ports
     ports = serial.tools.list_ports.comports()
     # loop over all ports until the vid and pid match the RFDeck
     for port in ports:
-        print(port.pid) if  PICCOMM_RF_VID == port.vid and PICCOMM_RF_PID == port.pid:
+        if vid == port.vid and pid == port.pid:
             return port.device
 
-    raise Exception('RF deck not found. Please check the RF_VID and RF_PID values')
+    raise ConnectionError('RF deck not found. Please check the RF_VID and RF_PID values')
 
-def sendAllPacketsToUSB(packetPath,cv=None):
+def sendQuipPacketsToUSB(connection,packetPath,cv=None,run_event=None):
     """
-    must make sure to put the packets in the path before envoking this method
-    this is meant to be in it's own thread
+    Send the QUIP packets to the usb serial connection. Sends the number of packets defined PICCOMM_PACTOSEND.
+    Note:
+        - must make sure to put the packets in the path before envoking this method
+        - this is meant to be in it's own thread or have a condition variable to envoke wait() and notify()
+    Parameters
+    ----------
+    connection - Serial - the data returned by init() it's the serial connetion to be used to send packets
+    packetPath - str - path to the packets that will be sent.
+    cv - Condition - condition variable used for wait() and notify() to send all the packets.
+
+
+    Exceptions
+    ----------
+    ValueError - If a condition object is not passed through.
+    TypeError - If the path is not a string
     """
-    if cv is None:
-        raise ValueError("a Condition() object must be passed through. Make sure this method is envoked with thread.")
+    if isinstance(cv,threading.Condition) and isinstance(run_event,threading.Event):
+        raise ValueError("cv must be a threading.Condition() object and run_event must be a threading.Event() object. Make sure this method is envoked with thread.")
     else:
-        #signal.signal(PICCOMM_STOP, stop_handler)
         if isinstance(packetPath,str) and packetPath[-1]=='/':
-            regex = re.compile(r'\d+\.qp|init.qp')
+            regex = re.compile(r'\d+\.qp|init.qp|ctrl.qp')
             directoryPackets = [item for item in os.listdir(packetPath) if regex.match(item)]
             if directoryPackets:
                 with cv:
-                    while True:
+                    while run_event.is_set():
+                        # Ignore all exceptions when trying to write. We'll just keep trying to write until we can't.
                         try:
                             # wait for a .notify() from the main loop to start sending data.
                             cv.wait()
-                            if PICCOMM_SER.is_open():
+                            if connection.is_open():
                                 data_to_write = b''
-                                for packetToOpen in directoryPackets[-4:]: #TODO figure out how many packets I can send!!!
+                                for packetToOpen in directoryPackets[-PICCOMM_PACTOSEND:]: #TODO figure out how many packets I can send!!!
                                     try:
                                         with open(packetPath+packetToOpen,'rb') as packet:
                                             data_to_write+=packet.read()
-                                    except OSError as err:
+                                    except:
                                         print("Error reading packet:", packetToOpen)
-                                        raise err
+                                        raise
                                     else:
                                         try:
-                                            PICCOMM_SER.write(data_to_write)
-                                        except (IOError,OSError) as err:
+                                            connection.write(data_to_write)
+                                        except:
                                             print("Error writing to PIC.")
-                                            raise err
+                                            raise
                                         else:
-                                            directoryPackets = directoryPackets[:-4] #TODO figure out how many packets I can senddd
+                                            directoryPackets = directoryPackets[:-PICCOMM_PACTOSEND] #TODO figure out how many packets I can senddd
                             else:
                                 try:
-                                    PICCOMM_SER.open()
+                                    connection.open()
                                 except IOError: pass
                         except:pass
         else:
-            raise TypeError("packetPath must be a string.")
+            raise TypeError("The path for the Packets must be a string.")
 
-if __name__ != '__main__':
+def init(vid = None, pid = None):
+    """
+    Initialize the serial connection. Using the VID and PID we can get the port.
+
+    Parameters
+    ----------
+    vid - int - VID of the device
+    pid - int - PID of the device
+
+    Returns
+    -------
+    Serial - the serial conncetion
+
+    Exceptions
+    -----------
+    ValueError - if the pid and vid weren't set.
+    """
+    if vid and pid:
+        raise ValueError("Must set the pid and vid")
     # configure the serial connections (the parameters differs on the device you are connecting to)
-    PICCOMM_SER = serial.Serial(
-                                port= getRFPort(),
+    connection = serial.Serial(
+                                port= getRFPort(vid,pid),
                                 baudrate=9600,
                                 parity=serial.PARITY_NONE,
                                 stopbits=serial.STOPBITS_ONE,
                                 bytesize=serial.EIGHTBITS
                             )
     try:
-        PICCOMM_SER.open()
+        connection.open()
     except IOError: # if port is already opened, close it and open it again.
-            PICCOMM_SER.close()
-            PICCOMM_SER.open()
-
-
-
-
+            try:
+                connection.close()
+                connection.open()
+            except: pass
+    return connection
