@@ -153,11 +153,7 @@ class Packet():
     def writeControlPacket(write_path,op_code,data=None):
         try:
             if op_code in range(1,7):
-<<<<<<< HEAD
                 with open(write_path+'ctrl.qp','wb') as ready:
-=======
-                with open(write_path+'control.qp','wb') as ready:
->>>>>>> d6fb6386cf33e1f94d1530c66642efe604a57b17
                     ready.write(Packet(data,None,op_code=op_code).build())
                 return True
         except: raise

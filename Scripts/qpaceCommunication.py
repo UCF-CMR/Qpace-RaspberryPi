@@ -75,15 +75,11 @@ if __name__ == '__main__':
         condition = threading.Condition()
         run_event = threading.Event()
         run_event.set()
-<<<<<<< HEAD
+
         # Get the thread to run
         sendThread = getComHandler(packets, (0x04D8,0x000A), condition, run_event)
 
         # Set up some handlers
-=======
-        sendThread = getComHandler(packets, (0x04D8,0x000A), condition, run_event)
-
->>>>>>> d6fb6386cf33e1f94d1530c66642efe604a57b17
         def nextBlock(signal, frame):
             condition.notify()
         def stopHandler(signal,frame):
@@ -91,11 +87,8 @@ if __name__ == '__main__':
 
         signal.signal(signal.SIGUSR1,nextBlock)
         signal.signal(signal.SIGINT,stopHandler)
-<<<<<<< HEAD
 
         # Start the thread and wait for it to end.
-=======
->>>>>>> d6fb6386cf33e1f94d1530c66642efe604a57b17
         sendThread.start()
         sendThread.join()
     else:
