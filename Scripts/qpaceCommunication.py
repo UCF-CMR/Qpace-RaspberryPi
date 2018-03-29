@@ -96,6 +96,6 @@ if __name__ == '__main__':
             sendThread.start()
             sendThread.join()
     else:
-        print("Requires 1 arguemnt: path to packets directory")
+        print("Requires 1 argument: path to packets directory")
 
 

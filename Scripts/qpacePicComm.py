@@ -15,8 +15,6 @@ import serial
 import serial.tools.list_ports
 import time
 
-PICCOMM_PACKET_SIZE = 512
-
 PICCOMM_PACTOSEND = 4 # How many packets to send.
 
 def getRFPort(vid,pid):
@@ -54,7 +52,7 @@ def sendQuipPacketsToUSB(connection,packetPath,cv=None,run_event=None):
     ValueError - If a condition object is not passed through.
     TypeError - If the path is not a string
     """
-    if isinstance(cv,threading.Condition) and isinstance(run_event,threading.Event):
+    if not isinstance(cv,threading.Condition) and not isinstance(run_event,threading.Event):
         raise ValueError("cv must be a threading.Condition() object and run_event must be a threading.Event() object. Make sure this method is envoked with thread.")
     else:
         if isinstance(packetPath,str) and packetPath[-1]=='/':
@@ -112,18 +110,15 @@ def init(vid = None, pid = None):
     if not vid and not pid:
         raise ValueError("Must set the pid and vid")
     # configure the serial connections (the parameters differs on the device you are connecting to)
-    connection = serial.Serial(
-                                port= getRFPort(vid,pid),
+    try:
+        connection = serial.Serial(
+                                port= 'COM4',#getRFPort(vid,pid),            #COM4 FOR TESTING
                                 baudrate=9600,
                                 parity=serial.PARITY_NONE,
                                 stopbits=serial.STOPBITS_ONE,
                                 bytesize=serial.EIGHTBITS
-                            )
-    try:
-        connection.open()
+                                )
     except IOError: # if port is already opened, close it and open it again.
-            try:
-                connection.close()
-                connection.open()
-            except: pass
+        print("Could not get serial Connection...exiting...")
+        exit(1)
     return connection

@@ -936,6 +936,7 @@ class Controller():
 # Code to be run after importing everything.
 # -------------------------------------------
 if __name__ == '__main__':
+
     # Set up all the argument parsing options.
     parser = argparse.ArgumentParser(description='Interact with QUIP and encode/decode packets.')
     parser.add_argument('--version',action='version', version = 'Version: 1')
