@@ -9,6 +9,7 @@
 import threading
 import signal
 import sys
+import time
 import qpaceQUIP as quip
 import qpacePicComm as pic
 
@@ -74,28 +75,40 @@ def getComHandler(directoryOfPackets, serialInfo, cv, run_event):
 
 if __name__ == '__main__':
     if len(sys.argv) > 1:
+        print('starting')
         packets = sys.argv[1]
         condition = threading.Condition()
         run_event = threading.Event()
         run_event.set()
-
+        device = (0x04D8,0x000A)
         # Get the thread to run
-        sendThread = getComHandler(packets, (0x04D8,0x000A), condition, run_event)
+        sendThread = getComHandler(packets, device, condition, run_event)
 
         # Set up some handlers
         def nextBlock(signal, frame):
-            condition.notify()
+            print("NOTIFY")
+            with condition:
+                condition.notify_all()
         def stopHandler(signal,frame):
+            print('STOP')
             run_event.clear()
+            with condition:
+                condition.notify_all()
 
         signal.signal(signal.SIGTERM,nextBlock)
-        signal.signal(signal.SIGINT,stopHandler)
+        signal.signal(signal.SIGINT,nextBlock)
 
         # Start the thread and wait for it to end.
         if sendThread is not None:
             sendThread.start()
-            sendThread.join()
+
+            while sendThread.is_alive():
+                time.sleep(1)
+
+
+
     else:
         print("Requires 1 argument: path to packets directory")
+
 
 

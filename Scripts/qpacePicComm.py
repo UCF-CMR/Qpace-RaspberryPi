@@ -15,7 +15,8 @@ import serial
 import serial.tools.list_ports
 import time
 
-PICCOMM_PACTOSEND = 4 # How many packets to send.
+PICCOMM_PACTOSEND = 15 # How many packets to send.
+#BUFFER SIZE IS BASED ON DRIVER. 15 PACKETS FIT IN A 4095 BUFFER
 
 def getRFPort(vid,pid):
     """
@@ -60,12 +61,12 @@ def sendQuipPacketsToUSB(connection,packetPath,cv=None,run_event=None):
             directoryPackets = [item for item in os.listdir(packetPath) if regex.match(item)]
             if directoryPackets:
                 with cv:
-                    while run_event.is_set():
+                    while run_event.is_set() and len(directoryPackets) > 0:
                         # Ignore all exceptions when trying to write. We'll just keep trying to write until we can't.
                         try:
                             # wait for a .notify() from the main loop to start sending data.
                             cv.wait()
-                            if connection.is_open():
+                            if connection and run_event.is_set():
                                 data_to_write = b''
                                 for packetToOpen in directoryPackets[-PICCOMM_PACTOSEND:]: #TODO figure out how many packets I can send!!!
                                     try:
@@ -74,18 +75,14 @@ def sendQuipPacketsToUSB(connection,packetPath,cv=None,run_event=None):
                                     except:
                                         print("Error reading packet:", packetToOpen)
                                         raise
-                                    else:
-                                        try:
-                                            connection.write(data_to_write)
-                                        except:
-                                            print("Error writing to PIC.")
-                                            raise
-                                        else:
-                                            directoryPackets = directoryPackets[:-PICCOMM_PACTOSEND] #TODO figure out how many packets I can senddd
-                            else:
                                 try:
-                                    connection.open()
-                                except IOError: pass
+                                    connection.write(data_to_write)
+                                except:
+                                    print("Error writing to PIC.")
+                                    raise
+                                else:
+                                    directoryPackets = directoryPackets[:-PICCOMM_PACTOSEND] #TODO figure out how many packets I can senddd
+                                    cv.notify_all()
                         except:pass
         else:
             raise TypeError("The path for the Packets must be a string.")
