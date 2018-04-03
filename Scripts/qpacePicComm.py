@@ -77,6 +77,7 @@ def sendQuipPacketsToUSB(connection,packetPath,cv=None,run_event=None):
                                         raise
                                 try:
                                     connection.write(data_to_write)
+                                    connection.flush()
                                 except:
                                     print("Error writing to PIC.")
                                     raise
