@@ -104,7 +104,7 @@ class Packet():
         """
         # The byte order will be bigendian
         pid = bytearray(self.pid.to_bytes(4,byteorder='big'))       # 4 bytes
-        header_end = bytearray(((Packet.overflow << 7) | (self.op_code << 4)).to_bytes(1,byteorder='big'))
+        header_end = bytes([(Packet.overflow<<7|self.op_code<<4|self.getParity(self.buildData())<<3)])
         return Packet.sync + Packet.start + (pid + header_end)*3
 
     def buildData(self):
@@ -148,6 +148,16 @@ class Packet():
         while len(packet) < Packet.max_size:
             packet += b'\xff'
         return packet
+
+    @staticmethod
+    def getParity(info):
+        parity = int(bin(info[0])[2])
+        for bit in bin(info[0])[3:]:
+            parity ^= int(bit)
+        for byte in info[1:]:
+            for bit in bin(byte)[2:]:
+                parity ^= int(bit)
+        return parity
 
     @staticmethod
     def writeControlPacket(write_path,op_code,data=None):
@@ -455,7 +465,7 @@ class Decoder():
 
         Returns
         -------
-        bytearray - the bytearray of the resolved TMR expansion.
+        bytearray - the bytearray of the info/data of the packet: a resolved TMR expansion .
 
         Exceptions
         ----------
@@ -467,8 +477,10 @@ class Decoder():
             with open(self.packets+str(pid)+".qp",'br') as packet:
                 packet_data = packet.read()
                 Decoder.isWrapperCorrupted(packet_data)
+                information = packet_data[19:packet_data.rfind(Packet.end + Packet.sync)]
+                Decoder.isInfoCorrupted(information,Decoder.decipherHeader(packet_data[:19])['parity'])
                 # Resolve the TMR expansion. Since we have 19 bytes of header, start at 19.
-                return Decoder.resolveExpansion(packet_data[19:packet_data.rfind(Packet.end + Packet.sync)])
+                return Decoder.resolveExpansion(information)
         except (FileNotFoundError,OSError,Corrupted): raise
 
     def bulkDecode(self):
@@ -846,10 +858,12 @@ class Decoder():
             op_code
         """
         header_dict = {}
+        header = Decoder.resolveExpansion(header[4:])
         # Header: sync(2) - start(2)- pid(4)- [overflow(1),op(3),reserved(4)](1)
         header_dict['pid'] = struct.unpack('>L',header[0:4])[0] # Convert byte array to int.
-        header_dict['overflow'] = (header[4] >> 7) & 1  # Bit mask to get the first bit
-        header_dict['op_code'] =  (header[4] >> 4) & 7  # Bit mask to get the 2nd - 4th bits
+        header_dict['overflow'] = (header[4] & 128) >> 7  # Bit mask to get the 8th bit
+        header_dict['op_code'] =  (header[4] & 112) >> 4  # Bit mask to get the 5th - 7th bits
+        header_dict['parity'] =   (header[4] & 8)   >> 3  # Bit mask to get the fourth bit.
         return header_dict
 
     @staticmethod
@@ -866,7 +880,6 @@ class Decoder():
         Corrupted - If the packet is corrupted, raise a Corrupted Exception
         """
         try:
-            Decoder.resolveExpansion(data[4:19])
             rindex = data.rfind(Packet.end + Packet.sync)
             # data[0:2] are the sync bytes, data[2:4] are the start bytes
             # rindex will be -1 if it cannot find the end and sync sequence at the end of the packet
@@ -877,6 +890,12 @@ class Decoder():
                rindex < 0 or data[rindex+4:Packet.max_size] != b'\xff'*(Packet.max_size - rindex - 4):
                 raise Corrupted("The wrapper is corrupted.")
         except Corrupted: raise
+
+    @staticmethod
+    def isInfoCorrupted(info,parity):
+        testedParity = Packet.getParity(info)
+        if parity != testedParity:
+            raise Corrupted("Parity did not match.")
 
 class Controller():
     def __init__(self, coder,asyncList=[]):
