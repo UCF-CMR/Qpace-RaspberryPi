@@ -1,10 +1,10 @@
 #! /usr/bin/env python3
-# qpaceLogger.py by Jonathan Kessluk
+# qpaceLogger.py by Jonathan Kessluk & Minh Pham
 # 2-13-2018, Rev. 1.1
 # Q-Pace project, Center for Microgravity Research
 # University of Central Florida
-
-
+#
+# This program parses the todo file and then acts upon that information.
 
 import csv
 import re
