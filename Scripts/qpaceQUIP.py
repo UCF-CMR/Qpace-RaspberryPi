@@ -170,7 +170,7 @@ class Packet():
         return False
 
 class Encoder():
-    def __init__(self,path_for_encode,path_for_packets, suppress=False,destructive=False):
+    def __init__(self,path_for_encode,path_for_packets, destination=None,suppress=False,destructive=False):
         """
         Constructor for the Encoder.
 
@@ -196,6 +196,8 @@ class Encoder():
         self.suppress = suppress
         self.destructive = destructive
         self.packets_built = 0
+        if destination is not None:
+            self.destination = destination
 
     def run(self):
         """
@@ -273,7 +275,7 @@ class Encoder():
     def buildFileInfo(self):
         # TODO Implement checksum module
         # info.append(checksum)
-        return [self.file.split("/")[-1],str(self.packets_built),str(os.path.getsize(self.file))]
+        return [self.file.split("/")[-1],str(self.packets_built),str(os.path.getsize(self.file)),str(self.destination)]
 
     def buildInitPacket(self):
         """
@@ -419,9 +421,10 @@ class Decoder():
         try:
             initPacket = self.readInit()
             if self.file_name is None:
-                self.file_name = initPacket[0].decode('utf-8')
+                self.file_name = str(initPacket[0].decode('utf-8'))
             self.expected_packets = int(initPacket[1])
             self.file_size = int(initPacket[2])
+            self.destination = str(initPacket[3].decode('utf-8'))
         except (OSError,ValueError,Corrupted): raise
 
     def readInit(self):
@@ -996,8 +999,12 @@ if __name__ == '__main__':
                         dest='asyncList',
                         default='',
                         type=str)
+    parser.add_argument('-dest','--destination',
+                        help="Destination file path for the file.",
+                        default='/',
+                        type=str)
 
-    args = parser.parse_args()  # Parse the args coming in from the user
+    args = parser.parse_args() # Parse the args coming in from the user
     ctrl = None
 
     try:
@@ -1007,7 +1014,7 @@ if __name__ == '__main__':
             args.asyncList = list(map(lambda x: int(x),args.asyncList.split(',')))
 
         if args.encode: # If set to encode
-            coder = Encoder(args.file_location,args.packet_location,suppress=args.suppress,destructive=args.destructive)
+            coder = Encoder(args.file_location,args.packet_location,destination=args.destination,suppress=args.suppress,destructive=args.destructive)
         else: # If set to decode or async
             coder = Decoder(args.file_location,args.packet_location,suppress=args.suppress,destructive=args.destructive,rush=args.rush)
         ctrl = Controller(coder,asyncList=args.asyncList)
