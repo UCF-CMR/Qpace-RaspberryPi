@@ -1,4 +1,4 @@
-#! /usr/bin/env python3
+#!/usr/bin/env python3
 # qpaceQUIP.py by Jonathan Kessluk
 # 4-19-2018, Rev. 1
 # Q-Pace project, Center for Microgravity Research
@@ -92,7 +92,7 @@ if __name__ == '__main__':
     if chip:
         chip.byte_write(SC16IS750.REG_THR, int(identity)) # Send the identity to the WTC
         buf = b''
-        while True: #Is expecting 6 bytes. (YEAR, MONTH, DAY, HOUR, MINUTE, SECOND)
+        while True: # Is expecting 6 bytes. (YEAR, MONTH, DAY, HOUR, MINUTE, SECOND)
             time.sleep(.5)
             waiting = chip.byte_read(SC16IS750.REG_RXLVL)
             if waiting >= 6 :

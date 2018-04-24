@@ -1,4 +1,4 @@
-#! /usr/bin/env python3
+#!/usr/bin/env python3
 # qpaceQUIP.py by Jonathan Kessluk
 # 2-20-2018, Rev. 1
 # Q-Pace project, Center for Microgravity Research
@@ -14,6 +14,27 @@ import time
 import glob
 from math import ceil,log
 from itertools import zip_longest
+
+try:
+    import qpaceLogger as logger
+    quip_LOGGER=True
+except ImportError:
+    quip_LOGGER=False
+
+def quipPrint(*strings):
+    """
+    If the logger was imported then log it. If there was a problem
+    importing the logger then just print to screen.
+
+    Parameters
+    ----------
+    strings - take in variable arguments
+    """
+    string = ' '.join(map(str,strings))
+    if quip_LOGGER:
+        logger.logSystem([['QUIP:', string]])
+    else:
+        print(string)
 
 class Corrupted(Exception):
     def __init__(self, message):
@@ -240,7 +261,7 @@ class Encoder():
         self.removePacketFragments()
         try:
             with open(self.file,'rb') as fileToEncode:
-                if not self.suppress: print("Beginning to encode file into packets.")
+                if not self.suppress: quipPrint("Beginning to encode file into packets.")
                 pid = -1 #-1 to start at zero
                 try:
                     packetToBuild = None
@@ -256,19 +277,19 @@ class Encoder():
                         with open(self.packets+str(pid)+".qp", 'wb') as packet:
                             packet.write(packetToBuild.build())
                 except OSError as err:
-                    print("Could not write to the directory: ", self.packets)
-                    print("Could not write packet: ", pid)
+                    quipPrint("Could not write to the directory: ", self.packets)
+                    quipPrint("Could not write packet: ", pid)
                     raise err
                 else:
-                    if not self.suppress: print("Successfully built ", pid, " packets.")
+                    if not self.suppress: quipPrint("Successfully built ", pid, " packets.")
                     #self.setAsLastPacket(pid-1) # Set the last packet we wrote as the last packet to transmit.
                     self.packets_built = pid
         except FileNotFoundError:
-            print("Can not find file: ", self.file)
+            quipPrint("Can not find file: ", self.file)
         except OSError:
-            print("There was a problem encoding: ",self.file)
+            quipPrint("There was a problem encoding: ",self.file)
         else: # success
-            if not self.suppress: print("Finished encoded file into packets.")
+            if not self.suppress: quipPrint("Finished encoded file into packets.")
             return True
         return False
 
@@ -286,7 +307,7 @@ class Encoder():
         ----------
         Warning - The init packet could not be created.
         """
-        if not self.suppress: print("Creating initialization packet.")
+        if not self.suppress: quipPrint("Creating initialization packet.")
         try:
             with open(self.packets+"init.qp",'wb') as packet:
                 # Write to the actual packet. Make sure the op_code is 0x1 since it's the init packet
@@ -294,7 +315,7 @@ class Encoder():
                 packet.write(Packet(" ".join(self.buildFileInfo()),0,op_code=0x1).build())
         except OSError:
             err = Warning("Could not write to initialization packet: init.qp")
-            print(err)
+            quipPrint(err)
             raise err
 
     def buildChecksumPacket(self):
@@ -383,10 +404,13 @@ class Decoder():
         self.expected_packets = None
         self.file_size = None
 
-    def run(self):
+    def run(self, skipAsync = False):
         """
         Main method to run for the decoder. Takes the packets from a path and decodes them into a file.
 
+        Returns
+        -------
+        missedPackets - list - list of packets that were not able to be decoded. Only returned if we skip the asyncDecode
         Exception
         ---------
         If there was an exception thrown up the call stack then continue throwing it up.
@@ -399,10 +423,13 @@ class Decoder():
             # If missedPackets is none then we know we are good to go. Otherwise, we'll need
             # to asynchronously decode the file
             if missedPackets is None:
-                if not self.suppress: print("There are no missing packets.")
+                if not self.suppress: quipPrint("There are no missing packets.")
                 self.buildScaffold()
             else:
-                self.fullAsyncDecode(missedPackets)
+                if skipAsync:
+                    return missedPackets
+                else:
+                    self.fullAsyncDecode(missedPackets)
         except: raise
 
     def init(self):
@@ -452,7 +479,7 @@ class Decoder():
                 # Split on the ' ' since that should not be in any data
                 information = information.split(b' ')
         except OSError as err:
-            print("Could not read init file from ", self.packets)
+            quipPrint("Could not read init file from ", self.packets)
             raise err
         except Corrupted as err:
             raise err
@@ -508,7 +535,7 @@ class Decoder():
         missedPackets = []
         # get all the packets in the directory that have an integer name.
         # directoryPackets = [int(item) for item in [item.replace('.qp','') for item in os.listdir('./packets')] if item.isdigit()]
-        if not self.suppress: print("Beginning to decode packets into a file.")
+        if not self.suppress: quipPrint("Beginning to decode packets into a file.")
         # Make sure the init packet has been read for the data we need.
         try:
             if self.file_name is None or self.expected_packets is None: self.init()
@@ -517,7 +544,7 @@ class Decoder():
         newFile = self.file_path+self.file_name
         # Delete the file if it already exists.
         if os.path.exists(newFile):
-            if not self.suppress: print("File already exists. Overwriting with new data (", newFile,")")
+            if not self.suppress: quipPrint("File already exists. Overwriting with new data (", newFile,")")
             os.remove(newFile)
 
         pid = -1 # -1 to start at zero
@@ -538,9 +565,9 @@ class Decoder():
                             # Write the scaffold data to the file. We first need to flatten the list
                             scaffoldToBuild.write(bytearray([item for sublist in scaffold_data for item in sublist]))
                     except OSError:
-                        print("Failed to write scaffold data: ", newFile or self.file_path)
+                        quipPrint("Failed to write scaffold data: ", newFile or self.file_path)
                     else:
-                        if not self.suppress: print("Completed read of packets.")
+                        if not self.suppress: quipPrint("Completed read of packets.")
                     finally:
                         break #This is important to get out of the While Loop
                 else: # If there are any packets after the packet we are missing.
@@ -549,17 +576,17 @@ class Decoder():
                     scaffold_data = self.ammendScaffoldData(scaffold_data,bytearray(b'_')*Packet.data_size,pid)
                     continue # Not necessary but good for readability. Hop back to the top of the while loop.
             except OSError:
-                print("Unable to read the packet: ",self.packets+str(pid)+".qp")
+                quipPrint("Unable to read the packet: ",self.packets+str(pid)+".qp")
             except Corrupted as err:
                 missedPackets.append(pid)
                 # Ammend the scaffold with placeholder bytes if there is no packet for it.
                 scaffold_data = self.ammendScaffoldData(scaffold_data,bytearray(b'_')*Packet.data_size,pid)
                 continue # Not necessary but good for readability. Hop back to the top of the while loop.
         if missedPackets:
-            if not self.suppress: print("Packets missing during decoding. Scaffold intact.")
+            if not self.suppress: quipPrint("Packets missing during decoding. Scaffold intact.")
             return missedPackets
         else:
-            if not self.suppress: print("Successfully decoded packets into a file.")
+            if not self.suppress: quipPrint("Successfully decoded packets into a file.")
             return None
 
     def ammendScaffoldData(self,scaffold_data,to_write,pid):
@@ -676,25 +703,25 @@ class Decoder():
         ----------
         missedPackets - list - list of ints for the pids of the packets that are missing.
         """
-        if not self.suppress: print("Attempting an async for: ", missedPackets)
+        if not self.suppress: quipPrint("Attempting an async for: ", missedPackets)
         # If we want to rush, only do this once and don't wait for any packets it couldn't do.
         if self.rush:
             missedPackets = self.asyncBulkDecode(missedPackets)
             if missedPackets:
-                print("There were packets missing: ", missedPackets,"\n Your scaffold will be intact at", self.file_path)
+                quipPrint("There were packets missing: ", missedPackets,"\n Your scaffold will be intact at", self.file_path)
             else:
-                if not self.suppress: print("Completed asynchronously building the scaffold.")
+                if not self.suppress: quipPrint("Completed asynchronously building the scaffold.")
         else: # otherwise, attempt to decode and then poll to get the erst of the packets.
             try:
                 while missedPackets: # While there are still packets to wait for
                     time.sleep(Decoder.waitDelay)
                     missedPackets = self.asyncBulkDecode(missedPackets)
-                    if not self.suppress: print("Waiting for packets:",missedPackets)
+                    if not self.suppress: quipPrint("Waiting for packets:",missedPackets)
                 self.buildScaffold()
             except OSError as err:
-                print(err)
+                quipPrint(err)
             except KeyboardInterrupt: # If a SIGINT is sent, then it's time to stop.
-                print("\nNo longer waiting for packets...\nYour scaffold will be intact at", self.file_path)
+                quipPrint("\nNo longer waiting for packets...\nYour scaffold will be intact at", self.file_path)
 
     def removePacketFragments(self):
         """
@@ -933,12 +960,12 @@ class Controller():
             try:
                 self.coder.run()
             except Corrupted:
-                print("Something was corrupted. Most likely the init packet. Requesting that it is sent again.")
+                quipPrint("Something was corrupted. Most likely the init packet. Requesting that it is sent again.")
                 Controller.sendAgain(['init'])
                 try:
                     self.coder.run()
                 except Corrupted:
-                    print("Something was corrupted. Most likely the init packet. Since this is the second attempt, the controller will exit.\nCheck your data and try again.")
+                    quipPrint("Something was corrupted. Most likely the init packet. Since this is the second attempt, the controller will exit.\nCheck your data and try again.")
 
     @staticmethod
     def sendAgain(listOfPid):
@@ -1009,7 +1036,7 @@ if __name__ == '__main__':
 
     try:
         if bool(args.asyncList):
-            print("Warning: if all the packets missing are not given the file will appear corrupted.")
+            quipPrint("Warning: if all the packets missing are not given the file will appear corrupted.")
             # Turn all the asynchronous pids into ints. This will throw a ValueError if one is not an int.
             args.asyncList = list(map(lambda x: int(x),args.asyncList.split(',')))
 
@@ -1019,10 +1046,10 @@ if __name__ == '__main__':
             coder = Decoder(args.file_location,args.packet_location,suppress=args.suppress,destructive=args.destructive,rush=args.rush)
         ctrl = Controller(coder,asyncList=args.asyncList)
     except TypeError as err:
-        print("Error: ",err)
+        quipPrint("Error: ",err)
         exit()
     except ValueError:
-        print("Invalid async list values. Must be a comma separated list of integers.")
+        quipPrint("Invalid async list values. Must be a comma separated list of integers.")
         exit()
 
     # Actually start working.

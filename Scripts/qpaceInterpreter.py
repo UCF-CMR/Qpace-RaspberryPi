@@ -1,4 +1,4 @@
-#! /usr/bin/env python3
+#!/usr/bin/env python3
 # qpaceQUIP.py by Jonathan Kessluk
 # 4-19-2018, Rev. 1
 # Q-Pace project, Center for Microgravity Research
@@ -6,13 +6,16 @@
 #
 # Credit to the SurfSat team for CCDR driver and usage.
 #
-# The interpreter will be invoked when pin 7 goes high. This will grab QUIP packets and direct them to the packet directory, then decode them.
+# The interpreter will be invoked when pin 7 goes high. This will grab incomming data from the WTC,
+# Figure out if they are QUIP packets or commands. If it's a command it will execute the command
+# and if they are QUIP packets it will direct them to the packet directory and then decode it.
 
 import time
 import SC16IS750
 import RPi.GPIO as gpio
+import datetime
 from qpaceWTCHandler import initWTCConnection
-from qpaceQUIP import Packet
+from qpaceQUIP import Packet,Decoder
 import qpacPiCommands as cmd
 import qpaceLogger as logger
 
@@ -23,16 +26,21 @@ INTERP_CMD_SIZE = 2 # How many characters will we expect to be the command lengt
 
 # Add commands to the map. Format is "String to recognize for command" : function name
 COMMAND_LIST = {
-    "SD":cmd.immediateShutdown      # Shutdown the Pi
-    "RE":cmd.immediateReboot        # Reboot the Pi
-    "SF":cmd.sendFile               # Initiate sending files to WTC from the pi filesystem
-    "AP":cmd.asynchronusSendPackets # Send specific packets from the Pi to the WTC
-    "HI":cmd.pingPi                 # Ping the pi!
-    "ST":cmd.returnStatus           # Accumulate status about the operation of the pi, assemble a txt file, and send it. (Invokes sendFile)
-    "CS":cmd.checkSiblingPi         # Check to see if the sibling Pi is alive. Similar to ping but instead it's through ethernet
-    "PC":cmd.pipeCommandToSiblingPi # Take the args that are in the form of a command and pass it along to the sibling pi through ethernet
-    "UC":cmd.performUARTCheck       # Tell the pi to perform a "reverse" ping to the WTC. Waits for a response from the WTC.
+    "SD":cmd.immediateShutdown,       # Shutdown the Pi
+    "RE":cmd.immediateReboot,         # Reboot the Pi
+    "SF":cmd.sendFile,                # Initiate sending files to WTC from the pi filesystem
+    "AP":cmd.asynchronousSendPackets, # Send specific packets from the Pi to the WTC
+    "HI":cmd.pingPi,                  # Ping the pi!
+    "ST":cmd.returnStatus,            # Accumulate status about the operation of the pi, assemble a txt file, and send it. (Invokes sendFile)
+    "CS":cmd.checkSiblingPi,          # Check to see if the sibling Pi is alive. Similar to ping but instead it's through ethernet
+    "PC":cmd.pipeCommandToSiblingPi,  # Take the args that are in the form of a command and pass it along to the sibling pi through ethernet
+    "UC":cmd.performUARTCheck        # Tell the pi to perform a "reverse" ping to the WTC. Waits for a response from the WTC.
 }
+
+class LastCommand():
+    type = "No commands received"
+    timestamp = "Never"
+    fromWhom = "N/A"
 
 def _isCommand(query = None):
     """
@@ -65,17 +73,22 @@ def _processCommand(chip = None, query = None):
     ------
     ConnectionError - If a connection to the WTC was not passed to the command
     """
+
     if not chip:
         raise ConnectionError("Connection to the WTC not established.")
     if query:
         try:
             query = query.decode('utf-8')
-        except UnicodeError: pass
+        except UnicodeError:
+            pass
         else:
             cmd = query[:INTERP_CMD_SIZE] # Seperate the specific command
-            args = query[INTERP_CMD_SIZE:] # Seperate the args
+            args = query[INTERP_CMD_SIZE:]# Seperate the args
             logger.logSystem([["Command Received:",cmd,args]])
-            COMMAND_LIST[cmd](args) # Run the command
+            LastCommand.type = cmd
+            LastCommand.timestamp = str(datetime.datetime.now())
+            LastCommand.fromWhom = 'WTC'
+            COMMAND_LIST[cmd](chip,args) # Run the command
 
 def _processQUIP(chip = None,buf = None):
     #TODO do we need to determine the opcode or can we force the packets to be sent in order?
@@ -116,7 +129,8 @@ def _processQUIP(chip = None,buf = None):
         attempt = 0
         while len(buf) > 0:
             try:
-                with open(INTERP_PACKETS_PATH+str(counter) + ".qp",'wb') as f: # we can just name them with the counter iff we don't determine the opcodes
+                # We can just name them with the counter iff we don't determine the opcodes
+                with open(INTERP_PACKETS_PATH+str(counter) + ".qp",'wb') as f:
                     f.write(buf[:PACKET_SIZE])
             except:
                 attempt += 1
@@ -162,7 +176,7 @@ def run(chip = None):
         try:
             time.sleep(1)
             attempt = 0
-            status = chip.byte_read(SC16IS750.REG_LSR) #checks the status bit to see if there is something in the RHR
+            status = chip.byte_read(SC16IS750.REG_LSR) # Checks the status bit to see if there is something in the RHR
             if status & 0x01 == 1: # If LSB of LSR is high, then data available in RHR:
                 # See how much we want to read.
                 waiting = chip.byte_read(SC16IS750.REG_RXLVL)
@@ -200,5 +214,7 @@ def run(chip = None):
         else:
             missingPackets = processQUIP(chip,buf) # IF it's not a command, assume it's QUIP data.
             #TODO how to handle any packets that weren't interpreted correctly?
+            decoder = Decoder(file_location,'temp/packets/',suppress=True,rush=True)
+            decoder.run(True)
     except (BufferError,ConnectionError): raise
     gpio.cleanup() #TODO do we actually care to cleanup?

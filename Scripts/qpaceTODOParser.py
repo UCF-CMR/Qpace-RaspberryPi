@@ -1,4 +1,4 @@
-#! /usr/bin/env python3
+#!/usr/bin/env python3
 # qpaceTODOParser.py by Jonathan Kessluk
 # 2-13-2018, Rev. 1
 # Q-Pace project, Center for Microgravity Research
