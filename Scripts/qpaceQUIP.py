@@ -889,7 +889,7 @@ class Decoder():
             # even if it found it, check to see if all the final padding bits are \xff. If they aren't
             # then the padding was corrupted OR the ending sequence was corrupted
             # add 4 to the rindex to ignore the end/sync and subtract 4 from the max size to ignore them as well.
-            if len(data) != 256 or data[0:2] != Packet.sync or data[2:4] != Packet.start or\
+            if len(data) != Packet.max_size or data[0:2] != Packet.sync or data[2:4] != Packet.start or\
                rindex < 0 or data[rindex+4:Packet.max_size] != b'\xff'*(Packet.max_size - rindex - 4):
                 raise Corrupted("The wrapper is corrupted.")
         except Corrupted: raise
