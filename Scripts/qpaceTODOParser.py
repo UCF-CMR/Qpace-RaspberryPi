@@ -1,10 +1,12 @@
 #! /usr/bin/env python3
-# qpaceTODOParser.py by Jonathan Kessluk
+# qpaceTODOParser.py by Jonathan Kessluk and Minh
 # 2-13-2018, Rev. 1
 # Q-Pace project, Center for Microgravity Research
 # University of Central Florida
 #
 # This program parses the todo file and then acts upon that information.
+
+
 
 import csv
 import re
@@ -170,6 +172,10 @@ def processTask(task: list):
 		Raises
 		------
 		Nothing!
+
+		Revisions
+		---------
+		Rev. 1.1 - 4/10/2018 Minh Pham (Added code execution to tasks.)
 	"""
 	qpaceLogger.logSystem([["Beginning execution of a task", task[1:]]])
 	currentTask = task[1].upper()
@@ -190,6 +196,9 @@ def processTask(task: list):
 	elif currentTask == "REPORT":
 		#Reporting method. Figure out if this is necessary or what exactly it will do
 		print("Saving data to the system log.") # Placeholder
+	elif currentTask == "CODE":
+		#Executing specified python file.
+		os.system('python' + task[2])
 	else:
 		qpaceLogger.logSystem([["Unknown task!", task[1:]]])
 
