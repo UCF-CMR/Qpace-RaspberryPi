@@ -1,3 +1,5 @@
+import qpaceLogger as logger
+
 def _sendResponseToWTC(response): # private method. Send something to the WTC
     pass
 

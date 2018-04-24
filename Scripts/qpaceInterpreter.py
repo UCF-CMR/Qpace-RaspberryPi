@@ -14,6 +14,7 @@ import RPi.GPIO as gpio
 from qpaceWTCHandler import initWTCConnection
 from qpaceQUIP import Packet
 import qpacPiCommands as cmd
+import qpaceLogger as logger
 
 PACKET_SIZE = Packet.max_size
 
@@ -67,10 +68,14 @@ def _processCommand(chip = None, query = None):
     if not chip:
         raise ConnectionError("Connection to the WTC not established.")
     if query:
-        query = query.decode('utf-8')
-    cmd = query[:INTERP_CMD_SIZE] # Seperate the specific command
-    args = query[INTERP_CMD_SIZE:] # Seperate the args
-    COMMAND_LIST[cmd](args) # Run the command
+        try:
+            query = query.decode('utf-8')
+        except UnicodeError: pass
+        else:
+            cmd = query[:INTERP_CMD_SIZE] # Seperate the specific command
+            args = query[INTERP_CMD_SIZE:] # Seperate the args
+            logger.logSystem([["Command Received:",cmd,args]])
+            COMMAND_LIST[cmd](args) # Run the command
 
 def _processQUIP(chip = None,buf = None):
     #TODO do we need to determine the opcode or can we force the packets to be sent in order?
@@ -96,6 +101,7 @@ def _processQUIP(chip = None,buf = None):
     def isolateOpCode():
         pass
 
+    logger.logSystem([["Processing input as QUIP packets.", "Packets Received: " + str(len(buf)/PACKET_SIZE)]])
     if len(buf) > 0:
         missedPackets = []
         # write the initial init packet
@@ -121,6 +127,8 @@ def _processQUIP(chip = None,buf = None):
             else:
                 buf = buf[PACKET_SIZE:]
                 counter += 1
+        logger.logSystem([["Attempted to write all packets to file system."],
+                          ["Missing packets: ", str(missedPackets) if missedPackets else "None"]])
         return missedPackets
 def run(chip = None):
     """
@@ -140,6 +148,7 @@ def run(chip = None):
     BufferError - if the FIFO in the WTC cannot be read OR the buffer was empty.
     All other exceptions raised by this function are passed up the stack or ignored and not raised at all.
     """
+    logger.logSystem([["Beginning the WTC Interpreter..."]])
     if chip is None:
         chip = initWTCConnection()
         if chip is None:
@@ -148,7 +157,6 @@ def run(chip = None):
     gpio.set_mode(gpio.BCM)
     gpio.setup(PIN_IRQ_WTC, gpio.IN)
 
-    print("Waiting for data. Hit Ctrl+C to abort.")
     buf = b''
     while True:
         try:
@@ -159,28 +167,38 @@ def run(chip = None):
                 # See how much we want to read.
                 waiting = chip.byte_read(SC16IS750.REG_RXLVL)
                 if waiting > 0:
+                    logger.logSystem([["Reading in "+ waiting +" bytes from the WTC"]])
                     for i in range(waiting):
                         # Read from the chip and write to the buffer.
                         buf += chip.byte_read(SC16IS750.REG_RHR)
             # If MSB of LSR is high, then FIFO data error detected:
     		elif status & 0x80 == 1:
-                attempt += 1
                 if attempt > 1:
+                    logger.logError("Something is wrong with the WTC FIFO and it cannot be read.")
+                    try:
+                        logger.logSystem([["Attempted to read from the WTC FIFO but somethign went wrong.","Current contents of the buffer:",buf.decode('utf-8')]])
+                    except UnicodeError: pass # If you can't then you can't. Don't worry about it.
                     BufferError("The FIFO could not be read on the WTC.")
+                else:
+                    logger.logError("Something is wrong with the WTC FIFO. Will try to read again: Attempt " + str(attempt + 1))
+                    attempt += 1
             else:
                 # If the Interrupt Request pin is Logical Low then break. We don't want to read anymore.
                 if not gpio.input(PIN_IRQ_WTC):
-                    raise InterruptedError("The WTC has ended transmission")
+                    raise InterruptedError("The WTC has ended transmission.")
 
         except KeyboardInterrupt: # If we get a SIGINT, we can also break off.
+            logger.logSystem([["SIGINT was thrown to the Interpreter, stopping read from WTC."]])
             break
-        except InterruptedError: # IF we are interrupted, break.
+        except InterruptedError as interrupt: # IF we are interrupted, break.
+            logger.logSystem([["The read has been interrupted.",str(interrupt)]])
             break
         except BufferError: raise
     try:
         if isCommand(buf): # Is the input to the buffer a command?
             processCommand(chip,buf)
         else:
-            processQUIP(chip,buf) # IF it's not a command, assume it's QUIP data.
+            missingPackets = processQUIP(chip,buf) # IF it's not a command, assume it's QUIP data.
+            #TODO how to handle any packets that weren't interpreted correctly?
     except (BufferError,ConnectionError): raise
     gpio.cleanup() #TODO do we actually care to cleanup?

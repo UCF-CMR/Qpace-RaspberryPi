@@ -59,15 +59,17 @@ def initWTCConnection():
     return chip
 
 if __name__ == '__main__':
-    import qpaceInterpreter as qpI
-    import RPi.GPIO as gpio
-    #print("IMPORT RPi.GPIO and qpaceInterpreter BEFORE RUNNING")
-    #exit()
     import sys
     import datetime
     import ctypes
     import ctypes.util
     import time
+
+    import qpaceInterpreter as qpI
+    import RPi.GPIO as gpio
+    import qpaceLogger as logger
+    #print("IMPORT RPi.GPIO and qpaceInterpreter BEFORE RUNNING")
+    #exit()
 
     WTC_IRQ = 4 # BCM 4, board pin 7
     WHO_FILEPATH = "WHO"
@@ -86,6 +88,7 @@ if __name__ == '__main__':
     except OSError:
         identity = 0
 
+    logger.logSystem([["Identity determined as Pi: " + identity]])
     if chip:
         chip.byte_write(SC16IS750.REG_THR, int(identity)) # Send the identity to the WTC
         buf = b''
@@ -96,6 +99,7 @@ if __name__ == '__main__':
                 for i in range(5):
                     buf += chip.byte_read(SC16IS750.REG_RHR)
 
+        logger.logSystem([["Time received from the WTC.",str(2000 + ord(buf[0])), str(ord(buf[1])), str(ord(buf[2])), str(ord(buf[3])), str(ord(buf[4])), str(ord(buf[5]))]])
         # (Year, Month, Day, Hour, Minute, Second, Millisecond)
         time_tuple = (2000 + ord(buf[0]), ord(buf[1]), ord(buf[2]), ord(buf[3]), ord(buf[4]), ord(buf[5]))
         # Change the system time on the pi.
@@ -112,21 +116,21 @@ if __name__ == '__main__':
 
             # http://linux.die.net/man/3/clock_settime
             librt.clock_settime(0, ctypes.byref(ts))
-        except:
+        except Exception as err:
             #TODO Alert WTC of problem, wait for new commands.
-            pass # There was a problem setting the time
+            logger.logError("Could not set the Pi's system time for some reason.",err)
 
         try:
             qpI.run(chip)
         except BufferError as err:
             #TODO Alert the WTC of the problem and/or log it and move on
             #TODO figure out what we actually want to do.
-            print(err)
-            pass
+            logger.logError("Something went wrong when reading the buffer of the WTC.", err)
+
         except ConnectionError as err:
             #TODO Alert the WTC of the problem and/or log it and move on
             #TODO figure out what we actually want to do.
-            print(err)
+            logger.logError("There is a problem with the connection to the WTC", err)
             pass
 
 
