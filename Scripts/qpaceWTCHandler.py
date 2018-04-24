@@ -59,10 +59,10 @@ def initWTCConnection():
     return chip
 
 if __name__ == '__main__':
-    #import qpaceInterpreter as qpI
-    #import RPi.GPIO as gpio
-    print("IMPORT RPi.GPIO and qpaceInterpreter BEFORE RUNNING")
-    exit()
+    import qpaceInterpreter as qpI
+    import RPi.GPIO as gpio
+    #print("IMPORT RPi.GPIO and qpaceInterpreter BEFORE RUNNING")
+    #exit()
     import sys
     import datetime
     import ctypes
@@ -73,22 +73,21 @@ if __name__ == '__main__':
     WHO_FILEPATH = "WHO"
 
     # Initialize the pins
-    # gpio.setup(gpio.BCM)
-    # gpio.setup(WTC_IRQ, gpio.IN) # WTC Interupt pin.
+    gpio.setup(gpio.BCM)
+    gpio.setup(WTC_IRQ, gpio.IN) # WTC Interupt pin.
 
-
+    chip = None
     try:
         # Read in only the first character from the WHO file to get the current identity.
-        f = open(WHO_FILEPATH,'r')
-        identity = f.read(1)
-        f.close()
+        with open(WHO_FILEPATH,'r') as f:
+            identity = f.read(1)
 
         chip = initWTCConnection()
     except OSError:
-        #TODO  Alert WTC of problem, wait for new commands.
-        pass # There was a problem getting the identity.
-    else: # We have the identity. Request do everything else in this module.
-        #TODO SEND THE IDENTITY TO WTC
+        identity = 0
+
+    if chip:
+        chip.byte_write(SC16IS750.REG_THR, int(identity)) # Send the identity to the WTC
         buf = b''
         while True: #Is expecting 6 bytes. (YEAR, MONTH, DAY, HOUR, MINUTE, SECOND)
             time.sleep(.5)
@@ -117,7 +116,18 @@ if __name__ == '__main__':
             #TODO Alert WTC of problem, wait for new commands.
             pass # There was a problem setting the time
 
-        qpI.run(chip)
+        try:
+            qpI.run(chip)
+        except BufferError as err:
+            #TODO Alert the WTC of the problem and/or log it and move on
+            #TODO figure out what we actually want to do.
+            print(err)
+            pass
+        except ConnectionError as err:
+            #TODO Alert the WTC of the problem and/or log it and move on
+            #TODO figure out what we actually want to do.
+            print(err)
+            pass
 
 
 
