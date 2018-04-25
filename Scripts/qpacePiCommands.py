@@ -8,7 +8,7 @@
 import os
 
 import time
-from subprocess import check_output
+from subprocess import check_output,Popen
 from math import ceil
 from qpaceInterpreter import LastCommand
 import qpaceLogger as logger
@@ -16,6 +16,8 @@ import qpaceLogger as logger
 CMD_DEFAULT_TIMEOUT = 10 #seconds
 CMD_POLL_DELAY = .5 #seconds
 STATUSPATH = ''
+WHO_FILEPATH = ''
+SOCKET_PORT=8675 #Jenny, who can I turn to?
 def _waitForWTCResponse(chip, trigger = None, timeout = None):
     """
     Wait for the WTC to respond with a continue code and then return.
@@ -102,7 +104,8 @@ def immediateShutdown(chip,args):
     """
     logger.logSystem([['Shutting down...']])
     sendBytesToWTC(chip,b'SP') # SP = Shutdown Proceeding
-    os.system('sudo shutdown now') # Shutdown the pi
+    Popen(["sudo", "halt"],shell=True) #os.system('sudo halt')
+    raise SystemExit # Close the interpreter and clean up the buffers before reboot happens.
 
 
 def immediateReboot(chip,args):
@@ -112,12 +115,13 @@ def immediateReboot(chip,args):
 
     Parameters
     ----------
-    chip - SC16IS750 - an SC16IS750 object which handles the WTC Connection
+    chip - SC16IS750 - an SC16IS75 object which handles the WTC Connection
     args - string - the args for the command
     """
     logger.logSystem([['Rebooting...']])
     sendBytesToWTC(chip,b'SP') # SP = Shutdown Proceeding
-    os.system('sudo reboot')
+    Popen(["sudo", "reboot"],shell=True) #os.system('sudo reboot')
+    raise SystemExit # Close the interpreter and clean up the buffers before reboot happens.
 
 def sendFile(chip,args):
     """
@@ -250,7 +254,34 @@ def checkSiblingPi(chip,args): # TODO some kind of listener will have to be writ
     chip - SC16IS750 - an SC16IS750 object which handles the WTC Connection
     args - string - the args for the command
     """
-    pass
+    client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        with open(WHO_FILEPATH,'r') as f:
+            identity = f.read(1)
+        if identity == 1:
+            host = "192.168.1.2"
+        elif identity == 2:
+            host = "192.168.1.1"
+        else:
+            raise ConnectionError("Could not connect to Sibling. Bad Identity: " + identity)
+            client.connect((host,SOCKET_PORT))
+    except (OSError,ConnectionError) as err:
+        raise ConnectionError(str(err)) from err
+
+    client.settimeout(20)
+    try:
+        client.send(b'Hello?')
+        recvval = ''
+        recvval = client.recv(2048) # Will wait for response
+        while True:
+            if recvval == b'Here!':
+                client.close()
+                sendBytesToWTC(chip,"OK")
+                break
+    except TimeoutError:
+        sendBytesToWTC(chip,"NO")
+
+
 
 def pipeCommandToSiblingPi(chip,args): # TODO some kind of listener will have to be written for this and run as a seperate process on the pi
     """

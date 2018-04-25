@@ -162,6 +162,8 @@ def run(chip = None):
     BufferError - if the FIFO in the WTC cannot be read OR the buffer was empty.
     All other exceptions raised by this function are passed up the stack or ignored and not raised at all.
     """
+    WTC_IRQ = 4
+
     logger.logSystem([["Beginning the WTC Interpreter..."]])
     if chip is None:
         chip = initWTCConnection()
@@ -169,7 +171,7 @@ def run(chip = None):
             raise ConnectionError("A connection could not be made to the WTC.")
     # Initialize the pins
     gpio.set_mode(gpio.BCM)
-    gpio.setup(PIN_IRQ_WTC, gpio.IN)
+    gpio.setup(WTC_IRQ, gpio.IN)
 
     buf = b''
     while True:
@@ -198,7 +200,7 @@ def run(chip = None):
                     attempt += 1
             else:
                 # If the Interrupt Request pin is Logical Low then break. We don't want to read anymore.
-                if not gpio.input(PIN_IRQ_WTC):
+                if not gpio.input(WTC_IRQ):
                     raise InterruptedError("The WTC has ended transmission.")
 
         except KeyboardInterrupt: # If we get a SIGINT, we can also break off.

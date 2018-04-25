@@ -5,6 +5,9 @@
 # University of Central Florida
 #
 # This script is run at boot to initialize the system clock and then wait for interrupts.
+SOCKET_PORT=8675 #Jenny, who can I turn to?
+WHO_FILEPATH = 'WHO'
+WTC_IRQ = 4 # BCM 4, board pin 7
 def initWTCConnection():
     """
     This function Initializes and returns the SC16IS750 object to interact with the registers.
@@ -58,21 +61,63 @@ def initWTCConnection():
     time.sleep(2.0/XTAL_FREQ)
     return chip
 
+def _openSocketForSibling():
+    server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    # Read in only the first character from the WHO file to get the current identity.
+    try:
+        with open(WHO_FILEPATH,'r') as f:
+            identity = f.read(1)
+        if identity == 1:
+            host = "192.168.1.1"
+        elif identity == 2:
+            host = "192.168.1.2"
+        else:
+            raise ConnectionError("Could not connect to Sibling. Bad Identity: " + identity)
+
+        server.bind((host, SOCKET_PORT))
+
+        class Client(Thread):
+            def __init__(self, socket, addr):
+                Thread.__init__(self)
+                self.socket = socket
+                self.addr = addr
+                self.start()
+
+            def run(self):
+                while True:
+                    try:
+                        retval = self.socket.recv(2048)
+                        if retval != b'':
+                            if retval == b'Hello?':
+                                self.socket.send(b'Here!')
+                            elif retval == b'Pipe':
+                                #TODO Insert pipe functionality
+                    except BrokenPipeError:
+                        #print('Client Disconnected.')
+                        break
+
+        server.listen(2)
+        #print ('server started and listening')
+        while True:
+            client, address = server.accept()
+            Client(client, address)
+    except (OSError,ConnectionError) as err:
+        raise ConnectionError(str(err)) from err
+
 if __name__ == '__main__':
     import sys
     import datetime
     import ctypes
     import ctypes.util
     import time
+    import socket
+    from threading import *
 
     import qpaceInterpreter as qpI
     import RPi.GPIO as gpio
     import qpaceLogger as logger
     #print("IMPORT RPi.GPIO and qpaceInterpreter BEFORE RUNNING")
     #exit()
-
-    WTC_IRQ = 4 # BCM 4, board pin 7
-    WHO_FILEPATH = "WHO"
 
     # Initialize the pins
     gpio.setup(gpio.BCM)
@@ -121,6 +166,8 @@ if __name__ == '__main__':
             logger.logError("Could not set the Pi's system time for some reason.",err)
 
         try:
+            socketHandler = Thread(name='socketHandler',target=openSocketForSibling)
+            socketHandler.start()
             qpI.run(chip)
         except BufferError as err:
             #TODO Alert the WTC of the problem and/or log it and move on
