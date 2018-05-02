@@ -63,6 +63,23 @@ def initWTCConnection():
     return chip
 
 def _openSocketForSibling(chip = None):
+        """
+        This function acts as a server and arbitrator for the Ethernet connection.
+        It will be spawned as it's own process.
+
+        Parameters
+        ----------
+        chip - SC16IS750 - chip instance to use for communication with the WTC.
+
+        Returns
+        -------
+        Nothing.
+
+        Raises
+        ------
+        ConnectionError - if it cannot make a connection for some reason.
+        BufferError - if the buffer to the WTC has an error.
+        """
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     # Read in only the first character from the WHO file to get the current identity.
     try:
@@ -105,6 +122,8 @@ def _openSocketForSibling(chip = None):
                     except BrokenPipeError:
                         #print('Client Disconnected.')
                         break
+                    except (BufferError,ConnectionError) as err:
+                        raise err
 
         server.listen(2)
         #print ('server started and listening')
@@ -176,7 +195,7 @@ if __name__ == '__main__':
             logger.logError("Could not set the Pi's system time for some reason.",err)
 
         try:
-            socketHandler = Thread(name='socketHandler',target=openSocketForSibling,args=(chip,))
+            socketHandler = Thread(name='socketHandler',target=_openSocketForSibling,args=(chip,))
             socketHandler.start()
             qpI.run(chip)
         except BufferError as err:

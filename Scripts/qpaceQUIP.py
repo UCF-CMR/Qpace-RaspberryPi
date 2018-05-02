@@ -277,8 +277,7 @@ class Encoder():
                         with open(self.packets+str(pid)+".qp", 'wb') as packet:
                             packet.write(packetToBuild.build())
                 except OSError as err:
-                    quipPrint("Could not write to the directory: ", self.packets)
-                    quipPrint("Could not write packet: ", pid)
+                    #quipPrint("Could not write packet: ", pid)
                     raise err
                 else:
                     if not self.suppress: quipPrint("Successfully built ", pid, " packets.")

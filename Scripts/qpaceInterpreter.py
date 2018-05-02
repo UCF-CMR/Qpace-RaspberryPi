@@ -38,6 +38,10 @@ COMMAND_LIST = {
 }
 
 class LastCommand():
+    """
+    Small handler class to help with figuring out which command was the last command sent.
+    Similar to just using a struct in C.
+    """
     type = "No commands received"
     timestamp = "Never"
     fromWhom = "N/A"
@@ -56,7 +60,7 @@ def isCommand(query = None):
     False - If it is not a command
     """
     if query:
-        return query[:INTERP_CMD_SIZE].decode('utf-8').upper() in COMMAND_LIST
+        return query[:INTERP_CMD_SIZE].decode('utf-8') in COMMAND_LIST
     else:
         return False
 

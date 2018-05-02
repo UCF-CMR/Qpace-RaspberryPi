@@ -12,6 +12,8 @@ from subprocess import check_output,Popen
 from math import ceil
 from qpaceInterpreter import LastCommand
 import qpaceLogger as logger
+from qpacePiCommands import INTERP_PACKETS_PATH
+import qpaceQUIP as quip
 
 CMD_DEFAULT_TIMEOUT = 10 #seconds
 CMD_POLL_DELAY = .5 #seconds
@@ -47,7 +49,7 @@ def _waitForWTCResponse(chip, trigger = None, timeout = None):
         raise TypeError("Trigger must be bytes or string.")
     logText = "Waiting for {} seconds for the WTC to respond".format(timeout or CMD_DEFAULT_TIMEOUT)
     if trigger:
-        logText += ' with ' + trigger
+        logText += " with '{}'".format(trigger)
     logger.logSystem([[logText]])
 
     attemps_remaining = ceil((timeout or CMD_DEFAULT_TIMEOUT)/CMD_POLL_DELAY)
@@ -85,12 +87,14 @@ def _sendBytesToWTC(chip,sendData):
     if isinstance(sendData,str):
         sendData = sendData.encode('utf-8')
     elif not isinstance(sendData,bytes) and not isinstance(sendData,bytearray):
+        logger.logSystem([['Data will not be sent to the WTC: not string or bytes.']])
         raise TypeError("Data to the WTC must be in the form of bytes or string")
     try:
         logger.logSystem([['Sending to the WTC:', sendData.decode(utf-8)]])
         chip.block_write(0x09, sendData)
-    except:
+    except Exception as err:
         #TODO do we actually handle the case where it just doesn't work?
+        logger.logError('SendBytesToWTC: An error has occured when attempting to send data to the WTC. Data to send:' +sendData + 'The data will not be send',err)
         pass
 
 def immediateShutdown(chip,cmd,args):
@@ -104,7 +108,7 @@ def immediateShutdown(chip,cmd,args):
     cmd,args - string, array of args (seperated by ' ') - the actual command, the args for the command
     """
     logger.logSystem([['Shutting down...']])
-    sendBytesToWTC(chip,b'SP') # SP = Shutdown Proceeding
+    _sendBytesToWTC(chip,b'SP') # SP = Shutdown Proceeding
     Popen(["sudo", "halt"],shell=True) #os.system('sudo halt')
     raise SystemExit # Close the interpreter and clean up the buffers before reboot happens.
 
@@ -120,7 +124,7 @@ def immediateReboot(chip,cmd,args):
     cmd,args - string, array of args (seperated by ' ') - the actual command, the args for the command
     """
     logger.logSystem([['Rebooting...']])
-    sendBytesToWTC(chip,b'SP') # SP = Shutdown Proceeding
+    _sendBytesToWTC(chip,b'SP') # SP = Shutdown Proceeding
     Popen(["sudo", "reboot"],shell=True) #os.system('sudo reboot')
     raise SystemExit # Close the interpreter and clean up the buffers before reboot happens.
 
@@ -133,7 +137,14 @@ def sendFile(chip,cmd,args):
     chip - SC16IS750 - an SC16IS750 object which handles the WTC Connection
     cmd,args - string, array of args (seperated by ' ') - the actual command, the args for the command
     """
-    pass
+    #TODO this is not complete.
+    logger.logSystem([['Running the QUIP Encoder...']+args])
+    success = quip.Encoder(args[0],INTERP_PACKETS_PATH,suppress=False).run()
+    if success:
+        logger.logSystem([['The encoding was successful. Beginning the transfer sequences.']])
+    else:
+        logger.logSystem([['There was a problem fully encoding the file.']])
+
 
 def asynchronousSendPackets(chip,cmd,args):
     """
@@ -144,7 +155,19 @@ def asynchronousSendPackets(chip,cmd,args):
     chip - SC16IS750 - an SC16IS750 object which handles the WTC Connection
     cmd,args - string, array of args (seperated by ' ') - the actual command, the args for the command
     """
-    pass
+    #TODO this may not be complete.
+    if args and isinstance(args[0],bytes):
+        args = [entry.decode('utf-8') for entry in args]
+    for pak in args:
+        try:
+            with open(INTERP_PACKETS_PATH+pak+'.qp','rb') as f:
+                data = f.read()
+                if len(data) is 256:
+                    #TODO Figure out a protocol if we can't just bulk send 256 bytes.
+                    _sendBytesToWTC(chip,data)
+        except OSError as err:
+            logger.logError('Could not read packet for sending.', err)
+
 
 def pingPi(chip,cmd,args):
     """
@@ -156,7 +179,7 @@ def pingPi(chip,cmd,args):
     cmd,args - string, array of args (seperated by ' ') - the actual command, the args for the command
     """
     logger.logSystem([["Pong!"]])
-    sendBytesToWTC(chip,b'OK')
+    _sendBytesToWTC(chip,b'OK')
 
 def returnStatus(chip,cmd,args):
     """
@@ -246,7 +269,23 @@ def returnStatus(chip,cmd,args):
 
 
 def _getEthernetConnection():
+    """
+    This method establishes the ethernet connection for methods that use it.
+
+    Parameters
+    ----------
+    Nothing.
+
+    Returns
+    -------
+    The socket connection.
+
+    Raises
+    ------
+    ConnectionError - if it cannot make a connection for some reason.
+    """
     client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    logger.logSystem([['Attempting to connect to the other Pi via Ethernet.']])
     try:
         with open(WHO_FILEPATH,'r') as f:
             identity = f.read(1)
@@ -255,10 +294,15 @@ def _getEthernetConnection():
         elif identity == 2:
             host = "192.168.1.1"
         else:
-            raise ConnectionError("Could not connect to Sibling. Bad Identity: " + identity)
-            client.connect((host,SOCKET_PORT))
+            err = ConnectionError("Could not connect to Sibling. Bad Identity: " + identity)
+            logger.logError('EthernetConnection: Bad Identity', err)
+            raise err
+        client.connect((host,SOCKET_PORT))
+        logger.logSystem([['EthernetConnection: Connection Established','Identity: Pi '+identity,'Host IP Address: '+host]])
     except (OSError,ConnectionError) as err:
-        raise ConnectionError(str(err)) from err
+        newErr = ConnectionError(str(err))
+        logger.logError('EthernetConnection: There was a problem connecting via Ethernet', newErr)
+        raise newErr from err
     client.settimeout(20)
     return client
 
@@ -271,16 +315,21 @@ def checkSiblingPi(chip,cmd,args): # TODO some kind of listener will have to be 
     chip - SC16IS750 - an SC16IS750 object which handles the WTC Connection
     cmd,args - string, array of args (seperated by ' ') - the actual command, the args for the command
     """
-    connection = getEthernetConnection()
     try:
+        connection = getEthernetConnection()
+        logger.logSystem([['Attempting to ping the other Pi.']])
         connection.send(b'Hello?') # See if the other guy is there by sending this.
         recvval = connection.recv(ETHERNET_BUFFER) # Will wait for response
         if recvval == b'Here!':
+            logger.logSystem([['PiPong: Received message back from other pi. Everything Nominal.']])
             connection.close()
-            sendBytesToWTC(chip,b"OK")
-            break
+            _sendBytesToWTC(chip,b"OK")
     except TimeoutError:
-        sendBytesToWTC(chip,b"NO")
+        logger.logSystem([['EthernetConnection: Timeout has occured in qpacePiCommands.checkSiblingPi()']])
+        _sendBytesToWTC(chip,b'NO')
+    except ConnectionError as err:
+        logger.logError('There was a connection Error in qpacePiCommands.checkSibilingPi()',err)
+        _sendBytesToWTC(chip,b'NO')
 
 
 
@@ -293,21 +342,27 @@ def pipeCommandToSiblingPi(chip,cmd,args): # TODO some kind of listener will hav
     chip - SC16IS750 - an SC16IS750 object which handles the WTC Connection
     cmd,args - string, array of args (seperated by ' ') - the actual command, the args for the command
     """
-    connection = getEthernetConnection()
     try:
+        connection = getEthernetConnection()
+        logger.logSystem([['Attempting to pipe a command to the the other Pi.']])
         connection.send(b'PIPE') # See if the other guy is there by sending this.
         recvval = connection.recv(ETHERNET_BUFFER) # Will wait for response
         if recvval == b'OK':
+            logger.logSystem([['Handshake complete. Args:']+args])
             connection.send(' '.join(args).encode('utf-8'))
             ret = connection.recv(ETHERNET_BUFFER)
             if ret == b'working':
-                sendBytesToWTC(chip,b'OK')
+                logger.logSystem([['Command was received by the other pi and is attempting to be completed.']])
+                _sendBytesToWTC(chip,b'OK')
             else
-                sendBytesToWTC(chip,b'NO')
-            break
+                logger.logSystem([['Command has an issue for some reason and will not be run on the other pi.']])
+                _sendBytesToWTC(chip,b'NO')
     except TimeoutError:
-        sendBytesToWTC(chip,b"NO")
-
+        logger.logSystem([['EthernetConnection: Timeout has occured in qpacePiCommands.checkSiblingPi()']])
+        _sendBytesToWTC(chip,b'NO')
+    except ConnectionError as err:
+        logger.logError('There was a connection Error in qpacePiCommands.checkSibilingPi()',err)
+        _sendBytesToWTC(chip,b'NO')
 def performUARTCheck(chip,cmd,args):
     """
     Tell the pi to ping the WTC and wait for a response back. Similar to a "reverse" ping.
@@ -317,5 +372,6 @@ def performUARTCheck(chip,cmd,args):
     chip - SC16IS750 - an SC16IS750 object which handles the WTC Connection
     cmd,args - string, array of args (seperated by ' ') - the actual command, the args for the command
     """
-    sendBytesToWTC(chip, b'HI')
-    waitForWTCResponse(chip,trigger = 'OK')
+    logger.logSystem([['Attempting to use UART...']])
+    _sendBytesToWTC(chip, b'HI')
+    _waitForWTCResponse(chip,trigger = 'OK') #Wait until timeout.
