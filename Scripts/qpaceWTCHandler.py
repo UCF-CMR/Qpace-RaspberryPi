@@ -5,7 +5,8 @@
 # University of Central Florida
 #
 # This script is run at boot to initialize the system clock and then wait for interrupts.
-SOCKET_PORT=8675 #Jenny, who can I turn to?
+SOCKET_PORT = 8675 #Jenny, who can I turn to?
+ETHERNET_BUFFER = 2048
 WHO_FILEPATH = 'WHO'
 WTC_IRQ = 4 # BCM 4, board pin 7
 def initWTCConnection():
@@ -61,7 +62,7 @@ def initWTCConnection():
     time.sleep(2.0/XTAL_FREQ)
     return chip
 
-def _openSocketForSibling():
+def _openSocketForSibling(chip = None):
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     # Read in only the first character from the WHO file to get the current identity.
     try:
@@ -76,7 +77,7 @@ def _openSocketForSibling():
 
         server.bind((host, SOCKET_PORT))
 
-        class Client(Thread):
+        class QPClientHandler(Thread):
             def __init__(self, socket, addr):
                 Thread.__init__(self)
                 self.socket = socket
@@ -86,12 +87,21 @@ def _openSocketForSibling():
             def run(self):
                 while True:
                     try:
-                        retval = self.socket.recv(2048)
-                        if retval != b'':
-                            if retval == b'Hello?':
+                        recvval = self.socket.recv(ETHERNET_BUFFER)
+                        if recvval:
+                            recvval = recvval.split(b' ')
+
+                            if recvval[0] == b'Hello?':
                                 self.socket.send(b'Here!')
-                            elif retval == b'Pipe':
-                                #TODO Insert pipe functionality
+
+                            elif recvval[0] == b'PIPE':
+                                self.socket.send(b'OK')
+                                command = self.socket.recv(ETHERNET_BUFFER)
+                                if qpI.isCommand(command) and chip:
+                                    self.socket.send(b'working')
+                                    qpI.processCommand(chip,command, fromWhom='Pipe (to Pi '+identity+')')
+                                else:
+                                    self.socket.send(b'not command')
                     except BrokenPipeError:
                         #print('Client Disconnected.')
                         break
@@ -100,7 +110,7 @@ def _openSocketForSibling():
         #print ('server started and listening')
         while True:
             client, address = server.accept()
-            Client(client, address)
+            QPClientHandler(client, address)
     except (OSError,ConnectionError) as err:
         raise ConnectionError(str(err)) from err
 
@@ -156,7 +166,7 @@ if __name__ == '__main__':
             librt = ctypes.CDLL(ctypes.util.find_library("rt"))
 
             ts = timespec()
-            ts.tv_sec = int( time.mktime( datetime.datetime(*time_tuple).timetuple() ) )
+            ts.tv_sec = int(time.mktime(datetime.datetime(*time_tuple).timetuple()))
             ts.tv_nsec = 0 # We don't care about nanoseconds
 
             # http://linux.die.net/man/3/clock_settime
@@ -166,7 +176,7 @@ if __name__ == '__main__':
             logger.logError("Could not set the Pi's system time for some reason.",err)
 
         try:
-            socketHandler = Thread(name='socketHandler',target=openSocketForSibling)
+            socketHandler = Thread(name='socketHandler',target=openSocketForSibling,args=(chip,))
             socketHandler.start()
             qpI.run(chip)
         except BufferError as err:

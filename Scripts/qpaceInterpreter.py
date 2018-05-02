@@ -42,7 +42,7 @@ class LastCommand():
     timestamp = "Never"
     fromWhom = "N/A"
 
-def _isCommand(query = None):
+def isCommand(query = None):
     """
     Checks to see if the query is a command as defined by the COMMAND_LIST
 
@@ -60,7 +60,7 @@ def _isCommand(query = None):
     else:
         return False
 
-def _processCommand(chip = None, query = None):
+def processCommand(chip = None, query = None, fromWhom = None):
     """
     Split the command from the arguments and then run the command as expected.
 
@@ -72,6 +72,7 @@ def _processCommand(chip = None, query = None):
     Raises
     ------
     ConnectionError - If a connection to the WTC was not passed to the command
+    BufferError - Could not decode bytes to string for command query.
     """
 
     if not chip:
@@ -80,17 +81,16 @@ def _processCommand(chip = None, query = None):
         try:
             query = query.decode('utf-8')
         except UnicodeError:
-            pass
+            raise BufferError("Could not decode bytes to string for command query.")
         else:
-            cmd = query[:INTERP_CMD_SIZE] # Seperate the specific command
-            args = query[INTERP_CMD_SIZE:]# Seperate the args
-            logger.logSystem([["Command Received:",cmd,args]])
-            LastCommand.type = cmd
+            query = query.split(' ')
+            logger.logSystem([["Command Received:",query[0],' '.join(query[1:])]])
+            LastCommand.type = query[0]
             LastCommand.timestamp = str(datetime.datetime.now())
-            LastCommand.fromWhom = 'WTC'
-            COMMAND_LIST[cmd](chip,args) # Run the command
+            LastCommand.fromWhom = fromWhom or 'WTC'
+            COMMAND_LIST[cmd](chip,query[0],query[1:]) # Run the command
 
-def _processQUIP(chip = None,buf = None):
+def processQUIP(chip = None,buf = None):
     #TODO do we need to determine the opcode or can we force the packets to be sent in order?
     #TODO we will need to determine the opcode iff we use control packets.
     """
@@ -212,7 +212,7 @@ def run(chip = None):
         except BufferError: raise
     try:
         if isCommand(buf): # Is the input to the buffer a command?
-            processCommand(chip,buf)
+            processCommand(chip,buf,fromWhom='WTC')
         else:
             missingPackets = processQUIP(chip,buf) # IF it's not a command, assume it's QUIP data.
             #TODO how to handle any packets that weren't interpreted correctly?

@@ -17,7 +17,8 @@ CMD_DEFAULT_TIMEOUT = 10 #seconds
 CMD_POLL_DELAY = .5 #seconds
 STATUSPATH = ''
 WHO_FILEPATH = ''
-SOCKET_PORT=8675 #Jenny, who can I turn to?
+SOCKET_PORT = 8675 #Jenny, who can I turn to?
+ETHERNET_BUFFER = 2048
 def _waitForWTCResponse(chip, trigger = None, timeout = None):
     """
     Wait for the WTC to respond with a continue code and then return.
@@ -92,7 +93,7 @@ def _sendBytesToWTC(chip,sendData):
         #TODO do we actually handle the case where it just doesn't work?
         pass
 
-def immediateShutdown(chip,args):
+def immediateShutdown(chip,cmd,args):
     """
     Initiate the shutdown proceedure on the pi and then shut it down. Will send a status to the WTC
     The moment before it actually shuts down.
@@ -100,7 +101,7 @@ def immediateShutdown(chip,args):
     Parameters
     ----------
     chip - SC16IS750 - an SC16IS750 object which handles the WTC Connection
-    args - string - the args for the command
+    cmd,args - string, array of args (seperated by ' ') - the actual command, the args for the command
     """
     logger.logSystem([['Shutting down...']])
     sendBytesToWTC(chip,b'SP') # SP = Shutdown Proceeding
@@ -108,7 +109,7 @@ def immediateShutdown(chip,args):
     raise SystemExit # Close the interpreter and clean up the buffers before reboot happens.
 
 
-def immediateReboot(chip,args):
+def immediateReboot(chip,cmd,args):
     """
     Initiate the reboot proceedure on the pi and then reboot it. Will send a status to the WTC
     the moment before it actually reboots.
@@ -116,48 +117,48 @@ def immediateReboot(chip,args):
     Parameters
     ----------
     chip - SC16IS750 - an SC16IS75 object which handles the WTC Connection
-    args - string - the args for the command
+    cmd,args - string, array of args (seperated by ' ') - the actual command, the args for the command
     """
     logger.logSystem([['Rebooting...']])
     sendBytesToWTC(chip,b'SP') # SP = Shutdown Proceeding
     Popen(["sudo", "reboot"],shell=True) #os.system('sudo reboot')
     raise SystemExit # Close the interpreter and clean up the buffers before reboot happens.
 
-def sendFile(chip,args):
+def sendFile(chip,cmd,args):
     """
     Encode a file with the QUIP protocol and then send the raw data to the WTC to send to ground.
 
     Parameters
     ----------
     chip - SC16IS750 - an SC16IS750 object which handles the WTC Connection
-    args - string - the args for the command
+    cmd,args - string, array of args (seperated by ' ') - the actual command, the args for the command
     """
     pass
 
-def asynchronousSendPackets(chip,args):
+def asynchronousSendPackets(chip,cmd,args):
     """
     Aggregate and then pass along individual, specific packets to the WTC to send to ground.
 
     Parameters
     ----------
     chip - SC16IS750 - an SC16IS750 object which handles the WTC Connection
-    args - string - the args for the command
+    cmd,args - string, array of args (seperated by ' ') - the actual command, the args for the command
     """
     pass
 
-def pingPi(chip,args):
+def pingPi(chip,cmd,args):
     """
     A ping was received from the WTC. Respond back!
 
     Parameters
     ----------
     chip - SC16IS750 - an SC16IS750 object which handles the WTC Connection
-    args - string - the args for the command
+    cmd,args - string, array of args (seperated by ' ') - the actual command, the args for the command
     """
     logger.logSystem([["Pong!"]])
     sendBytesToWTC(chip,b'OK')
 
-def returnStatus(chip,args):
+def returnStatus(chip,cmd,args):
     """
     Create a text file with status items and then send that file.
     Invokes sendFile
@@ -169,7 +170,7 @@ def returnStatus(chip,args):
     Parameters
     ----------
     chip - SC16IS750 - an SC16IS750 object which handles the WTC Connection
-    args - string - the args for the command
+    cmd,args - string, array of args (seperated by ' ') - the actual command, the args for the command
     """
     logger.logSystem([["Attempting to get the status of the Pi"]])
     identity = 0
@@ -244,16 +245,7 @@ def returnStatus(chip,args):
         except:pass
 
 
-
-def checkSiblingPi(chip,args): # TODO some kind of listener will have to be written for this and run as a seperate process on the pi.
-    """
-    Check the sibling pi via ethernet to see if it's alive.
-
-    Parameters
-    ----------
-    chip - SC16IS750 - an SC16IS750 object which handles the WTC Connection
-    args - string - the args for the command
-    """
+def _getEthernetConnection():
     client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     try:
         with open(WHO_FILEPATH,'r') as f:
@@ -267,41 +259,63 @@ def checkSiblingPi(chip,args): # TODO some kind of listener will have to be writ
             client.connect((host,SOCKET_PORT))
     except (OSError,ConnectionError) as err:
         raise ConnectionError(str(err)) from err
-
     client.settimeout(20)
+    return client
+
+def checkSiblingPi(chip,cmd,args): # TODO some kind of listener will have to be written for this and run as a seperate process on the pi.
+    """
+    Check the sibling pi via ethernet to see if it's alive.
+
+    Parameters
+    ----------
+    chip - SC16IS750 - an SC16IS750 object which handles the WTC Connection
+    cmd,args - string, array of args (seperated by ' ') - the actual command, the args for the command
+    """
+    connection = getEthernetConnection()
     try:
-        client.send(b'Hello?')
-        recvval = ''
-        recvval = client.recv(2048) # Will wait for response
-        while True:
-            if recvval == b'Here!':
-                client.close()
-                sendBytesToWTC(chip,"OK")
-                break
+        connection.send(b'Hello?') # See if the other guy is there by sending this.
+        recvval = connection.recv(ETHERNET_BUFFER) # Will wait for response
+        if recvval == b'Here!':
+            connection.close()
+            sendBytesToWTC(chip,b"OK")
+            break
     except TimeoutError:
-        sendBytesToWTC(chip,"NO")
+        sendBytesToWTC(chip,b"NO")
 
 
 
-def pipeCommandToSiblingPi(chip,args): # TODO some kind of listener will have to be written for this and run as a seperate process on the pi
+def pipeCommandToSiblingPi(chip,cmd,args): # TODO some kind of listener will have to be written for this and run as a seperate process on the pi
     """
     Inform the sibling pi to run a command found in the "args"
 
     Parameters
     ----------
     chip - SC16IS750 - an SC16IS750 object which handles the WTC Connection
-    args - string - the args for the command
+    cmd,args - string, array of args (seperated by ' ') - the actual command, the args for the command
     """
-    pass
+    connection = getEthernetConnection()
+    try:
+        connection.send(b'PIPE') # See if the other guy is there by sending this.
+        recvval = connection.recv(ETHERNET_BUFFER) # Will wait for response
+        if recvval == b'OK':
+            connection.send(' '.join(args).encode('utf-8'))
+            ret = connection.recv(ETHERNET_BUFFER)
+            if ret == b'working':
+                sendBytesToWTC(chip,b'OK')
+            else
+                sendBytesToWTC(chip,b'NO')
+            break
+    except TimeoutError:
+        sendBytesToWTC(chip,b"NO")
 
-def performUARTCheck(chip,args):
+def performUARTCheck(chip,cmd,args):
     """
     Tell the pi to ping the WTC and wait for a response back. Similar to a "reverse" ping.
 
     Parameters
     ----------
     chip - SC16IS750 - an SC16IS750 object which handles the WTC Connection
-    args - string - the args for the command
+    cmd,args - string, array of args (seperated by ' ') - the actual command, the args for the command
     """
     sendBytesToWTC(chip, b'HI')
     waitForWTCResponse(chip,trigger = 'OK')
