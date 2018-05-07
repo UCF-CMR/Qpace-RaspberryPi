@@ -10,11 +10,13 @@ import os
 import time
 from subprocess import check_output,Popen
 from math import ceil
-import qpaceInterpreter 
+from time import strftime,gmtime
+import socket
+import qpaceInterpreter
 import qpaceLogger as logger
 import qpaceQUIP as quip
 
-CMD_DEFAULT_TIMEOUT = 10 #seconds
+CMD_DEFAULT_TIMEOUT = 5 #seconds
 CMD_POLL_DELAY = .5 #seconds
 STATUSPATH = ''
 WHO_FILEPATH = ''
@@ -51,7 +53,7 @@ def _waitForWTCResponse(chip, trigger = None, timeout = None):
         logText += " with '{}'".format(trigger)
     logger.logSystem([[logText]])
 
-    attemps_remaining = ceil((timeout or CMD_DEFAULT_TIMEOUT)/CMD_POLL_DELAY)
+    attempts_remaining = ceil((timeout or CMD_DEFAULT_TIMEOUT)/CMD_POLL_DELAY)
     if attempts_remaining < 1:
         attempts_remaining = 1
 
@@ -89,11 +91,12 @@ def _sendBytesToWTC(chip,sendData):
         logger.logSystem([['Data will not be sent to the WTC: not string or bytes.']])
         raise TypeError("Data to the WTC must be in the form of bytes or string")
     try:
-        logger.logSystem([['Sending to the WTC:', sendData.decode(utf-8)]])
-        chip.block_write(0x09, sendData)
+        logger.logSystem([['Sending to the WTC:', str(sendData)]])
+        for byte in sendData:
+            chip.byte_write(SC16IS750.REG_THR, byte)
     except Exception as err:
         #TODO do we actually handle the case where it just doesn't work?
-        logger.logError('SendBytesToWTC: An error has occured when attempting to send data to the WTC. Data to send:' +sendData + 'The data will not be send',err)
+        logger.logError('SendBytesToWTC: An error has occured when attempting to send data to the WTC. Data to send:' + str(sendData) + 'The data will not be send',err)
         pass
 
 def immediateShutdown(chip,cmd,args):
@@ -137,10 +140,24 @@ def sendFile(chip,cmd,args):
     cmd,args - string, array of args (seperated by ' ') - the actual command, the args for the command
     """
     #TODO this is not complete.
+    from qpaceInterpreter import INTERP_PACKETS_PATH
+
     logger.logSystem([['Running the QUIP Encoder...']+args])
     success = quip.Encoder(args[0],INTERP_PACKETS_PATH,suppress=False).run()
     if success:
         logger.logSystem([['The encoding was successful. Beginning the transfer sequences.']])
+        try:
+            for filepath in os.listdir(INTERP_PACKETS_PATH):
+                try:
+                    with open(INTERP_PACKETS_PATH+filepath,'rb') as f:
+                        data = f.read()
+                        if len(data) is 256:
+                            #TODO Figure out a protocol if we can't just bulk send 256 bytes.
+                            _sendBytesToWTC(chip,data)
+                except OSError as err:
+                    logger.logError('Could not read packet for sending: ' + filepath, err)
+        except OSError:
+            logger.logError('Could not read directory for sending packets.')
     else:
         logger.logSystem([['There was a problem fully encoding the file.']])
 
@@ -155,6 +172,7 @@ def asynchronousSendPackets(chip,cmd,args):
     cmd,args - string, array of args (seperated by ' ') - the actual command, the args for the command
     """
     #TODO this may not be complete.
+    from simInterpreter import INTERP_PACKETS_PATH
     if args and isinstance(args[0],bytes):
         args = [entry.decode('utf-8') for entry in args]
     for pak in args:
@@ -194,6 +212,7 @@ def returnStatus(chip,cmd,args):
     chip - SC16IS750 - an SC16IS750 object which handles the WTC Connection
     cmd,args - string, array of args (seperated by ' ') - the actual command, the args for the command
     """
+    from simInterpreter import LastCommand
     logger.logSystem([["Attempting to get the status of the Pi"]])
     identity = 0
     cpu = 'Unknown'
@@ -315,7 +334,7 @@ def checkSiblingPi(chip,cmd,args): # TODO some kind of listener will have to be 
     cmd,args - string, array of args (seperated by ' ') - the actual command, the args for the command
     """
     try:
-        connection = getEthernetConnection()
+        connection = _getEthernetConnection()
         logger.logSystem([['Attempting to ping the other Pi.']])
         connection.send(b'Hello?') # See if the other guy is there by sending this.
         recvval = connection.recv(ETHERNET_BUFFER) # Will wait for response
@@ -342,7 +361,7 @@ def pipeCommandToSiblingPi(chip,cmd,args): # TODO some kind of listener will hav
     cmd,args - string, array of args (seperated by ' ') - the actual command, the args for the command
     """
     try:
-        connection = getEthernetConnection()
+        connection = _getEthernetConnection()
         logger.logSystem([['Attempting to pipe a command to the the other Pi.']])
         connection.send(b'PIPE') # See if the other guy is there by sending this.
         recvval = connection.recv(ETHERNET_BUFFER) # Will wait for response

@@ -163,12 +163,13 @@ if __name__ == '__main__':
             time.sleep(.5)
             waiting = chip.byte_read(SC16IS750.REG_RXLVL)
             if waiting >= 6 :
-                for i in range(5):
-                    buf += chip.byte_read(SC16IS750.REG_RHR)
+                for i in range(6):
+                    buf += bytes([chip.byte_read(SC16IS750.REG_RHR)])
+                break
 
-        logger.logSystem([["Time received from the WTC.",str(2000 + ord(buf[0])), str(ord(buf[1])), str(ord(buf[2])), str(ord(buf[3])), str(ord(buf[4])), str(ord(buf[5]))]])
-        # (Year, Month, Day, Hour, Minute, Second, Millisecond)
-        time_tuple = (2000 + ord(buf[0]), ord(buf[1]), ord(buf[2]), ord(buf[3]), ord(buf[4]), ord(buf[5]))
+        logger.logSystem([["Time received from the WTC.",str(2000 + buf[0]), str(buf[1]), str(buf[2]), str(buf[3]), str(buf[4]), str(buf[5])]])
+        # (Year, Month, Day, Hour, Minute, Second)
+        time_tuple = (2000 + buf[0], buf[1], buf[2], buf[3], buf[4], buf[5])
         # Change the system time on the pi.
         try:
             class timespec(ctypes.Structure):

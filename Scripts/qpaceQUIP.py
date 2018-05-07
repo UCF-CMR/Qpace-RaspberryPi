@@ -217,8 +217,7 @@ class Encoder():
         self.suppress = suppress
         self.destructive = destructive
         self.packets_built = 0
-        if destination is not None:
-            self.destination = destination
+        self.destination = destination
 
     def run(self):
         """

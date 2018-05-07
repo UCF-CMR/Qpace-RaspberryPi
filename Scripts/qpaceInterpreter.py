@@ -92,7 +92,7 @@ def processCommand(chip = None, query = None, fromWhom = None):
             LastCommand.type = query[0]
             LastCommand.timestamp = str(datetime.datetime.now())
             LastCommand.fromWhom = fromWhom or 'WTC'
-            COMMAND_LIST[cmd](chip,query[0],query[1:]) # Run the command
+            COMMAND_LIST[query[0]](chip,query[0],query[1:]) # Run the command
 
 def processQUIP(chip = None,buf = None):
     #TODO do we need to determine the opcode or can we force the packets to be sent in order?
@@ -111,7 +111,7 @@ def processQUIP(chip = None,buf = None):
     ConnectionError - If the connection to the WTC was not passed to this method.
     """
     if not chip:
-        raise ConnectionError("Connection to the WTC not established.")
+        raise ConnectionError("Connection to the CCDR not established.")
     if not buf:
         raise BufferError("Buffer is empty, no QUIP data received.")
 
@@ -172,7 +172,7 @@ def run(chip = None):
     if chip is None:
         chip = initWTCConnection()
         if chip is None:
-            raise ConnectionError("A connection could not be made to the WTC.")
+            raise ConnectionError("A connection could not be made to the CCDR.")
     # Initialize the pins
     #gpio.set_mode(gpio.BCM)
     #gpio.setup(WTC_IRQ, gpio.IN)
@@ -187,20 +187,20 @@ def run(chip = None):
                 # See how much we want to read.
                 waiting = chip.byte_read(SC16IS750.REG_RXLVL)
                 if waiting > 0:
-                    logger.logSystem([["Reading in "+ waiting +" bytes from the WTC"]])
+                    logger.logSystem([["Reading in "+ str(waiting) +" bytes from the CCDR"]])
                     for i in range(waiting):
                         # Read from the chip and write to the buffer.
-                        buf += chip.byte_read(SC16IS750.REG_RHR)
+                        buf += bytes([chip.byte_read(SC16IS750.REG_RHR)])
             # If MSB of LSR is high, then FIFO data error detected:
             elif status & 0x80 == 1:
                 if attempt > 1:
-                    logger.logError("Something is wrong with the WTC FIFO and it cannot be read.")
+                    logger.logError("Something is wrong with the CCDR FIFO and it cannot be read.")
                     try:
-                        logger.logSystem([["Attempted to read from the WTC FIFO but somethign went wrong.","Current contents of the buffer:",buf.decode('utf-8')]])
+                        logger.logSystem([["Attempted to read from the CCDR FIFO but somethign went wrong.","Current contents of the buffer:",buf.decode('utf-8')]])
                     except UnicodeError:
-                        BufferError("The FIFO could not be read on the WTC.")
+                        BufferError("The FIFO could not be read on the CCDR.")
                 else:
-                    logger.logError("Something is wrong with the WTC FIFO. Will try to read again: Attempt " + str(attempt + 1))
+                    logger.logError("Something is wrong with the CCDR FIFO. Will try to read again: Attempt " + str(attempt + 1))
                     attempt += 1
             else:
                 # If the Interrupt Request pin is Logical Low then break. We don't want to read anymore.
