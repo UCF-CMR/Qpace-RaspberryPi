@@ -10,9 +10,8 @@ import os
 import time
 from subprocess import check_output,Popen
 from math import ceil
-from qpaceInterpreter import LastCommand
+import qpaceInterpreter 
 import qpaceLogger as logger
-from qpacePiCommands import INTERP_PACKETS_PATH
 import qpaceQUIP as quip
 
 CMD_DEFAULT_TIMEOUT = 10 #seconds
@@ -243,17 +242,17 @@ def returnStatus(chip,cmd,args):
     except Exception as err:
         logger.logError("There was a problem determining the Pi's identity", err)
 
-    text_to_write = "Identity: Pi {}\n"
-                    "Last Command Executed was \"{}\" at {} invoked by \"{}\"\n"
-                    "CPU Usage: {}%\n"
-                    "CPU Temp: {}C\n"
-                    "Uptime: {} (hh:mm)\n"
-                    "RAM Total: {} bytes\n"
-                    "RAM Used: {} bytes\n"
-                    "RAM Free: {} bytes\n"
-                    "Disk total: {}\n"
+    text_to_write = "Identity: Pi {}\n"     +\
+                    "Last Command Executed was \"{}\" at {} invoked by \"{}\"\n" +\
+                    "CPU Usage: {}%\n"      +\
+                    "CPU Temp: {}C\n"       +\
+                    "Uptime: {} (hh:mm)\n"  +\
+                    "RAM Total: {} bytes\n" +\
+                    "RAM Used: {} bytes\n"  +\
+                    "RAM Free: {} bytes\n"  +\
+                    "Disk total: {}\n"      +\
                     "Disk free: {}\n"
-                    .format(identity,last_command,last_command_when,last_command_from,cpu,cpu_temp,
+    text_to_write = text_to_write.format(identity,last_command,last_command_when,last_command_from,cpu,cpu_temp,
                             uptime,ram_tot,ram_used,ram_free,disk_total,disk_free)
     logger.logSystem([["Status finished."] + text_to_write.split('\n')])
     timestamp = strftime("%Y%m%d-%H%M%S",gmtime())
@@ -354,7 +353,7 @@ def pipeCommandToSiblingPi(chip,cmd,args): # TODO some kind of listener will hav
             if ret == b'working':
                 logger.logSystem([['Command was received by the other pi and is attempting to be completed.']])
                 _sendBytesToWTC(chip,b'OK')
-            else
+            else:
                 logger.logSystem([['Command has an issue for some reason and will not be run on the other pi.']])
                 _sendBytesToWTC(chip,b'NO')
     except TimeoutError:

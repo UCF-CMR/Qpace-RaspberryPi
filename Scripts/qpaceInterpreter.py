@@ -16,7 +16,7 @@ import RPi.GPIO as gpio
 import datetime
 from qpaceWTCHandler import initWTCConnection
 from qpaceQUIP import Packet,Decoder
-import qpacPiCommands as cmd
+import qpacePiCommands as cmd
 import qpaceLogger as logger
 
 PACKET_SIZE = Packet.max_size
@@ -174,8 +174,8 @@ def run(chip = None):
         if chip is None:
             raise ConnectionError("A connection could not be made to the WTC.")
     # Initialize the pins
-    gpio.set_mode(gpio.BCM)
-    gpio.setup(WTC_IRQ, gpio.IN)
+    #gpio.set_mode(gpio.BCM)
+    #gpio.setup(WTC_IRQ, gpio.IN)
 
     buf = b''
     while True:
@@ -192,13 +192,13 @@ def run(chip = None):
                         # Read from the chip and write to the buffer.
                         buf += chip.byte_read(SC16IS750.REG_RHR)
             # If MSB of LSR is high, then FIFO data error detected:
-    		elif status & 0x80 == 1:
+            elif status & 0x80 == 1:
                 if attempt > 1:
                     logger.logError("Something is wrong with the WTC FIFO and it cannot be read.")
                     try:
                         logger.logSystem([["Attempted to read from the WTC FIFO but somethign went wrong.","Current contents of the buffer:",buf.decode('utf-8')]])
-                    except UnicodeError: pass # If you can't then you can't. Don't worry about it.
-                    BufferError("The FIFO could not be read on the WTC.")
+                    except UnicodeError:
+                        BufferError("The FIFO could not be read on the WTC.")
                 else:
                     logger.logError("Something is wrong with the WTC FIFO. Will try to read again: Attempt " + str(attempt + 1))
                     attempt += 1

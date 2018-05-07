@@ -5,6 +5,10 @@
 # University of Central Florida
 #
 # This script is run at boot to initialize the system clock and then wait for interrupts.
+from threading import *
+import SC16IS750
+
+
 SOCKET_PORT = 8675 #Jenny, who can I turn to?
 ETHERNET_BUFFER = 2048
 WHO_FILEPATH = 'WHO'
@@ -25,12 +29,11 @@ def initWTCConnection():
     ------
     Any exceptions are passed up the call stack.
     """
-    import SC16IS750
 
     I2C_BUS = 1 # I2C bus identifier
     PIN_IRQ_WTC = 4 # Interrupt request pin. BCM pin 4, header pin 7
-    I2C_ADDR_WTC = 0x4C # I2C addresses for WTC comm chips
-    I2C_BAUD_WTC = 115200 # UART baudrates for WTC comm chips
+    I2C_ADDR_WTC = 0x48 # I2C addresses for WTC comm chips
+    I2C_BAUD_WTC = 9600 # UART baudrates for WTC comm chips
     XTAL_FREQ = 1843200 # Crystal frequency for comm chips
 
     chip = SC16IS750.SC16IS750(I2C_ADDR_WTC, I2C_BUS, I2C_BAUD_WTC, XTAL_FREQ)
@@ -63,23 +66,23 @@ def initWTCConnection():
     return chip
 
 def _openSocketForSibling(chip = None):
-        """
-        This function acts as a server and arbitrator for the Ethernet connection.
-        It will be spawned as it's own process.
+    """
+    This function acts as a server and arbitrator for the Ethernet connection.
+    It will be spawned as it's own process.
 
-        Parameters
-        ----------
-        chip - SC16IS750 - chip instance to use for communication with the WTC.
+    Parameters
+    ----------
+    chip - SC16IS750 - chip instance to use for communication with the WTC.
 
-        Returns
-        -------
-        Nothing.
+    Returns
+    -------
+    Nothing.
 
-        Raises
-        ------
-        ConnectionError - if it cannot make a connection for some reason.
-        BufferError - if the buffer to the WTC has an error.
-        """
+    Raises
+    ------
+    ConnectionError - if it cannot make a connection for some reason.
+    BufferError - if the buffer to the WTC has an error.
+    """
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     # Read in only the first character from the WHO file to get the current identity.
     try:
@@ -140,31 +143,21 @@ if __name__ == '__main__':
     import ctypes.util
     import time
     import socket
-    from threading import *
 
     import qpaceInterpreter as qpI
-    import RPi.GPIO as gpio
     import qpaceLogger as logger
-    #print("IMPORT RPi.GPIO and qpaceInterpreter BEFORE RUNNING")
-    #exit()
-
-    # Initialize the pins
-    gpio.setup(gpio.BCM)
-    gpio.setup(WTC_IRQ, gpio.IN) # WTC Interupt pin.
 
     chip = None
     try:
         # Read in only the first character from the WHO file to get the current identity.
         with open(WHO_FILEPATH,'r') as f:
             identity = f.read(1)
-
-        chip = initWTCConnection()
     except OSError:
-        identity = 0
-
-    logger.logSystem([["Identity determined as Pi: " + identity]])
+        identity = '0'
+    chip = initWTCConnection()
+    logger.logSystem([["Identity determined as Pi: " + str(identity)]])
     if chip:
-        chip.byte_write(SC16IS750.REG_THR, int(identity)) # Send the identity to the WTC
+        chip.byte_write(SC16IS750.REG_THR, ord(identity)) # Send the identity to the WTC
         buf = b''
         while True: # Is expecting 6 bytes. (YEAR, MONTH, DAY, HOUR, MINUTE, SECOND)
             time.sleep(.5)
@@ -207,9 +200,3 @@ if __name__ == '__main__':
             #TODO Alert the WTC of the problem and/or log it and move on
             #TODO figure out what we actually want to do.
             logger.logError("There is a problem with the connection to the WTC", err)
-            pass
-
-
-
-
-
