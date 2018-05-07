@@ -158,9 +158,10 @@ def sendFile(chip,cmd,args):
                     logger.logError('Could not read packet for sending: ' + filepath, err)
         except OSError:
             logger.logError('Could not read directory for sending packets.')
+            _sendBytesToWTC(chip,b'NO')
     else:
         logger.logSystem([['There was a problem fully encoding the file.']])
-
+        _sendBytesToWTC(chip,b'NO')
 
 def asynchronousSendPackets(chip,cmd,args):
     """

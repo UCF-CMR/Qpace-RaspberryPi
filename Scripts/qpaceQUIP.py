@@ -47,11 +47,11 @@ class Packet():
     id_bits = 32            # 4 bytes
     overflow = 0            # 0 for false. (1 bit)
     placeholder_bits = 4    # in bits
+    header_and_footer_size = 23 #in bytes
 
     max_size = 256          # in bytes
-    data_size = 77          # in bytes
+    data_size = None        # in bytes
     max_id = 0xFFFFFFFF     # 4 bytes. Stored as an int.
-    packet_data_size = None # packet_data_size in bytes
     last_id = -1            # -1 if there are no packets yet.
 
     def __init__(self,data, pid,**kwargs):
@@ -88,6 +88,11 @@ class Packet():
         else:
             raise TypeError("Input data is of incorrect type. Must input str, int, bytes, or bytearray")
 
+        # Is the data size set yet or is it valid?
+        if Packet.data_size is None or Packet.max_size // Packet.data_size != 3:
+            raise ValueError('data_size is not set OR the data_size is not 1/3 the max_size.')
+
+
         # If we need to set an op_code, do it. Otherwise the opcode will just be 0x0
         if 'op_code' in kwargs:
             self.op_code = kwargs['op_code']
@@ -115,7 +120,7 @@ class Packet():
         else:
             raise ValueError("Packet size is too large for the current header information. Data input restricted to " + str(Packet.data_size) + " Bytes.")
 
-    def buildHeader(self):
+    def buildHeader(self,useFEC=True):
         """
             Build the header for the packet.
 
@@ -126,9 +131,12 @@ class Packet():
         # The byte order will be bigendian
         pid = bytearray(self.pid.to_bytes(4,byteorder='big'))       # 4 bytes
         header_end = bytes([(Packet.overflow<<7|self.op_code<<4|self.getParity(self.buildData())<<3)])
-        return Packet.sync + Packet.start + (pid + header_end)*3
+        if useFEC:
+            return Packet.sync + Packet.start + (pid + header_end) * 3
+        else:
+            return Packet.sync + Packet.start + (pid + header_end)
 
-    def buildData(self):
+    def buildData(self,useFEC=True):
         """
             Build the data for the packet. All data is repeated 3 times for FEC.
 
@@ -138,7 +146,10 @@ class Packet():
         """
         # Do a TMR expansion where the data is replicated 3 times but not next to each other
         # to avoid burst errors.
-        return self.data*3
+        if useFEC:
+            return self.data * 3
+        else:
+            return self.data
 
     def buildFooter(self):
         """
@@ -191,7 +202,7 @@ class Packet():
         return False
 
 class Encoder():
-    def __init__(self,path_for_encode,path_for_packets, destination=None,suppress=False,destructive=False):
+    def __init__(self,path_for_encode,path_for_packets, FEC=True,destination=None,suppress=False,destructive=False):
         """
         Constructor for the Encoder.
 
@@ -218,6 +229,11 @@ class Encoder():
         self.destructive = destructive
         self.packets_built = 0
         self.destination = destination
+        self.useFEC = FEC
+        if FEC:
+            Packet.data_size = (Packet.max_size - Packet.header_and_footer_size) // 3
+        else:
+            Packet.data_size = Packet.max_size - Packet.header_and_footer_size
 
     def run(self):
         """
@@ -364,7 +380,7 @@ class Encoder():
 class Decoder():
     waitDelay = 1 # In seconds. This is for the asynchronous decoding.
 
-    def __init__(self, path_for_decode, path_for_packets, suppress=False,destructive=False,rush=False):
+    def __init__(self, path_for_decode, path_for_packets, FEC=True, suppress=False,destructive=False,rush=False):
         """
         Constructor for the Encoder.
 
@@ -401,6 +417,11 @@ class Decoder():
         self.rush = rush
         self.expected_packets = None
         self.file_size = None
+        self.useFEC = FEC
+        if FEC:
+            Packet.data_size = (Packet.max_size - Packet.header_and_footer_size) // 3
+        else:
+            Packet.data_size = Packet.max_size - Packet.header_and_footer_size
 
     def run(self, skipAsync = False):
         """
@@ -473,7 +494,10 @@ class Decoder():
                 # Resolve the TMR expansion from the packet. Since we have 19 bytes of header,
                 # Start from 19 and go until the ending sequence (but search for it from the back)
                 Decoder.isWrapperCorrupted(information)
-                information = Decoder.resolveExpansion(information[19:information.rfind(Packet.end + Packet.sync)])
+                if self.fec:
+                    information = Decoder.resolveExpansion(information[19:information.rfind(Packet.end + Packet.sync)])
+                else:
+                    information = information[19:information.rfind(Packet.end+Packet.sync)]
                 # Split on the ' ' since that should not be in any data
                 information = information.split(b' ')
         except OSError as err:
@@ -508,7 +532,10 @@ class Decoder():
                 information = packet_data[19:packet_data.rfind(Packet.end + Packet.sync)]
                 Decoder.isInfoCorrupted(information,Decoder.decipherHeader(packet_data[:19])['parity'])
                 # Resolve the TMR expansion. Since we have 19 bytes of header, start at 19.
-                return Decoder.resolveExpansion(information)
+                if self.fec:
+                    return Decoder.resolveExpansion(information)
+                else:
+                    return information
         except (FileNotFoundError,OSError,Corrupted): raise
 
     def bulkDecode(self):
@@ -886,7 +913,10 @@ class Decoder():
             op_code
         """
         header_dict = {}
-        header = Decoder.resolveExpansion(header[4:])
+        if self.fec:
+            header = Decoder.resolveExpansion(header[4:])
+        else:
+            header = header[4:]
         # Header: sync(2) - start(2)- pid(4)- [overflow(1),op(3),reserved(4)](1)
         header_dict['pid'] = struct.unpack('>L',header[0:4])[0] # Convert byte array to int.
         header_dict['overflow'] = (header[4] & 128) >> 7  # Bit mask to get the 8th bit
@@ -1028,6 +1058,10 @@ if __name__ == '__main__':
                         help="Destination file path for the file.",
                         default='/',
                         type=str)
+    parser.add_argument('-NoFEC','--NoFEC',
+                        help='Disable FEC in packets. FEC uses Triple Modular Redundancy as well as simple interlacing.',
+                        default = False,
+                        action = 'store_true') #By default "NoFEC" is false, but will be inverted to use the encoder/decoder
 
     args = parser.parse_args() # Parse the args coming in from the user
     ctrl = None
@@ -1038,10 +1072,11 @@ if __name__ == '__main__':
             # Turn all the asynchronous pids into ints. This will throw a ValueError if one is not an int.
             args.asyncList = list(map(lambda x: int(x),args.asyncList.split(',')))
 
+
         if args.encode: # If set to encode
-            coder = Encoder(args.file_location,args.packet_location,destination=args.destination,suppress=args.suppress,destructive=args.destructive)
+            coder = Encoder(args.file_location,args.packet_location,FEC = not args.NoFEC,destination=args.destination,suppress=args.suppress,destructive=args.destructive)
         else: # If set to decode or async
-            coder = Decoder(args.file_location,args.packet_location,suppress=args.suppress,destructive=args.destructive,rush=args.rush)
+            coder = Decoder(args.file_location,args.packet_location,FEC = not args.NoFEC, suppress=args.suppress,destructive=args.destructive,rush=args.rush)
         ctrl = Controller(coder,asyncList=args.asyncList)
     except TypeError as err:
         quipPrint("Error: ",err)
