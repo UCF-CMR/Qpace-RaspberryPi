@@ -1,6 +1,11 @@
 #! /usr/bin/env python3
+<<<<<<< HEAD
 # qpaceLogger.py by Jonathan Kessluk & Minh Pham
 # 2-13-2018, Rev. 1.1
+=======
+# qpaceTODOParser.py by Jonathan Kessluk and Minh
+# 2-13-2018, Rev. 1
+>>>>>>> 5f4b21dad6e6717fcd6f37b438004667f9c4111b
 # Q-Pace project, Center for Microgravity Research
 # University of Central Florida
 #
