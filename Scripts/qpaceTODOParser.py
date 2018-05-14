@@ -11,6 +11,7 @@ import re
 import os
 import signal
 import time
+import RPi.GPIO as gpio
 from datetime import datetime, date, timedelta
 from shutil import copy
 from multiprocessing import Process
@@ -21,9 +22,11 @@ TODO_FILE = "todo.txt"
 TODO_FILE_PATH = TODO_PATH + TODO_FILE
 TODO_TEMP = "todo_temp.tmp"
 
-STOP_SIGNAL = signal.SIGINT # what signal should we terminate execution on?
+WTC_IRQ = 7
 
-RELINQUISH = False #If false, stay in the code. If true, graceful shutdown.
+def _checkInterrupt(irq):
+    if gpio.input(irq):
+        raise InterruptedError("The WTC has requested to end processes and relinquish control.")
 
 def getTodoList():
 	"""
@@ -131,27 +134,24 @@ def executeTodoList(todo_list: list):
 	    ------
 	    None!
 	"""
-	signal.signal(STOP_SIGNAL, stop_handler)
-	while todo_list:
-		#If we need to stop execution:
-		if(RELINQUISH):
-			break
-		# How many seconds until our next task?
-		wait_time = (todo_list[0][0] - datetime.now()).total_seconds()
-		# Wait until it's time to run our next task. If the time has already passed wait a second and then do it.
-		wait_time = wait_time if wait_time > 0 else 1
-		qpaceLogger.logSystem([["Going to sleep for " + str(wait_time) + " seconds"]])
-		time.sleep(wait_time)
-		# pop the item off the todo_list and run it.
-		processTask(todo_list.pop(0))
-	return todo_list
-
-def stop_handler(signal, frame):
-	"""
-		Change the RELINQUISH variable to True so we can do a graceful shutdown.
-	"""
-	global RELINQUISH
-	RELINQUISH = True
+	#signal.signal(STOP_SIGNAL, stop_handler)
+	try:
+		while todo_list:
+			#If we need to stop execution:
+			_checkInterrupt(WTC_IRQ) # Check the interrupt BEFORE doing anything
+			# How many seconds until our next task?
+			wait_time = (todo_list[0][0] - datetime.now()).total_seconds()
+			# Wait until it's time to run our next task. If the time has already passed wait a second and then do it.
+			wait_time = wait_time if wait_time > 0 else 1
+			qpaceLogger.logSystem([["Going to sleep for " + str(wait_time) + " seconds"]])
+			time.sleep(wait_time)
+			_checkInterrupt(WTC_IRQ) # Check the interrupt immediately upon waking up.
+			# pop the item off the todo_list and run it.
+			processTask(todo_list.pop(0))
+	except InterruptedError as interrupt:
+		qpaceLogger.logSystem([["The interrupt pin was set to high. Stopping execution of the todo list."]])
+	finally:
+		return todo_list
 
 def processTask(task: list):
 	"""
@@ -236,30 +236,42 @@ def updateTodoFile(todo_list: list):
 		return False
 	return True
 
-# Only do the following if we are running this as a script.
-if __name__ == "__main__":
+
+def run():
+
+	gpio.set_mode(gpio.BOARD)
+    gpio.setup(WTC_IRQ, gpio.IN)
+
 	qpaceLogger.logSystem([
 		["Entering main in the TODO parser", os.getcwd()],
 		["Opening up the todo file and begining execution.",TODO_FILE_PATH]
 	])
-
-	todo_list = getTodoList()
-	if todo_list:
-		# We will assume the todo-list is NOT sorted, and sort it.
-		sortTodoList(todo_list)
-		todo_list = executeTodoList(todo_list)
-
+	try:
+		_checkInterrupt(WTC_IRQ) # Check the interrupt pin before interacting with the todo list
+		todo_list = getTodoList()
 		if todo_list:
-			qpaceLogger.logSystem([["The TODO parser has terminated early. Updating the todo file."]])
-			if updateTodoFile(todo_list): # If we terminated early, re-write the todo file before leaving.
-				qpaceLogger.logSystem([
-					["Successfuly updated the todo file.", TODO_FILE_PATH],
-					["Exiting the TODO parser.", os.getcwd()]
-				])
+			_checkInterrupt(WTC_IRQ) # Chek the interrupt pin before sorting
+			# We will assume the todo-list is NOT sorted, and sort it.
+			sortTodoList(todo_list)
+			_checkInterrupt(WTC_IRQ) # Check the interrupt pin before execution
+			todo_list = executeTodoList(todo_list)
+
+			if todo_list:
+				qpaceLogger.logSystem([["The TODO parser has terminated early. Updating the todo file."]])
+				if updateTodoFile(todo_list): # If we terminated early, re-write the todo file before leaving.
+					qpaceLogger.logSystem([
+						["Successfuly updated the todo file.", TODO_FILE_PATH],
+						["Exiting the TODO parser.", os.getcwd()]
+					])
+				else:
+					message = "Encountered a problem when trying to update the todo file!"
+					qpaceLogger.logSystem([[message, TODO_FILE_PATH]])
+					qpaceLogger.logError(message)
 			else:
-				message = "Encountered a problem when trying to update the todo file!"
-				qpaceLogger.logSystem([[message, TODO_FILE_PATH]])
-				qpaceLogger.logError(message)
-		else:
-			qpaceLogger.logSystem([["Todo file has finished execution", TODO_FILE_PATH]])
-			os.remove(TODO_FILE_PATH) # Do we want to delete the file or just leave it alone
+				qpaceLogger.logSystem([["Todo file has finished execution", TODO_FILE_PATH]])
+				os.remove(TODO_FILE_PATH) # Do we want to delete the file or just leave it alone
+	except InterruptedError as interrupt:
+        logger.logSystem([["The Interpreter was interrupted. Shutting down the Interpreter..."]])
+# Only do the following if we are running this as a script.
+if __name__ == "__main__":
+	run()

@@ -6,7 +6,7 @@
 #
 # Credit to the SurfSat team for CCDR driver and usage.
 #
-# The interpreter will be invoked when pin 7 goes high. This will grab incomming data from the WTC,
+# The interpreter will be invoked when pin 7 goes high. This will grab incoming data from the WTC,
 # Figure out if they are QUIP packets or commands. If it's a command it will execute the command
 # and if they are QUIP packets it will direct them to the packet directory and then decode it.
 
@@ -148,6 +148,7 @@ def processQUIP(chip = None,buf = None):
         logger.logSystem([["Attempted to write all packets to file system."],
                           ["Missing packets: ", str(missedPackets) if missedPackets else "None"]])
         return missedPackets
+
 def run(chip = None):
     """
     This function is the "main" purpose of this module. Placed into a function so that it can be called in another module.
@@ -166,17 +167,16 @@ def run(chip = None):
     BufferError - if the FIFO in the WTC cannot be read OR the buffer was empty.
     All other exceptions raised by this function are passed up the stack or ignored and not raised at all.
     """
-    WTC_IRQ = 4
-
+    WTC_IRQ = 7
+    TEMP_PACKET_LOCATION = 'temp/packets/'
     logger.logSystem([["Beginning the WTC Interpreter..."]])
     if chip is None:
         chip = initWTCConnection()
         if chip is None:
             raise ConnectionError("A connection could not be made to the CCDR.")
     # Initialize the pins
-    #gpio.set_mode(gpio.BCM)
-    #gpio.setup(WTC_IRQ, gpio.IN)
-
+    gpio.set_mode(gpio.BOARD)
+    gpio.setup(WTC_IRQ, gpio.IN)
     buf = b''
     while True:
         try:
@@ -211,16 +211,23 @@ def run(chip = None):
             logger.logSystem([["SIGINT was thrown to the Interpreter, stopping read from WTC."]])
             break
         except InterruptedError as interrupt: # IF we are interrupted, break.
-            logger.logSystem([["The read has been interrupted.",str(interrupt)]])
-            break
-        except BufferError: raise
+            logger.logSystem([["The read has been interrupted."],[str(interrupt)]])
+            raise interrupt
+        except BufferError as err:
+            logger.logError("A buffer error was thrown.",)
+            raise err
     try:
         if isCommand(buf): # Is the input to the buffer a command?
             processCommand(chip,buf,fromWhom='WTC')
         else:
             missingPackets = processQUIP(chip,buf) # IF it's not a command, assume it's QUIP data.
             #TODO how to handle any packets that weren't interpreted correctly?
-            decoder = Decoder(file_location,'temp/packets/',suppress=True,rush=True)
+            decoder = Decoder(file_location,TEMP_PACKET_LOCATION,suppress=True,rush=True)
             decoder.run(True)
-    except (BufferError,ConnectionError): raise
+    except (BufferError,ConnectionError) as err:
+        logger.logError("An error was thrown while trying to interpret the incoming data.", err)
+        raise err
+    except InterruptedError as interrupt:
+        logger.logSystem([["The Interpreter was interrupted...", str(interrupt)]])
+        raise interrupt
     gpio.cleanup() #TODO do we actually care to cleanup?

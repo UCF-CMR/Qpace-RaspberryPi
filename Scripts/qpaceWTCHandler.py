@@ -12,7 +12,7 @@ import SC16IS750
 SOCKET_PORT = 8675 #Jenny, who can I turn to?
 ETHERNET_BUFFER = 2048
 WHO_FILEPATH = 'WHO'
-WTC_IRQ = 4 # BCM 4, board pin 7
+WTC_IRQ = 7 # BCM 4, board pin 7
 def initWTCConnection():
     """
     This function Initializes and returns the SC16IS750 object to interact with the registers.
@@ -83,9 +83,11 @@ def _openSocketForSibling(chip = None):
     ConnectionError - if it cannot make a connection for some reason.
     BufferError - if the buffer to the WTC has an error.
     """
+    logger.logSystem([["Opening socket for ethernet."]])
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     # Read in only the first character from the WHO file to get the current identity.
     try:
+        logger.logSystem([["Attempting to determine Identity"]])
         with open(WHO_FILEPATH,'r') as f:
             identity = f.read(1)
         if identity == 1:
@@ -94,20 +96,23 @@ def _openSocketForSibling(chip = None):
             host = "192.168.1.2"
         else:
             raise ConnectionError("Could not connect to Sibling. Bad Identity: " + identity)
-
+        logger.logSystem([["Host was set to an IP address.", host],["Binding the address to the socket..."]])
         server.bind((host, SOCKET_PORT))
 
         class QPClientHandler(Thread):
             def __init__(self, socket, addr):
                 Thread.__init__(self)
+                logger.logSystem([["Ethernet: Client is connceting..."]])
                 self.socket = socket
                 self.addr = addr
                 self.start()
 
             def run(self):
+                logger.logSystem([["Ethernet: Waiting for data..."]])
                 while True:
                     try:
                         recvval = self.socket.recv(ETHERNET_BUFFER)
+                        logger.logSystem([["Ethernet: Data received.",str(recvval)]])
                         if recvval:
                             recvval = recvval.split(b' ')
 
@@ -123,9 +128,11 @@ def _openSocketForSibling(chip = None):
                                 else:
                                     self.socket.send(b'not command')
                     except BrokenPipeError:
-                        #print('Client Disconnected.')
+                        logger.logSystem([["Ethernet: Client Disconnected."]])
                         break
                     except (BufferError,ConnectionError) as err:
+                        logger.logSystem([["Ethernet: An Error has occured.",str(err)]])
+                        logger.logError("Ethernet: An Error has occured.", err)
                         raise err
 
         server.listen(2)
@@ -134,6 +141,7 @@ def _openSocketForSibling(chip = None):
             client, address = server.accept()
             QPClientHandler(client, address)
     except (OSError,ConnectionError) as err:
+        logger.logError("Ethernet: There was an error.", err)
         raise ConnectionError(str(err)) from err
 
 if __name__ == '__main__':
@@ -143,11 +151,15 @@ if __name__ == '__main__':
     import ctypes.util
     import time
     import socket
+    import RPi.GPIO as gpio
 
     import qpaceInterpreter as qpI
     import qpaceLogger as logger
+    import qpaceTODOParser as todo
 
     chip = None
+    gpio.set_mode(gpio.BOARD)
+    gpio.setup(WTC_IRQ, gpio.IN)
     try:
         # Read in only the first character from the WHO file to get the current identity.
         with open(WHO_FILEPATH,'r') as f:
@@ -189,9 +201,22 @@ if __name__ == '__main__':
             logger.logError("Could not set the Pi's system time for some reason.",err)
 
         try:
-            socketHandler = Thread(name='socketHandler',target=_openSocketForSibling,args=(chip,))
-            socketHandler.start()
-            qpI.run(chip)
+            # Begin running the rest of the code for the Pi.
+            ethernetHandler = Thread(name='socketHandler',target=_openSocketForSibling,args=(chip,))
+            ethernetHandler.start()
+
+            logger.logSystem([["Beginning the main loop for the WTC Handler..."]])
+            # This is the main loop for the Pi.
+            while True:
+                if gpio.input(WTC_IRQ):
+                    logger.logSystem("Pin " + WTC_IRQ + " was found to be HIGH. Running the interpreter and then the TODO Parser.")
+                    qpI.run(chip) # Run the interpreter to read in data from the CCDR.
+                    todo.run() # Run the todo parser
+                    logger.logSystem("Listining to Pin "+WTC_IRQ+" and waiting for the interrupt signal.")
+                time.sleep(.5) # Sleep for a moment before checking the pin again.
+
+
+
         except BufferError as err:
             #TODO Alert the WTC of the problem and/or log it and move on
             #TODO figure out what we actually want to do.
