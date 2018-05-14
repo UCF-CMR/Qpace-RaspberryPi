@@ -36,7 +36,7 @@ def pinInit():
 
 	#LED pin setup
 	GPIO.setup(23, GPIO.OUT)						#Controls the LEDs
-    
+
     #Solenoid setup
     GPIO.setup(35, GPIO.OUT)						#Solenoid 1
     GPIO.setup(31, GPIO.OUT)						#Solenoid 2
@@ -49,13 +49,13 @@ def goPro(recordingTime):
 
     Parameters
     ----------
-    Integer / Float - recordingTime - The desired time that the camera will be 
+    Integer / Float - recordingTime - The desired time that the camera will be
     	recording for, in seconds.
 
     Returns
     -------
     None.
-	
+
     """
 	#Turning on the device
 	GPIO.output(19, 1)
@@ -88,7 +88,7 @@ def goPro(recordingTime):
 	GPIO.outpit(13, 1)
 
 	GPIO.output(19, 0)
-    
+
 
 def stepper(delay, qturn):
 	"""
@@ -105,11 +105,11 @@ def stepper(delay, qturn):
 
 	"""
 	#Setstep definition
-	
+
 	def setStep(a, b):
 		GPIO.output(29, a)
 		GPIO.output(21, b)
-    
+
 	#qturn
 	'''
 	for i in range(0, qturn):
@@ -123,7 +123,7 @@ def stepper(delay, qturn):
 		time.sleep(delay)
 		setStep(1, 0, 1, 0)
 		time.sleep(delay)
-	
+
 	'''
 
 
@@ -165,7 +165,7 @@ def stepper(delay, qturn):
 		time.sleep(delay)
 
 	#complete
-    
+
 def led(power):
 	"""
 	This function turns the LED light on or off.
@@ -182,7 +182,7 @@ def solenoid(solPins : list):
 
     Parameters
     ----------
-	List of Tuples - solPins - List that holds tuples of the form (<duty cycle>, <pin number>). 
+	List of Tuples - solPins - List that holds tuples of the form (<duty cycle>, <pin number>).
 		Note: The duty cycle is listed first so that solPins.sort() will sort the pairs by their duty cycles.
 
 	Returns

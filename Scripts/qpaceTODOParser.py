@@ -22,16 +22,16 @@ from shutil import copy
 from multiprocessing import Process
 import qpaceLogger
 
-TODO_PATH = "/mnt/c/Users/Jonat/Desktop/CMR/Scripts/PiInternal/todo_dir/"
+TODO_PATH = "/home/pi/todo_dir/"
 TODO_FILE = "todo.txt"
 TODO_FILE_PATH = TODO_PATH + TODO_FILE
 TODO_TEMP = "todo_temp.tmp"
 
 WTC_IRQ = 7
 
-def _checkInterrupt(irq):
-    if gpio.input(irq):
-        raise InterruptedError("The WTC has requested to end processes and relinquish control.")
+def _checkInterrupt():
+    if gpio.input(WTC_IRQ):
+        raise InterruptedError("The WTC has requested to relinquish control.")
 
 def getTodoList():
 	"""
@@ -143,14 +143,14 @@ def executeTodoList(todo_list: list):
 	try:
 		while todo_list:
 			#If we need to stop execution:
-			_checkInterrupt(WTC_IRQ) # Check the interrupt BEFORE doing anything
+			_checkInterrupt() # Check the interrupt BEFORE doing anything
 			# How many seconds until our next task?
 			wait_time = (todo_list[0][0] - datetime.now()).total_seconds()
 			# Wait until it's time to run our next task. If the time has already passed wait a second and then do it.
 			wait_time = wait_time if wait_time > 0 else 1
 			qpaceLogger.logSystem([["Going to sleep for " + str(wait_time) + " seconds"]])
 			time.sleep(wait_time)
-			_checkInterrupt(WTC_IRQ) # Check the interrupt immediately upon waking up.
+			_checkInterrupt() # Check the interrupt immediately upon waking up.
 			# pop the item off the todo_list and run it.
 			processTask(todo_list.pop(0))
 	except InterruptedError as interrupt:
@@ -252,13 +252,13 @@ def run():
 		["Opening up the todo file and begining execution.",TODO_FILE_PATH]
 	])
 	try:
-		_checkInterrupt(WTC_IRQ) # Check the interrupt pin before interacting with the todo list
+		_checkInterrupt() # Check the interrupt pin before interacting with the todo list
 		todo_list = getTodoList()
 		if todo_list:
-			_checkInterrupt(WTC_IRQ) # Chek the interrupt pin before sorting
+			_checkInterrupt() # Chek the interrupt pin before sorting
 			# We will assume the todo-list is NOT sorted, and sort it.
 			sortTodoList(todo_list)
-			_checkInterrupt(WTC_IRQ) # Check the interrupt pin before execution
+			_checkInterrupt() # Check the interrupt pin before execution
 			todo_list = executeTodoList(todo_list)
 
 			if todo_list:
