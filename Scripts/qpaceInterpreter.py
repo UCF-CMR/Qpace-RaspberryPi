@@ -21,7 +21,7 @@ import qpaceLogger as logger
 
 PACKET_SIZE = Packet.max_size
 
-INTERP_PACKETS_PATH = "packets/" #TODO determine actual path
+INTERP_PACKETS_PATH = "packets/"
 INTERP_CMD_SIZE = 2 # How many characters will we expect to be the command length
 
 # Add commands to the map. Format is "String to recognize for command" : function name
@@ -64,7 +64,7 @@ def isCommand(query = None):
     else:
         return False
 
-def processCommand(chip = None, query = None, fromWhom = None):
+def processCommand(chip = None, query = None, fromWhom = 'WTC'):
     """
     Split the command from the arguments and then run the command as expected.
 
@@ -72,6 +72,7 @@ def processCommand(chip = None, query = None, fromWhom = None):
     ----------
     chip - SC16IS750() - an SC16IS750 object to read/write from/to
     query- bytes - the command string.
+    fromWhom - string - a string to denote who sent the command. If fromWhom is not provided, assume the WTC.
 
     Raises
     ------
@@ -91,7 +92,7 @@ def processCommand(chip = None, query = None, fromWhom = None):
             logger.logSystem([["Command Received:",query[0],' '.join(query[1:])]])
             LastCommand.type = query[0]
             LastCommand.timestamp = str(datetime.datetime.now())
-            LastCommand.fromWhom = fromWhom or 'WTC'
+            LastCommand.fromWhom = fromWhom
             COMMAND_LIST[query[0]](chip,query[0],query[1:]) # Run the command
 
 def processQUIP(chip = None,buf = None):
@@ -105,6 +106,10 @@ def processQUIP(chip = None,buf = None):
     chip - SC16IS750() - an SC16IS750 object to read/write from/to
     buf - bytes - the input buffer from the WTC
 
+    Returns
+    -------
+    missedPackets - List - a list of missing packets.
+
     Raises
     ------
     BufferError - If the buffer is empty, assume that there was a problem.
@@ -115,8 +120,7 @@ def processQUIP(chip = None,buf = None):
     if not buf:
         raise BufferError("Buffer is empty, no QUIP data received.")
 
-    def isolateOpCode():
-        pass
+
 
     logger.logSystem([["Processing input as QUIP packets.", "Packets Received: " + str(len(buf)/PACKET_SIZE)]])
     if len(buf) > 0:
@@ -131,9 +135,14 @@ def processQUIP(chip = None,buf = None):
         buf = buf[PACKET_SIZE:]
         counter = 0
         attempt = 0
+
+        def getPacketID(): #TODO this needs to be written.
+            pass
+
         while len(buf) > 0:
             try:
                 # We can just name them with the counter iff we don't determine the opcodes
+                # TODO modify this to read the packet and determine the number based on the PID
                 with open(INTERP_PACKETS_PATH+str(counter) + ".qp",'wb') as f:
                     f.write(buf[:PACKET_SIZE])
             except:
@@ -165,6 +174,7 @@ def run(chip = None):
     ------
     ConnectionError - if the WTC cannot be connected to for some reason.
     BufferError - if the FIFO in the WTC cannot be read OR the buffer was empty.
+    InterruptedError - if another InterruptedError was thrown.
     All other exceptions raised by this function are passed up the stack or ignored and not raised at all.
     """
     WTC_IRQ = 7

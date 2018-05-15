@@ -1,11 +1,6 @@
 #! /usr/bin/env python3
-<<<<<<< HEAD
 # qpaceLogger.py by Jonathan Kessluk & Minh Pham
 # 2-13-2018, Rev. 1.1
-=======
-# qpaceTODOParser.py by Jonathan Kessluk and Minh
-# 2-13-2018, Rev. 1
->>>>>>> 5f4b21dad6e6717fcd6f37b438004667f9c4111b
 # Q-Pace project, Center for Microgravity Research
 # University of Central Florida
 #
@@ -30,6 +25,13 @@ TODO_TEMP = "todo_temp.tmp"
 WTC_IRQ = 7
 
 def _checkInterrupt():
+    """
+    Check the WTC_IRQ pin to see if it's HIGH or LOW. If it's HIGH, throw an InterruptedError
+
+    Raises
+    ------
+    InterruptedError - If the WTC_IRQ pin is HIGH
+    """
     if gpio.input(WTC_IRQ):
         raise InterruptedError("The WTC has requested to relinquish control.")
 
@@ -68,7 +70,7 @@ def getTodoList():
 
 	return todo_list
 
-def sortTodoList(todo_list: list):
+def sortTodoList(todo_list):
 	"""
 		This function will gather the data from the todo list and parse it into a 2D array for manipulation and processing.
 
@@ -121,7 +123,7 @@ def sortTodoList(todo_list: list):
 		todo_list.sort() # Python will sort a 2D list based off the first argument of each nested list in ascending order.
 	return todo_list
 
-def executeTodoList(todo_list: list):
+def executeTodoList(todo_list):
 	"""
 		This function will execute the todoList in order. If it is interrupted, it will return the todolist
 
@@ -158,7 +160,7 @@ def executeTodoList(todo_list: list):
 	finally:
 		return todo_list
 
-def processTask(task: list):
+def processTask(task):
 	"""
 		This function handles processing a specific command given. This is what does the real "parsing"
 
@@ -205,7 +207,7 @@ def processTask(task: list):
 	else:
 		qpaceLogger.logSystem([["Unknown task!", task[1:]]])
 
-def updateTodoFile(todo_list: list):
+def updateTodoFile(todo_list):
 	"""
 		This function will rewrite the todo list to contain the current tasks that haven't yet
 		been completed. This would only happen if we are interrupted.
@@ -241,8 +243,23 @@ def updateTodoFile(todo_list: list):
 		return False
 	return True
 
-
 def run():
+    """
+    Method to handle the todo parser when running it. This allows the parser to be used when calling
+    it from another module.
+
+    Paramters
+    ---------
+    None
+
+    Raises
+    -------
+    None
+
+    Returns
+    -------
+    None
+    """
 
 	gpio.set_mode(gpio.BOARD)
     gpio.setup(WTC_IRQ, gpio.IN)

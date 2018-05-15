@@ -22,6 +22,7 @@ STATUSPATH = ''
 WHO_FILEPATH = ''
 SOCKET_PORT = 8675 #Jenny, who can I turn to?
 ETHERNET_BUFFER = 2048
+
 def _waitForWTCResponse(chip, trigger = None, timeout = None):
     """
     Wait for the WTC to respond with a continue code and then return.
@@ -71,6 +72,7 @@ def _waitForWTCResponse(chip, trigger = None, timeout = None):
         return buf
     else:
         return False
+
 def _sendBytesToWTC(chip,sendData):
     """
     Send a string or bytes to the WTC. This method, by default, is dumb. It will pass whatever
@@ -108,12 +110,15 @@ def immediateShutdown(chip,cmd,args):
     ----------
     chip - SC16IS750 - an SC16IS750 object which handles the WTC Connection
     cmd,args - string, array of args (seperated by ' ') - the actual command, the args for the command
+
+    Raises
+    ------
+    SystemExit - If the interpreter can even get to this point... Close the interpreter.
     """
     logger.logSystem([['Shutting down...']])
     _sendBytesToWTC(chip,b'SP') # SP = Shutdown Proceeding
     Popen(["sudo", "halt"],shell=True) #os.system('sudo halt')
     raise SystemExit # Close the interpreter and clean up the buffers before reboot happens.
-
 
 def immediateReboot(chip,cmd,args):
     """
@@ -124,6 +129,10 @@ def immediateReboot(chip,cmd,args):
     ----------
     chip - SC16IS750 - an SC16IS75 object which handles the WTC Connection
     cmd,args - string, array of args (seperated by ' ') - the actual command, the args for the command
+
+    Raises
+    ------
+    SystemExit - If the interpreter can even get to this point... Close the interpreter.
     """
     logger.logSystem([['Rebooting...']])
     _sendBytesToWTC(chip,b'SP') # SP = Shutdown Proceeding
@@ -139,7 +148,6 @@ def sendFile(chip,cmd,args):
     chip - SC16IS750 - an SC16IS750 object which handles the WTC Connection
     cmd,args - string, array of args (seperated by ' ') - the actual command, the args for the command
     """
-    #TODO this is not complete.
     from qpaceInterpreter import INTERP_PACKETS_PATH
 
     logger.logSystem([['Running the QUIP Encoder...']+args])
@@ -172,10 +180,10 @@ def asynchronousSendPackets(chip,cmd,args):
     chip - SC16IS750 - an SC16IS750 object which handles the WTC Connection
     cmd,args - string, array of args (seperated by ' ') - the actual command, the args for the command
     """
-    #TODO this may not be complete.
     from simInterpreter import INTERP_PACKETS_PATH
     if args and isinstance(args[0],bytes):
         args = [entry.decode('utf-8') for entry in args]
+    readIssue = False
     for pak in args:
         try:
             with open(INTERP_PACKETS_PATH+pak+'.qp','rb') as f:
@@ -184,8 +192,9 @@ def asynchronousSendPackets(chip,cmd,args):
                     #TODO Figure out a protocol if we can't just bulk send 256 bytes.
                     _sendBytesToWTC(chip,data)
         except OSError as err:
-            logger.logError('Could not read packet for sending.', err)
-
+            readIssue = True
+    if readIssue:
+        logger.logError('Could not read some packets for sending.', err)
 
 def pingPi(chip,cmd,args):
     """
@@ -286,7 +295,6 @@ def returnStatus(chip,cmd,args):
                 statFile.write("Unable to write status file.")
         except:pass
 
-
 def _getEthernetConnection():
     """
     This method establishes the ethernet connection for methods that use it.
@@ -350,8 +358,6 @@ def checkSiblingPi(chip,cmd,args): # TODO some kind of listener will have to be 
         logger.logError('There was a connection Error in qpacePiCommands.checkSibilingPi()',err)
         _sendBytesToWTC(chip,b'NO')
 
-
-
 def pipeCommandToSiblingPi(chip,cmd,args): # TODO some kind of listener will have to be written for this and run as a seperate process on the pi
     """
     Inform the sibling pi to run a command found in the "args"
@@ -382,6 +388,7 @@ def pipeCommandToSiblingPi(chip,cmd,args): # TODO some kind of listener will hav
     except ConnectionError as err:
         logger.logError('There was a connection Error in qpacePiCommands.checkSibilingPi()',err)
         _sendBytesToWTC(chip,b'NO')
+
 def performUARTCheck(chip,cmd,args):
     """
     Tell the pi to ping the WTC and wait for a response back. Similar to a "reverse" ping.

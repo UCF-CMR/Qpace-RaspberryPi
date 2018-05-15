@@ -19,7 +19,6 @@ DELIMITER = ","
 # Default error if systemLog() doesn't work properly.
 SYSTEMLOG_ERROR_DESCRIPTION = "Unable to write to a CSV to log data."
 
-
 def _logData(data, csvName):
     """
     This function handles logging the actual data. It should not be called by a user.
@@ -71,7 +70,6 @@ def logError(description, exception = None):
 
     """
     try:
-        #TODO How to handle user defined errors? What data should go with them? Unique ID? Just the description?
         timestamp = strftime("%Y%m%d-%H%M%S",gmtime())
         errorData = [timestamp, description]
         if exception is not None:

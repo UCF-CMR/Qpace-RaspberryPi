@@ -82,6 +82,7 @@ def _openSocketForSibling(chip = None):
     ------
     ConnectionError - if it cannot make a connection for some reason.
     BufferError - if the buffer to the WTC has an error.
+    OSError - if there was a problem with file handling.
     """
     logger.logSystem([["Opening socket for ethernet."]])
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -140,7 +141,7 @@ def _openSocketForSibling(chip = None):
         while True:
             client, address = server.accept()
             QPClientHandler(client, address)
-    except (OSError,ConnectionError) as err:
+    except (OSError,ConnectionError,BufferError) as err:
         logger.logError("Ethernet: There was an error.", err)
         raise ConnectionError(str(err)) from err
 
@@ -212,7 +213,7 @@ if __name__ == '__main__':
                     logger.logSystem("Pin " + WTC_IRQ + " was found to be HIGH. Running the interpreter and then the TODO Parser.")
                     qpI.run(chip) # Run the interpreter to read in data from the CCDR.
                     todo.run() # Run the todo parser
-                    logger.logSystem("Listining to Pin "+WTC_IRQ+" and waiting for the interrupt signal.")
+                    logger.logSystem("Listining to Pin " + WTC_IRQ + " and waiting for the interrupt signal.")
                 time.sleep(.5) # Sleep for a moment before checking the pin again.
 
 
