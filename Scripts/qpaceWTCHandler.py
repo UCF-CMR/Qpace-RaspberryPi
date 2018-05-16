@@ -207,16 +207,17 @@ if __name__ == '__main__':
             ethernetHandler.start()
 
             logger.logSystem([["Beginning the main loop for the WTC Handler..."]])
+            # Create a threading.Event to determine if an experiment is running or not.
+            experimentRunningEvent = threading.Event()
             # This is the main loop for the Pi.
             while True:
                 if gpio.input(WTC_IRQ):
                     logger.logSystem("Pin " + WTC_IRQ + " was found to be HIGH. Running the interpreter and then the TODO Parser.")
-                    qpI.run(chip) # Run the interpreter to read in data from the CCDR.
-                    todo.run() # Run the todo parser
+
+                    qpI.run(chip,experimentRunningEvent) # Run the interpreter to read in data from the CCDR.
+                    todo.run(experimentRunningEvent) # Run the todo parser
                     logger.logSystem("Listining to Pin " + WTC_IRQ + " and waiting for the interrupt signal.")
                 time.sleep(.5) # Sleep for a moment before checking the pin again.
-
-
 
         except BufferError as err:
             #TODO Alert the WTC of the problem and/or log it and move on

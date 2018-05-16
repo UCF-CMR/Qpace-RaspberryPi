@@ -1,5 +1,5 @@
 #! /usr/bin/env python3
-# qpaceLogger.py by Jonathan Kessluk & Minh Pham
+# qpaceTODOParser.py by Jonathan Kessluk & Minh Pham
 # 2-13-2018, Rev. 1.1
 # Q-Pace project, Center for Microgravity Research
 # University of Central Florida
@@ -14,8 +14,11 @@ import time
 import RPi.GPIO as gpio
 from datetime import datetime, date, timedelta
 from shutil import copy
-from multiprocessing import Process
-import qpaceLogger
+import threading
+import qpaceLogger as logger
+import qpaceExperimentParser as exp
+import qpacePiCommands as cmd
+import qpaceChecksum as checksum
 
 TODO_PATH = "/home/pi/todo_dir/"
 TODO_FILE = "todo.txt"
@@ -61,12 +64,12 @@ def getTodoList():
 			for task in task_list:
 				# Convert every string to uppercase and then add it to the todo_list
 				todo_list.append(task.split(" "))
-			qpaceLogger.logSystem([["Closing todo file."]])
+			logger.logSystem([["Closing todo file."]])
 
 	except OSError as e:
 		# Couldn't open the todo file. Send an error to the error log.
-		qpaceLogger.logError("Could not open todo file for reading.", e)
-		qpaceLogger.logSystem([["Error opening the todo file."]])
+		logger.logError("Could not open todo file for reading.", e)
+		logger.logSystem([["Error opening the todo file."]])
 
 	return todo_list
 
@@ -114,7 +117,7 @@ def sortTodoList(todo_list):
 				#Create a date time from the string
 				todo_list[i][0] = datetime.strptime(todo_list[i][0],"%Y%m%d-%H%M%S")
 			except (ValueError,TypeError) as e:
-				qpaceLogger.logSystem([
+				logger.logSystem([
 					["Todo list","Time to invoke command is an invalid format and will be removed from the queue."].append(todo_list[i][0])
 				])
 				del todo_list[i]
@@ -123,13 +126,72 @@ def sortTodoList(todo_list):
 		todo_list.sort() # Python will sort a 2D list based off the first argument of each nested list in ascending order.
 	return todo_list
 
-def executeTodoList(todo_list):
+def _processTask(task,runningEvent = None):
+	"""
+		This function handles processing a specific command given. This is what does the real "parsing"
+
+		Parameters
+		----------
+		List - List that is the arguments to a command.
+			   task[0] is when the command should execute.
+			   task[1] is the name of the command.
+               task[2:] is args for that command.
+
+		Returns
+		-------
+		True for successful completion of the task.
+        False for failure to complete a task.
+
+		Raises
+		------
+		Nothing!
+
+		Revisions
+		---------
+		Rev. 1.1 - 4/10/2018 Minh Pham (Added code execution to tasks.)
+	"""
+	logger.logSystem([["Beginning execution of a task", str(task[1:])]])
+	currentTask = task[1].upper()
+	if currentTask == "EXPERIMENT":
+        # If runningEvent exists and is not set, then let's run an experiment.
+        if runningEvent is not None and not runningEvent.is_set():
+    		#Run an experiment file from the experiment directory
+    		logger.logSystem([["Running an experiment.", task[2]]]) # Placeholder
+            parserThread = threading.Thread(name='experimentParser',target=exp.experimentparser, args=(task[2],runningEvent))
+            parserThread.start()
+            runningEvent.set()
+        else: # If runningEvent does not exist or is set, return True to know there is a failure.
+            return False
+	elif currentTask == "SEND":
+		#Sending data on the downlink? What's going to go here? Do we need this or is it handled
+		#somewhere else?
+		logger.logSystem([["Sending " + task[2] +" down to ground station"]]) # Placeholder
+        return cmd.sendFile(None,'SEND',[task[2]]) # Return true if succesful. Return false if fail.
+	elif currentTask == "COMPARE":
+		#Verification methods. Figure out what this is actually going to be.
+		logger.logSystem([["Comparing " + task[2] + " and " + task[3]]]) # Placeholder
+        checksum.compareChecksum(task[2],task[3])
+	elif currentTask == "BACKUP":
+		copy(task[2],task[3]) #Copy the file from task[2] to task[3]
+		print("Attempting to create a backup of", task[2]) # Placeholder
+        #TODO write backup scripts
+	elif currentTask == "REPORT":
+		#TODO Reporting method. Figure out if this is necessary or what exactly it will do
+		print("Saving data to the system log.") # Placeholder
+	else:
+		logger.logSystem([["Unknown task!", str(task[1:])]])
+
+    return True # If we reach here, assume everything was a success.
+
+def executeTodoList(todo_list, runningEvent = None):
 	"""
 		This function will execute the todoList in order. If it is interrupted, it will return the todolist
 
 	    Parameters
 	    ----------
-	    List - Sorted todo_list.
+	    todo_list - List - Sorted todo_list. (Sorted by the timestamp to execute.)
+        runningEvent - threading.Event - pass through an event object to determine whether or not an experiment
+                                         is running.
 
 	    Returns
 	    -------
@@ -142,70 +204,38 @@ def executeTodoList(todo_list):
 	    None!
 	"""
 	#signal.signal(STOP_SIGNAL, stop_handler)
+    completedTask = True
 	try:
+        # We ideally want to use the global threading.Event, but worst case is it doesn't exist.
+        # If it doesn't, lets create one locally so we have something to use regardless.
+        if runningEvent is None:
+            runningEvent = threading.Event()
 		while todo_list:
 			#If we need to stop execution:
 			_checkInterrupt() # Check the interrupt BEFORE doing anything
 			# How many seconds until our next task?
-			wait_time = (todo_list[0][0] - datetime.now()).total_seconds()
-			# Wait until it's time to run our next task. If the time has already passed wait a second and then do it.
-			wait_time = wait_time if wait_time > 0 else 1
-			qpaceLogger.logSystem([["Going to sleep for " + str(wait_time) + " seconds"]])
-			time.sleep(wait_time)
-			_checkInterrupt() # Check the interrupt immediately upon waking up.
-			# pop the item off the todo_list and run it.
-			processTask(todo_list.pop(0))
+			try:
+                wait_time = (todo_list[0][0] - datetime.now()).total_seconds() # Determine how long to wait.
+            except:
+                todo_list = todo_list[1:] # IF there is a problem determining when to execute, remove it from the list.
+			else:
+                # Wait until it's time to run our next task. If the time has already passed wait a second and then do it.
+			    wait_time = wait_time if wait_time > 0 else 1
+    			logger.logSystem([["Waiting for " + str(wait_time) + " seconds to complete the next task."]])
+                # Wait for wait_time seconds but also check the interrupt every second.
+                for i in range(wait_time):
+                    time.sleep(1)
+                    _checkInterrupt()
+    			# run the next item on the todolist.
+    			taskCompleted = _processTask(todo_list[0],runningEvent)
+                if taskCompleted:
+                    logger.logSystem([["Task completed.",str(todo_list[0])]])
+                    todo_list = todo_list[1:] # pop the first item off the list.
+
 	except InterruptedError as interrupt:
-		qpaceLogger.logSystem([["The interrupt pin was set to high. Stopping execution of the todo list."]])
+		logger.logSystem([["The interrupt pin was set to high. Stopping execution of the todo list."]])
 	finally:
 		return todo_list
-
-def processTask(task):
-	"""
-		This function handles processing a specific command given. This is what does the real "parsing"
-
-		Parameters
-		----------
-		List - List that is the arguments to a command.
-			   task[0] is when the command should execute.
-			   task[1] is the name of the command.
-
-		Returns
-		-------
-		Nothing!
-
-		Raises
-		------
-		Nothing!
-
-		Revisions
-		---------
-		Rev. 1.1 - 4/10/2018 Minh Pham (Added code execution to tasks.)
-	"""
-	qpaceLogger.logSystem([["Beginning execution of a task", task[1:]]])
-	currentTask = task[1].upper()
-	if currentTask == "EXPERIMENT":
-		#Run an experiment file from the experiment directory
-		print("We are running the experiment contained in: ", task[2]) # Placeholder
-	elif currentTask == "SEND":
-		#Sending data on the downlink? What's going to go here? Do we need this or is it handled
-		#somewhere else?
-		print("We are adding", task[2] ,"to the queue for sending down to ground station") # Placeholder
-	elif currentTask == "VERIFY":
-		#Verification methods. Figure out what this is actually going to be.
-		print("Verifying the integrety of", task[2]) # Placeholder
-	elif currentTask == "BACKUP":
-		copy(task[2],task[3]) #Copy the file from task[2] to task[3]
-		print("Attempting to create a backup of", task[2]) # Placeholder
-		time.sleep(8)
-	elif currentTask == "REPORT":
-		#Reporting method. Figure out if this is necessary or what exactly it will do
-		print("Saving data to the system log.") # Placeholder
-	elif currentTask == "CODE":
-		#Executing specified python file.
-		os.system('python' + task[2])
-	else:
-		qpaceLogger.logSystem([["Unknown task!", task[1:]]])
 
 def updateTodoFile(todo_list):
 	"""
@@ -236,21 +266,22 @@ def updateTodoFile(todo_list):
 		os.remove(TODO_FILE_PATH)
 		os.rename(TODO_PATH+TODO_TEMP, TODO_FILE_PATH)
 	except (OSError, PermissionError) as e:
-		qpaceLogger.logError("Could not record new todo list.", e)
+		logger.logError("Could not record new todo list.", e)
 		return False
 	except FileNotFoundError as e:
-		qpaceLogger.logError("The todo file does not exist right now!", e)
+		logger.logError("The todo file does not exist right now!", e)
 		return False
 	return True
 
-def run():
+def run(runningEvent = None):
     """
     Method to handle the todo parser when running it. This allows the parser to be used when calling
     it from another module.
 
     Paramters
     ---------
-    None
+    runningEvent - threading.Event - pass through an event object to determine whether or not an experiment
+                                     is running.
 
     Raises
     -------
@@ -264,7 +295,7 @@ def run():
 	gpio.set_mode(gpio.BOARD)
     gpio.setup(WTC_IRQ, gpio.IN)
 
-	qpaceLogger.logSystem([
+	logger.logSystem([
 		["Entering main in the TODO parser", os.getcwd()],
 		["Opening up the todo file and begining execution.",TODO_FILE_PATH]
 	])
@@ -276,21 +307,21 @@ def run():
 			# We will assume the todo-list is NOT sorted, and sort it.
 			sortTodoList(todo_list)
 			_checkInterrupt() # Check the interrupt pin before execution
-			todo_list = executeTodoList(todo_list)
+			todo_list = executeTodoList(todo_list,runningEvent)
 
 			if todo_list:
-				qpaceLogger.logSystem([["The TODO parser has terminated early. Updating the todo file."]])
+				logger.logSystem([["The TODO parser has terminated early. Updating the todo file."]])
 				if updateTodoFile(todo_list): # If we terminated early, re-write the todo file before leaving.
-					qpaceLogger.logSystem([
+					logger.logSystem([
 						["Successfuly updated the todo file.", TODO_FILE_PATH],
 						["Exiting the TODO parser.", os.getcwd()]
 					])
 				else:
 					message = "Encountered a problem when trying to update the todo file!"
-					qpaceLogger.logSystem([[message, TODO_FILE_PATH]])
-					qpaceLogger.logError(message)
+					logger.logSystem([[message, TODO_FILE_PATH]])
+					logger.logError(message)
 			else:
-				qpaceLogger.logSystem([["Todo file has finished execution", TODO_FILE_PATH]])
+				logger.logSystem([["Todo file has finished execution", TODO_FILE_PATH]])
 				os.remove(TODO_FILE_PATH) # Do we want to delete the file or just leave it alone
 	except InterruptedError as interrupt:
         logger.logSystem([["The Interpreter was interrupted. Shutting down the Interpreter..."]])

@@ -34,7 +34,7 @@ COMMAND_LIST = {
     "ST":cmd.returnStatus,            # Accumulate status about the operation of the pi, assemble a txt file, and send it. (Invokes sendFile)
     "CS":cmd.checkSiblingPi,          # Check to see if the sibling Pi is alive. Similar to ping but instead it's through ethernet
     "PC":cmd.pipeCommandToSiblingPi,  # Take the args that are in the form of a command and pass it along to the sibling pi through ethernet
-    "UC":cmd.performUARTCheck        # Tell the pi to perform a "reverse" ping to the WTC. Waits for a response from the WTC.
+    "UC":cmd.performUARTCheck         # Tell the pi to perform a "reverse" ping to the WTC. Waits for a response from the WTC.
 }
 
 class LastCommand():
@@ -158,7 +158,7 @@ def processQUIP(chip = None,buf = None):
                           ["Missing packets: ", str(missedPackets) if missedPackets else "None"]])
         return missedPackets
 
-def run(chip = None):
+def run(chip = None,runningEvent = None):
     """
     This function is the "main" purpose of this module. Placed into a function so that it can be called in another module.
 
@@ -217,18 +217,22 @@ def run(chip = None):
                 if not gpio.input(WTC_IRQ):
                     raise InterruptedError("The WTC has ended transmission.")
 
-        except KeyboardInterrupt: # If we get a SIGINT, we can also break off.
+        except KeyboardInterrupt as interrupt: # If we get a SIGINT, we can also break off.
             logger.logSystem([["SIGINT was thrown to the Interpreter, stopping read from WTC."]])
+            logger.logError("Caution: KeyboardInterrupt was thrown to the Interpreter.",interrupt)
             break
         except InterruptedError as interrupt: # IF we are interrupted, break.
             logger.logSystem([["The read has been interrupted."],[str(interrupt)]])
             raise interrupt
         except BufferError as err:
-            logger.logError("A buffer error was thrown.",)
+            logger.logError("A buffer error was thrown.",err)
             raise err
     try:
         if isCommand(buf): # Is the input to the buffer a command?
-            processCommand(chip,buf,fromWhom='WTC')
+            if not runningEvent.is_set():
+                processCommand(chip,buf,fromWhom='WTC')
+            else:
+                pass #TODO what should we actually do if we have an experiment running but we also get a command?
         else:
             missingPackets = processQUIP(chip,buf) # IF it's not a command, assume it's QUIP data.
             #TODO how to handle any packets that weren't interpreted correctly?

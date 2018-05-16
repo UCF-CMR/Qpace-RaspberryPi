@@ -143,6 +143,11 @@ def sendFile(chip,cmd,args):
     """
     Encode a file with the QUIP protocol and then send the raw data to the WTC to send to ground.
 
+    Returns
+    -------
+    True if succesful
+    False if there was an exception.
+
     Parameters
     ----------
     chip - SC16IS750 - an SC16IS750 object which handles the WTC Connection
@@ -150,9 +155,9 @@ def sendFile(chip,cmd,args):
     """
     from qpaceInterpreter import INTERP_PACKETS_PATH
 
-    logger.logSystem([['Running the QUIP Encoder...']+args])
-    success = quip.Encoder(args[0],INTERP_PACKETS_PATH,suppress=False).run()
-    if success:
+    logger.logSystem([['Running the QUIP Encoder...'+args]])
+    successfulEncode = quip.Encoder(args[0],INTERP_PACKETS_PATH,suppress=False).run()
+    if successfulEncode:
         logger.logSystem([['The encoding was successful. Beginning the transfer sequences.']])
         try:
             for filepath in os.listdir(INTERP_PACKETS_PATH):
@@ -166,10 +171,15 @@ def sendFile(chip,cmd,args):
                     logger.logError('Could not read packet for sending: ' + filepath, err)
         except OSError:
             logger.logError('Could not read directory for sending packets.')
-            _sendBytesToWTC(chip,b'NO')
+            if chip:
+                _sendBytesToWTC(chip,b'NO')
+            return False
     else:
         logger.logSystem([['There was a problem fully encoding the file.']])
-        _sendBytesToWTC(chip,b'NO')
+        if chip:
+            _sendBytesToWTC(chip,b'NO')
+        return False
+    return True # If successful.
 
 def asynchronousSendPackets(chip,cmd,args):
     """
