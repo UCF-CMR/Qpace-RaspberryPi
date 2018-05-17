@@ -15,6 +15,8 @@ import glob
 from math import ceil,log
 from itertools import zip_longest
 
+import qpaceChecksum as checksum
+
 try:
     import qpaceLogger as logger
     quip_LOGGER=True
@@ -234,6 +236,7 @@ class Encoder():
             Packet.data_size = (Packet.max_size - Packet.header_and_footer_size) // 3
         else:
             Packet.data_size = Packet.max_size - Packet.header_and_footer_size
+        self.sha256checksum = checksum.checksum(open(self.file,'rb'))
 
     def run(self):
         """
@@ -308,9 +311,7 @@ class Encoder():
         return False
 
     def buildFileInfo(self):
-        # TODO Implement checksum module
-        # info.append(checksum)
-        return [self.file.split("/")[-1],str(self.packets_built),str(os.path.getsize(self.file)),str(self.destination)]
+        return [self.file.split("/")[-1],str(self.packets_built),str(os.path.getsize(self.file)),str(self.destination),str(self.sha256checksum)]
 
     def buildInitPacket(self):
         """
@@ -341,9 +342,7 @@ class Encoder():
         OSError - If packet cannot be written
         Misc. - Any other error thrown will pop up the stack.
         """
-        #TODO Implement cheksum module
-        checksum = None
-        return Packet.writeControlPacket(0x3, checksum)
+        return Packet.writeControlPacket(0x3, self.sha256checksum)
 
     def setAsLastPacket(self,packet):
         """
@@ -378,11 +377,12 @@ class Encoder():
             os.remove(f)
 
 class Decoder():
+    #TODO Make Decoder check checksums to see if file is corrupt automatically.
     waitDelay = 1 # In seconds. This is for the asynchronous decoding.
 
     def __init__(self, path_for_decode, path_for_packets, FEC=True, suppress=False,destructive=False,rush=False):
         """
-        Constructor for the Encoder.
+        Constructor for the Decoder.
 
         Parameters
         ----------
