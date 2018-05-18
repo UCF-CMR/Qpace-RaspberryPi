@@ -133,27 +133,25 @@ def processQUIP(chip = None,buf = None):
             missedPackets.append('init')
 
         buf = buf[PACKET_SIZE:]
-        counter = 0
         attempt = 0
 
-        def getPacketID(): #TODO this needs to be written.
-            pass
+        def _getPacketID(packet):
+            header = Decoder.decipherHeader(packet) #19 should be the size of the header of the packet.
+            return header['pid']
 
         while len(buf) > 0:
             try:
-                # We can just name them with the counter iff we don't determine the opcodes
-                # TODO modify this to read the packet and determine the number based on the PID
-                with open(INTERP_PACKETS_PATH+str(counter) + ".qp",'wb') as f:
-                    f.write(buf[:PACKET_SIZE])
+                psuedo_packet = buf[:PACKET_SIZE]
+                packetID = _getPacketID(psuedo_packet)
+                with open(INTERP_PACKETS_PATH+packetID+ ".qp",'wb') as f:
+                    f.write()
             except:
                 attempt += 1
                 if attempt > 1:
-                    missedPackets.append(counter)
-                    counter+=1
+                    missedPackets.append(packetID)
                     buf = buf[PACKET_SIZE:]
             else:
                 buf = buf[PACKET_SIZE:]
-                counter += 1
         logger.logSystem([["Attempted to write all packets to file system."],
                           ["Missing packets: ", str(missedPackets) if missedPackets else "None"]])
         return missedPackets
@@ -244,4 +242,3 @@ def run(chip = None,runningEvent = None):
     except InterruptedError as interrupt:
         logger.logSystem([["The Interpreter was interrupted...", str(interrupt)]])
         raise interrupt
-    gpio.cleanup() #TODO do we actually care to cleanup?

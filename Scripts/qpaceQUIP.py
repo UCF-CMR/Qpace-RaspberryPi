@@ -18,6 +18,7 @@ from itertools import zip_longest
 import qpaceChecksum as checksum
 
 try:
+    raise ImportError
     import qpaceLogger as logger
     quip_LOGGER=True
 except ImportError:
@@ -49,7 +50,8 @@ class Packet():
     id_bits = 32            # 4 bytes
     overflow = 0            # 0 for false. (1 bit)
     placeholder_bits = 4    # in bits
-    header_and_footer_size = 23 #in bytes
+    header_and_footer_size = 24 #in bytes
+    header_size = header_and_footer_size - 4 # in bytes
 
     max_size = 256          # in bytes
     data_size = None        # in bytes
@@ -101,6 +103,11 @@ class Packet():
         else:
             self.op_code = 0x0
 
+        if 'useFEC' in kwargs:
+            self.useFEC = kwargs['useFEC']
+        else:
+            self.useFEC = True
+
         data_in_bytes = len(data)
         if data_in_bytes <= Packet.data_size: # Make sure the data is below the max bytes
             # Only worry about the PID for packets of code 0x0 and 0x7. anything else does not need a PID
@@ -119,6 +126,7 @@ class Packet():
             self.data = data
             self.bytes = data_in_bytes
 
+
         else:
             raise ValueError("Packet size is too large for the current header information. Data input restricted to " + str(Packet.data_size) + " Bytes.")
 
@@ -133,10 +141,11 @@ class Packet():
         # The byte order will be bigendian
         pid = bytearray(self.pid.to_bytes(4,byteorder='big'))       # 4 bytes
         header_end = bytes([(Packet.overflow<<7|self.op_code<<4|self.getParity(self.buildData())<<3)])
+        # Use F for FEC and N for "no" FEC
         if useFEC:
-            return Packet.sync + Packet.start + (pid + header_end) * 3
+            return Packet.sync + Packet.start + b'F' + (pid + header_end) * 3
         else:
-            return Packet.sync + Packet.start + (pid + header_end)
+            return Packet.sync + Packet.start + b'N' + (pid + header_end)
 
     def buildData(self,useFEC=True):
         """
@@ -172,8 +181,8 @@ class Packet():
             -------
             int - the whole packet. if converted to binary/hex it will be the packet.
         """
-        header = self.buildHeader()
-        data = self.buildData()
+        header = self.buildHeader(self.useFEC)
+        data = self.buildData(self.useFEC)
         footer = self.buildFooter()
         # Construct the packet's data
         packet = header + data + footer
@@ -236,7 +245,7 @@ class Encoder():
             Packet.data_size = (Packet.max_size - Packet.header_and_footer_size) // 3
         else:
             Packet.data_size = Packet.max_size - Packet.header_and_footer_size
-        self.sha256checksum = checksum.checksum(open(self.file,'rb'))
+        self.crc32checksum = checksum.checksum(open(self.file,'rb'))
 
     def run(self):
         """
@@ -287,12 +296,13 @@ class Encoder():
                         pid += 1 #choose the next PID in order
                         data = fileToEncode.read(Packet.data_size)
                         if data:
-                            packetToBuild = Packet(data,pid)
+                            packetToBuild = Packet(data,pid, useFEC=self.useFEC)
                         else:
                             # If there's no more data set the last packet created as op_code 0x7
                             self.setAsLastPacket(packetToBuild)
                             break #If there's nothing else to read, back out. We are done.
                         with open(self.packets+str(pid)+".qp", 'wb') as packet:
+
                             packet.write(packetToBuild.build())
                 except OSError as err:
                     #quipPrint("Could not write packet: ", pid)
@@ -311,7 +321,7 @@ class Encoder():
         return False
 
     def buildFileInfo(self):
-        return [self.file.split("/")[-1],str(self.packets_built),str(os.path.getsize(self.file)),str(self.destination),str(self.sha256checksum)]
+        return [self.file.split("/")[-1],str(self.packets_built),str(os.path.getsize(self.file)),str(self.destination),str(self.crc32checksum)]
 
     def buildInitPacket(self):
         """
@@ -327,7 +337,7 @@ class Encoder():
             with open(self.packets+"init.qp",'wb') as packet:
                 # Write to the actual packet. Make sure the op_code is 0x1 since it's the init packet
                 # Separate the data with a ':' since filenames should not have that anyway.
-                packet.write(Packet(" ".join(self.buildFileInfo()),0,op_code=0x1).build())
+                packet.write(Packet(" ".join(self.buildFileInfo()),0,op_code=0x1,useFEC=self.useFEC).build())
         except OSError:
             err = Warning("Could not write to initialization packet: init.qp")
             quipPrint(err)
@@ -342,7 +352,7 @@ class Encoder():
         OSError - If packet cannot be written
         Misc. - Any other error thrown will pop up the stack.
         """
-        return Packet.writeControlPacket(0x3, self.sha256checksum)
+        return Packet.writeControlPacket(0x3, self.crc32checksum)
 
     def setAsLastPacket(self,packet):
         """
@@ -491,13 +501,12 @@ class Decoder():
         try:
             with open(self.packets+"init.qp",'rb') as init:
                 information = init.read()
-                # Resolve the TMR expansion from the packet. Since we have 19 bytes of header,
-                # Start from 19 and go until the ending sequence (but search for it from the back)
+                # Resolve the TMR expansion from the packet.
                 Decoder.isWrapperCorrupted(information)
-                if self.fec:
-                    information = Decoder.resolveExpansion(information[19:information.rfind(Packet.end + Packet.sync)])
+                if self.useFEC:
+                    information = Decoder.resolveExpansion(information[Packet.header_size:information.rfind(Packet.end + Packet.sync)])
                 else:
-                    information = information[19:information.rfind(Packet.end+Packet.sync)]
+                    information = information[Packet.header_size:information.rfind(Packet.end+Packet.sync)]
                 # Split on the ' ' since that should not be in any data
                 information = information.split(b' ')
         except OSError as err:
@@ -529,10 +538,10 @@ class Decoder():
             with open(self.packets+str(pid)+".qp",'br') as packet:
                 packet_data = packet.read()
                 Decoder.isWrapperCorrupted(packet_data)
-                information = packet_data[19:packet_data.rfind(Packet.end + Packet.sync)]
-                Decoder.isInfoCorrupted(information,Decoder.decipherHeader(packet_data[:19])['parity'])
-                # Resolve the TMR expansion. Since we have 19 bytes of header, start at 19.
-                if self.fec:
+                information = packet_data[Packet.header_size:packet_data.rfind(Packet.end + Packet.sync)]
+                Decoder.isInfoCorrupted(information,Decoder.decipherHeader(packet_data)['parity'])
+                # Resolve the TMR expansion.
+                if self.useFEC:
                     return Decoder.resolveExpansion(information)
                 else:
                     return information
@@ -577,8 +586,7 @@ class Decoder():
         while True: # Until we are done...
             try:
                 pid += 1
-                # Remove the sync and start bits, thus [4:19]
-                # header = self.decipherHeader(Decoder.resolveExpansion(packet_data[4:19]))
+                # header = self.decipherHeader(packet_data)
                 # If the packet cannot be found, throw a FileNotFoundError to indicate that.
                 information = self.readPacketInfo(pid)
                 scaffold_data = self.ammendScaffoldData(scaffold_data,information,pid)
@@ -728,12 +736,12 @@ class Decoder():
         ----------
         missedPackets - list - list of ints for the pids of the packets that are missing.
         """
-        if not self.suppress: quipPrint("Attempting an async for: ", missedPackets)
+        if not self.suppress: quipPrint("Attempting an async for: ", len(missedPackets), "packets")
         # If we want to rush, only do this once and don't wait for any packets it couldn't do.
         if self.rush:
             missedPackets = self.asyncBulkDecode(missedPackets)
             if missedPackets:
-                quipPrint("There were packets missing: ", missedPackets,"\n Your scaffold will be intact at", self.file_path)
+                quipPrint("There were packets missing: ", len(missedPackets),"packets\n Your scaffold will be intact at", self.file_path)
             else:
                 if not self.suppress: quipPrint("Completed asynchronously building the scaffold.")
         else: # otherwise, attempt to decode and then poll to get the erst of the packets.
@@ -741,7 +749,7 @@ class Decoder():
                 while missedPackets: # While there are still packets to wait for
                     time.sleep(Decoder.waitDelay)
                     missedPackets = self.asyncBulkDecode(missedPackets)
-                    if not self.suppress: quipPrint("Waiting for packets:",missedPackets)
+                    if not self.suppress: quipPrint("Waiting for packets:", len(missedPackets), "packets")
                 self.buildScaffold()
             except OSError as err:
                 quipPrint(err)
@@ -895,14 +903,14 @@ class Decoder():
         return majority_info
 
     @staticmethod
-    def decipherHeader(header):
+    def decipherHeader(packet):
         """
         Reads what would be the header of a packet and returns a dictionary to easily read each
         field of the header.
 
         Parameters
         ----------
-        header - bytearray - bytearray of the header that does not include the sync or start
+        packet - bytes - bytearray of the header that does not include the sync or start
                              bytes.
 
         Returns
@@ -911,13 +919,22 @@ class Decoder():
             pid
             overflow
             op_code
+
+        Raises
+        ------
+        Corrupted - if it cannot determine if FEC was used.
         """
         header_dict = {}
-        if self.fec:
-            header = Decoder.resolveExpansion(header[4:])
+        if packet[4] == ord('F'):
+            header = Decoder.resolveExpansion(packet[5:Packet.header_size]) #4 for the sync size
+            header_dict['useFEC'] = 'True'
+        elif packet[4] == ord('N'):
+            header = packet[5:Packet.header_size] # 4 for the sync size
+            header_dict['useFEC'] = 'False'
         else:
-            header = header[4:]
-        # Header: sync(2) - start(2)- pid(4)- [overflow(1),op(3),reserved(4)](1)
+            raise Corrupted('Could not determine if FEC was used in this packet.')
+
+        # Header: pid(1,2,3,4)- [overflow<1>,op<3>,reserved<4>](5)
         header_dict['pid'] = struct.unpack('>L',header[0:4])[0] # Convert byte array to int.
         header_dict['overflow'] = (header[4] & 128) >> 7  # Bit mask to get the 8th bit
         header_dict['op_code'] =  (header[4] & 112) >> 4  # Bit mask to get the 5th - 7th bits

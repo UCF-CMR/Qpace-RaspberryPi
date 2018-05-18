@@ -228,3 +228,5 @@ if __name__ == '__main__':
             #TODO Alert the WTC of the problem and/or log it and move on
             #TODO figure out what we actually want to do.
             logger.logError("There is a problem with the connection to the WTC", err)
+
+        gpio.cleanup()
