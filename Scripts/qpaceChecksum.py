@@ -4,9 +4,9 @@
 #Q-Pace project, Center for Microgravity Research
 #University of Central Florida
 
+import zlib
 import os.path
 import qpaceLogger
-import zlib
 
 def compareChecksum(input1, input2):
     """
@@ -144,7 +144,7 @@ def checksum(filein):
             filein = filein.read()
 
         # If filein is a string, we have to convert it to a byte string so that
-        # we can give it the hashing algorithm.
+        # we can give it to the hashing algorithm.
         if isinstance(filein, str):
             return str(zlib.crc32(filein.encode('utf-8')))
 
