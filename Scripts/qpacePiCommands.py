@@ -12,7 +12,7 @@ from subprocess import check_output,Popen
 from math import ceil
 from time import strftime,gmtime
 import socket
-import qpaceInterpreter
+from qpaceInterpreter import *
 import qpaceLogger as logger
 import qpaceQUIP as quip
 
@@ -153,7 +153,7 @@ def sendFile(chip,cmd,args):
     chip - SC16IS750 - an SC16IS750 object which handles the WTC Connection
     cmd,args - string, array of args (seperated by ' ') - the actual command, the args for the command
     """
-    from qpaceInterpreter import INTERP_PACKETS_PATH
+    #from qpaceInterpreter import INTERP_PACKETS_PATH
 
     logger.logSystem([['Running the QUIP Encoder...'+args]])
     successfulEncode = quip.Encoder(args[0],INTERP_PACKETS_PATH,suppress=False).run()
@@ -218,21 +218,7 @@ def pingPi(chip,cmd,args):
     logger.logSystem([["Pong!"]])
     _sendBytesToWTC(chip,b'OK')
 
-def returnStatus(chip,cmd,args):
-    """
-    Create a text file with status items and then send that file.
-    Invokes sendFile
-
-    Accumulates the following data: CPU Usage, CPU Temp, IP Address, Pi Identity,
-                                    Last command received, Uptime, Running processes,
-                                    RAM Usage, Disk Space used, Disk space total,
-                                    Connected COM ports.
-    Parameters
-    ----------
-    chip - SC16IS750 - an SC16IS750 object which handles the WTC Connection
-    cmd,args - string, array of args (seperated by ' ') - the actual command, the args for the command
-    """
-    from simInterpreter import LastCommand
+def getStatus():
     logger.logSystem([["Attempting to get the status of the Pi"]])
     identity = 0
     cpu = 'Unknown'
@@ -291,8 +277,25 @@ def returnStatus(chip,cmd,args):
                     "RAM Free: {} bytes\n"  +\
                     "Disk total: {}\n"      +\
                     "Disk free: {}\n"
-    text_to_write = text_to_write.format(identity,last_command,last_command_when,last_command_from,cpu,cpu_temp,
+    return text_to_write.format(identity,last_command,last_command_when,last_command_from,cpu,cpu_temp,
                             uptime,ram_tot,ram_used,ram_free,disk_total,disk_free)
+
+def saveStatus(chip,cmd,args):
+    """
+    Create a text file with status items and then send that file.
+    Invokes sendFile
+
+    Accumulates the following data: CPU Usage, CPU Temp, IP Address, Pi Identity,
+                                    Last command received, Uptime, Running processes,
+                                    RAM Usage, Disk Space used, Disk space total,
+                                    Connected COM ports.
+    Parameters
+    ----------
+    chip - SC16IS750 - an SC16IS750 object which handles the WTC Connection
+    cmd,args - string, array of args (seperated by ' ') - the actual command, the args for the command
+    """
+
+    text_to_write = getStatus()
     logger.logSystem([["Status finished."] + text_to_write.split('\n')])
     timestamp = strftime("%Y%m%d-%H%M%S",gmtime())
     try:

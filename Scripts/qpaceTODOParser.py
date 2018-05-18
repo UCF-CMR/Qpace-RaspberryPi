@@ -126,7 +126,7 @@ def sortTodoList(todo_list):
 		todo_list.sort() # Python will sort a 2D list based off the first argument of each nested list in ascending order.
 	return todo_list
 
-def _processTask(task,runningEvent = None):
+def _processTask(chip,task,runningEvent = None):
 	"""
 		This function handles processing a specific command given. This is what does the real "parsing"
 
@@ -166,7 +166,7 @@ def _processTask(task,runningEvent = None):
 		#Sending data on the downlink? What's going to go here? Do we need this or is it handled
 		#somewhere else?
 		logger.logSystem([["Sending " + task[2] +" down to ground station"]]) # Placeholder
-        return cmd.sendFile(None,'SEND',[task[2]]) # Return true if succesful. Return false if fail.
+        return cmd.sendFile(chip,'SEND',[task[2]]) # Return true if succesful. Return false if fail.
 	elif currentTask == "COMPARE":
 		#Verification methods. Figure out what this is actually going to be.
 		logger.logSystem([["Comparing " + task[2] + " and " + task[3]]]) # Placeholder
@@ -176,14 +176,16 @@ def _processTask(task,runningEvent = None):
 		print("Attempting to create a backup of", task[2]) # Placeholder
         #TODO write backup scripts
 	elif currentTask == "REPORT":
-		#TODO Reporting method. Figure out if this is necessary or what exactly it will do
-		print("Saving data to the system log.") # Placeholder
+		status = cmd.getStatus()
+        status = status.split('\n')
+        cmd.saveStatus(None,None,None)
+        cmd.sendFile(chip,'REPORT','status_*.txt') #TODO test if this actually works
 	else:
 		logger.logSystem([["Unknown task!", str(task[1:])]])
 
     return True # If we reach here, assume everything was a success.
 
-def executeTodoList(todo_list, runningEvent = None):
+def executeTodoList(chip,todo_list, runningEvent = None):
 	"""
 		This function will execute the todoList in order. If it is interrupted, it will return the todolist
 
@@ -227,7 +229,7 @@ def executeTodoList(todo_list, runningEvent = None):
                     time.sleep(1)
                     _checkInterrupt()
     			# run the next item on the todolist.
-    			taskCompleted = _processTask(todo_list[0],runningEvent)
+    			taskCompleted = _processTask(chip,todo_list[0],runningEvent)
                 if taskCompleted:
                     logger.logSystem([["Task completed.",str(todo_list[0])]])
                     todo_list = todo_list[1:] # pop the first item off the list.
@@ -273,7 +275,7 @@ def updateTodoFile(todo_list):
 		return False
 	return True
 
-def run(runningEvent = None):
+def run(chip = None,runningEvent = None):
     """
     Method to handle the todo parser when running it. This allows the parser to be used when calling
     it from another module.
@@ -307,7 +309,8 @@ def run(runningEvent = None):
 			# We will assume the todo-list is NOT sorted, and sort it.
 			sortTodoList(todo_list)
 			_checkInterrupt() # Check the interrupt pin before execution
-			todo_list = executeTodoList(todo_list,runningEvent)
+            if chip is not None:
+			    todo_list = executeTodoList(chip,todo_list,runningEvent)
 
 			if todo_list:
 				logger.logSystem([["The TODO parser has terminated early. Updating the todo file."]])
@@ -325,6 +328,3 @@ def run(runningEvent = None):
 				os.remove(TODO_FILE_PATH) # Do we want to delete the file or just leave it alone
 	except InterruptedError as interrupt:
         logger.logSystem([["The Interpreter was interrupted. Shutting down the Interpreter..."]])
-# Only do the following if we are running this as a script.
-if __name__ == "__main__":
-	run()

@@ -215,7 +215,7 @@ if __name__ == '__main__':
                     logger.logSystem("Pin " + WTC_IRQ + " was found to be HIGH. Running the interpreter and then the TODO Parser.")
 
                     qpI.run(chip,experimentRunningEvent) # Run the interpreter to read in data from the CCDR.
-                    todo.run(experimentRunningEvent) # Run the todo parser
+                    todo.run(chip,experimentRunningEvent) # Run the todo parser
                     logger.logSystem("Listining to Pin " + WTC_IRQ + " and waiting for the interrupt signal.")
                 time.sleep(.5) # Sleep for a moment before checking the pin again.
 
