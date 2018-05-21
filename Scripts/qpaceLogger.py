@@ -1,6 +1,6 @@
 #! /usr/bin/env python3
 # qpaceLogger.py by Jonathan Kessluk
-# 2-20-2018, Rev. 1.2
+# 2-20-2018, Rev. 1.3
 # Q-Pace project, Center for Microgravity Research
 # University of Central Florida
 #
@@ -9,7 +9,6 @@
 import csv
 import os.path
 import datetime
-import signal
 from time import strftime,gmtime
 
 # Defined Paths.
@@ -20,8 +19,7 @@ DELIMITER = ","
 # Default error if systemLog() doesn't work properly.
 SYSTEMLOG_ERROR_DESCRIPTION = "Unable to write to a CSV to log data."
 
-
-def __logData(data, csvName):
+def _logData(data, csvName):
     """
     This function handles logging the actual data. It should not be called by a user.
 
@@ -72,15 +70,14 @@ def logError(description, exception = None):
 
     """
     try:
-        #TODO How to handle user defined errors? What data should go with them? Unique ID? Just the description?
         timestamp = strftime("%Y%m%d-%H%M%S",gmtime())
-        filename = 'error_'
         errorData = [timestamp, description]
         if exception is not None:
-            errorData.append(exception.args)
+            errorData.append(str(exception.args))
         # logData exepcts a 2d array for each row, so make it a 2d array.
         errorData = [errorData]
-        return __logData(errorData, filename) # Actually log the data.
+        _logData([['An Error is being recorded to the error log.','Preview: ' + description[:30]]])
+        return _logData(errorData, 'error_') # Actually log the data.
     except Exception: pass
 
 def logSystem(data):
@@ -103,10 +100,9 @@ def logSystem(data):
     """
     try:
         timestamp = strftime("%Y%m%d-%H%M%S",gmtime())
-        filename = 'system_'
         for row in data:
             row.insert(0,timestamp)
-        return __logData(data, filename)
+        return _logData(data, 'system_')
     except Exception as e:
         # Guess we had a problem, so we'll log the error as an error.
         logError(SYSTEMLOG_ERROR_DESCRIPTION,e) # Actually log the error.

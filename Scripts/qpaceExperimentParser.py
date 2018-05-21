@@ -7,7 +7,7 @@
 import qpaceExperiment
 import qpaceLogger
 
-def experimentparser(filepath):
+def experimentparser(filepath, isRunningEvent):
     """
     This function handles the parsing and execution of the raw text experiment files.
 
@@ -22,6 +22,7 @@ def experimentparser(filepath):
     Raises
     ------
     IOError - Function handles file I/O errors.
+
     """
     try:
         with open(filepath, 'r') as inputFile:
@@ -53,3 +54,5 @@ def experimentparser(filepath):
     except IOError as e:
         qpaceLogger.logError("Could not open experiment file at " + str(filepath) + ".", e)
         qpaceLogger.logSystem([["File I/O error occured."]])
+    else:
+        isRunningEvent.clear()
