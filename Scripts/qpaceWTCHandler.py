@@ -217,6 +217,8 @@ if __name__ == '__main__':
                     qpI.run(chip,experimentRunningEvent) # Run the interpreter to read in data from the CCDR.
                     todo.run(chip,experimentRunningEvent) # Run the todo parser
                     logger.logSystem("Listining to Pin " + WTC_IRQ + " and waiting for the interrupt signal.")
+                else:
+                    todo.run(chip,experimentRunningEvent) # Run the todo parser
                 time.sleep(.5) # Sleep for a moment before checking the pin again.
 
         except BufferError as err:

@@ -191,6 +191,7 @@ def run(chip = None,runningEvent = None):
             time.sleep(1)
             attempt = 0
             status = chip.byte_read(SC16IS750.REG_LSR) # Checks the status bit to see if there is something in the RHR
+
             if status & 0x01 == 1: # If LSB of LSR is high, then data available in RHR:
                 # See how much we want to read.
                 waiting = chip.byte_read(SC16IS750.REG_RXLVL)
@@ -204,9 +205,11 @@ def run(chip = None,runningEvent = None):
                 if attempt > 1:
                     logger.logError("Something is wrong with the CCDR FIFO and it cannot be read.")
                     try:
-                        logger.logSystem([["Attempted to read from the CCDR FIFO but somethign went wrong.","Current contents of the buffer:",buf.decode('utf-8')]])
+                        logger.logSystem([["Attempted to read from the CCDR FIFO but something went wrong.","Current contents of the buffer:",buf.decode('utf-8')]])
+                        raise BufferError("The FIFO could not be read after " + str(attempt+1) +" attempts.")
                     except UnicodeError:
-                        BufferError("The FIFO could not be read on the CCDR.")
+                        raise BufferError("The FIFO could not be read on the CCDR as Unicode.")
+
                 else:
                     logger.logError("Something is wrong with the CCDR FIFO. Will try to read again: Attempt " + str(attempt + 1))
                     attempt += 1
@@ -216,15 +219,15 @@ def run(chip = None,runningEvent = None):
                     raise InterruptedError("The WTC has ended transmission.")
 
         except KeyboardInterrupt as interrupt: # If we get a SIGINT, we can also break off.
-            logger.logSystem([["SIGINT was thrown to the Interpreter, stopping read from WTC."]])
+            logger.logSystem([["SIGINT was thrown to the Interpreter, stopping read from WTC.", str(interrupt)]])
             logger.logError("Caution: KeyboardInterrupt was thrown to the Interpreter.",interrupt)
             break
         except InterruptedError as interrupt: # IF we are interrupted, break.
             logger.logSystem([["The read has been interrupted."],[str(interrupt)]])
-            raise interrupt
+            break
         except BufferError as err:
-            logger.logError("A buffer error was thrown.",err)
-            raise err
+            logger.logError("A BufferError was thrown.",err)
+            raise BufferError("A BufferError was thrown.") from err
     try:
         if isCommand(buf): # Is the input to the buffer a command?
             if not runningEvent.is_set():

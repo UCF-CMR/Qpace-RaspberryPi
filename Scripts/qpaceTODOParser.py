@@ -226,7 +226,7 @@ def executeTodoList(chip,todo_list, runningEvent = None):
     			logger.logSystem([["Waiting for " + str(wait_time) + " seconds to complete the next task."]])
                 # Wait for wait_time seconds but also check the interrupt every second.
                 for i in range(wait_time):
-                    time.sleep(1)
+                    time.sleep(.5)
                     _checkInterrupt()
     			# run the next item on the todolist.
     			taskCompleted = _processTask(chip,todo_list[0],runningEvent)

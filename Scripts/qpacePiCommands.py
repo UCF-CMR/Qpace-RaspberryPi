@@ -117,6 +117,7 @@ def immediateShutdown(chip,cmd,args):
     """
     logger.logSystem([['Shutting down...']])
     _sendBytesToWTC(chip,b'SP') # SP = Shutdown Proceeding
+    time.sleep(.75)
     Popen(["sudo", "halt"],shell=True) #os.system('sudo halt')
     raise SystemExit # Close the interpreter and clean up the buffers before reboot happens.
 
@@ -164,7 +165,7 @@ def sendFile(chip,cmd,args):
                 try:
                     with open(INTERP_PACKETS_PATH+filepath,'rb') as f:
                         data = f.read()
-                        if len(data) is 256:
+                        if len(data) is 256: #256 bytes
                             #TODO Figure out a protocol if we can't just bulk send 256 bytes.
                             _sendBytesToWTC(chip,data)
                 except OSError as err:
@@ -346,7 +347,7 @@ def _getEthernetConnection():
     client.settimeout(20)
     return client
 
-def checkSiblingPi(chip,cmd,args): # TODO some kind of listener will have to be written for this and run as a seperate process on the pi.
+def checkSiblingPi(chip,cmd,args):
     """
     Check the sibling pi via ethernet to see if it's alive.
 
@@ -366,12 +367,11 @@ def checkSiblingPi(chip,cmd,args): # TODO some kind of listener will have to be 
             _sendBytesToWTC(chip,b"OK")
     except TimeoutError:
         logger.logSystem([['EthernetConnection: Timeout has occured in qpacePiCommands.checkSiblingPi()']])
-        _sendBytesToWTC(chip,b'NO')
     except ConnectionError as err:
         logger.logError('There was a connection Error in qpacePiCommands.checkSibilingPi()',err)
-        _sendBytesToWTC(chip,b'NO')
+    _sendBytesToWTC(chip,b'NO')
 
-def pipeCommandToSiblingPi(chip,cmd,args): # TODO some kind of listener will have to be written for this and run as a seperate process on the pi
+def pipeCommandToSiblingPi(chip,cmd,args):
     """
     Inform the sibling pi to run a command found in the "args"
 
