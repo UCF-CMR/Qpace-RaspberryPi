@@ -22,7 +22,6 @@ def experimentparser(filepath):
     Raises
     ------
     IOError - Function handles file I/O errors.
-
     """
     try:
         with open(filepath, 'r') as inputFile:
@@ -42,11 +41,13 @@ def experimentparser(filepath):
                     Experiment.stepper(delay, qturn)
 
                 elif (instruction[0].upper() == "SOLENOID"):
-                    solPins = list()
-                    duration = float(instruction[1])
-                    for i in range(2, len(instruction), 2):
-                        solPins.append(tuple((float(instruction[i]), int(instruction[i+1]))))
-                    Experiment.solenoid(solPins)
+                    enables = list()
+                    frequency = float(instruction[1])
+                    duration = float(instruction[2])
+                    for i in range(3, len(instruction)):
+                        enables.append(int(instruction[i]))
+                    Experiment.solenoid(frequency, duration, enables)
+
 
     # Output to the logger here.
     except IOError as e:

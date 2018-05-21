@@ -11,6 +11,17 @@ GPIO.setwarnings(False)
 GPIO.setmode(GPIO.BOARD)
 
 def pinInit():
+	"""
+	This function initializes the pins on the Pi.
+
+	Parameters
+    ----------
+	None.
+
+    Returns
+    -------
+    None.
+    """
 	#GoPro pin setup
 	GPIO.setup(19, GPIO.OUT, initial=0)			#Power
 	GPIO.setup(13, GPIO.OUT, initial=1)			#On Button
@@ -25,46 +36,56 @@ def pinInit():
 	GPIO.setup(23, GPIO.OUT)					#Controls the LEDs
 
     #Solenoid setup
-	GPIO.setup(35, GPIO.OUT, initial=1)					#Solenoid 1
-	GPIO.setup(31, GPIO.OUT, initial=1)					#Solenoid 2
-	GPIO.setup(37, GPIO.OUT, initial=1)					#Solenoid 3
-
+	GPIO.setup(35, GPIO.OUT, initial=1)			#Solenoid 1
+	GPIO.setup(31, GPIO.OUT, initial=1)			#Solenoid 2
+	GPIO.setup(37, GPIO.OUT, initial=1)			#Solenoid 3
 
 def goPro(recordingTime):
-	#Turning on the device
-	GPIO.output(19, 1)
-	time.sleep(3)
-	GPIO.output(13, 0)
-	time.sleep(1)
-	GPIO.output(13, 1)
-	time.sleep(10)
+	"""
+    This function handles GoPro operations.
 
-	#Begin Recording
-	GPIO.output(15, 0)
-	time.sleep(0.5)
-	GPIO.output(15, 1)
+    Parameters
+    ----------
+    Float - recordingTime - the time that the camera will be recording, in seconds.
 
-	#Recording time
+    Returns
+    -------
+    None.
+    """
+
+	#Turn On
+	GPIO.output(19,1)
+	time.sleep(2)
+	GPIO.output(13,0) #Toggle Turn on
+	time.sleep(6)
+	GPIO.output(15,0) #Start Recording
 	time.sleep(recordingTime)
+	
+	GPIO.output(15,1)#this toggles the record button
+	time.sleep(.5)
+	GPIO.output(15,0)
+	time.sleep(.5)
+	GPIO.output(15,1)
+	time.sleep(.5)
 
-	#Stop Recording
-	GPIO.output(15, 0)
-	time.sleep(0.5)
-	GPIO.output(15, 1)
-
-	#Call Subprocess "hc-star" to enable USB hub
-	#print("Transfering Data...")
-	#subprocess.call(["/home/pi/hc-start"])
-
-	#Shutdown Device
-	GPIO.output(13, 0)
-	time.sleep(5)
-	GPIO.output(13, 1)
-
-	GPIO.output(19, 0)
-
+	GPIO.output(13,1) #toggle power button probably not needed
+	time.sleep(2)
+	GPIO.output(19,0) #shut off power
 
 def stepper(delay, qturn):
+	"""
+	This function handles stepper motor operations.
+
+	Parameters
+    ----------
+    Float - delay - the delay between turns, in seconds.
+	Int - qturn - the number of turn cycles.
+
+	Returns
+    -------
+    None.
+    """
+
     #Setstep definition
     def setStep(a, b):
         GPIO.output(29, a)
@@ -100,31 +121,47 @@ def stepper(delay, qturn):
     #complete
 
 def led(power):
+	"""
+    This function handles LED operations.
+
+	Parameters
+    ----------
+	Boolean - power - Turns the LED On (True) or Off (False).
+
+	Returns
+    -------
+    None.
+    """
+
 	GPIO.output(23, power)
 
-def solenoid(solPins : list, duration):
-"""
-solPins is a list of tuples, each containing a frequency (in Hz) and a solenoid
-pin number (<freq, pinNum>).
+def solenoid(freq, duration, enables : list):
+	"""
+    This function handles the parsing and execution of the raw text experiment files.
 
-duration is the total time, in seconds, for which the solenoids will be firing.
-"""
-	solPins.sort()
+    Parameters
+    ----------
+    Float - freq - The frequency that the solenoids will fire at, in Hertz.
+	Float - duration - The time that the solenoids will be firing, in seconds.
+	List of Ints - enables - A list determining which solenoids should be on (0 is off, otherwise on).
+
+	Returns
+    -------
+    None.
+    """
+
 	counter = 0
+	dutyCycle = 1 / freq
+	# a pin is considered enabled if it is not 0.
+	numEnabled = 3 - enables.count(0)
 
-	def fire(pin : tuple):
-		if (pin[0] > 0):
-			dutyCycle = 1 / pin[0]
-			GPIO.output(pin[1], False)		#Turns solenoid on
-			time.sleep(dutyCycle / 2)		#Waits for half of the duty cycle
-			GPIO.output(pin[1], True)		#Turns solenoid off
-			time.sleep(dutyCycle / 2)
-			counter += dutyCycle			#increments counter
+	pins = (35, 31, 37)
 
-	#counter maintains how long the solenoids have been firing.
-	while (counter < duration):
-		for i in range(0, len(solPins)):
-			fire(solPins[i])
-
-def solenoid(freq, duration):
-	counter = 0
+	while (numEnabled > 0 and counter < duration):
+		for i in range(0, 3):
+			if (enables[i] != 0):
+				GPIO.output(pins[i], False)
+				time.sleep(dutyCycle / (2 * numEnabled))
+				GPIO.output(pins[i], True)
+				time.sleep(dutyCycle / (2 * numEnabled))
+				counter += dutyCycle / numEnabled
