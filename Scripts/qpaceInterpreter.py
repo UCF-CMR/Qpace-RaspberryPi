@@ -32,9 +32,9 @@ COMMAND_LIST = {
     "AP":cmd.asynchronousSendPackets, # Send specific packets from the Pi to the WTC
     "HI":cmd.pingPi,                  # Ping the pi!
     "ST":cmd.saveStatus,            # Accumulate status about the operation of the pi, assemble a txt file, and send it. (Invokes sendFile)
-    "CS":cmd.checkSiblingPi,          # Check to see if the sibling Pi is alive. Similar to ping but instead it's through ethernet
-    "PC":cmd.pipeCommandToSiblingPi,  # Take the args that are in the form of a command and pass it along to the sibling pi through ethernet
-    "UC":cmd.performUARTCheck         # Tell the pi to perform a "reverse" ping to the WTC. Waits for a response from the WTC.
+    #"CS":cmd.checkSiblingPi,          # Check to see if the sibling Pi is alive. Similar to ping but instead it's through ethernet
+    #"PC":cmd.pipeCommandToSiblingPi,  # Take the args that are in the form of a command and pass it along to the sibling pi through ethernet
+    #"UC":cmd.performUARTCheck         # Tell the pi to perform a "reverse" ping to the WTC. Waits for a response from the WTC.
 }
 
 class LastCommand():

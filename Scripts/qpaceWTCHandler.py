@@ -65,7 +65,7 @@ def initWTCConnection():
     time.sleep(2.0/XTAL_FREQ)
     return chip
 
-def _openSocketForSibling(chip = None):
+#def _openSocketForSibling(chip = None):
     """
     This function acts as a server and arbitrator for the Ethernet connection.
     It will be spawned as it's own process.
@@ -151,7 +151,7 @@ if __name__ == '__main__':
     import ctypes
     import ctypes.util
     import time
-    import socket
+    #import socket
     import RPi.GPIO as gpio
 
     import qpaceInterpreter as qpI
@@ -171,40 +171,45 @@ if __name__ == '__main__':
     logger.logSystem([["Identity determined as Pi: " + str(identity)]])
     if chip:
         chip.byte_write(SC16IS750.REG_THR, ord(identity)) # Send the identity to the WTC
-        buf = b''
-        while True: # Is expecting 6 bytes. (YEAR, MONTH, DAY, HOUR, MINUTE, SECOND)
-            time.sleep(.5)
-            waiting = chip.byte_read(SC16IS750.REG_RXLVL)
-            if waiting >= 6 :
-                for i in range(6):
-                    buf += bytes([chip.byte_read(SC16IS750.REG_RHR)])
-                break
+        # Change the clock to be the proper date time based on 1 int coming in that is time since epoch.
 
-        logger.logSystem([["Time received from the WTC.",str(2000 + buf[0]), str(buf[1]), str(buf[2]), str(buf[3]), str(buf[4]), str(buf[5])]])
-        # (Year, Month, Day, Hour, Minute, Second)
-        time_tuple = (2000 + buf[0], buf[1], buf[2], buf[3], buf[4], buf[5])
-        # Change the system time on the pi.
-        try:
-            class timespec(ctypes.Structure):
-                _fields_ = [("tv_sec", ctypes.c_long),
-                            ("tv_nsec", ctypes.c_long)]
-
-            librt = ctypes.CDLL(ctypes.util.find_library("rt"))
-
-            ts = timespec()
-            ts.tv_sec = int(time.mktime(datetime.datetime(*time_tuple).timetuple()))
-            ts.tv_nsec = 0 # We don't care about nanoseconds
-
-            # http://linux.die.net/man/3/clock_settime
-            librt.clock_settime(0, ctypes.byref(ts))
-        except Exception as err:
-            #TODO Alert WTC of problem, wait for new commands.
-            logger.logError("Could not set the Pi's system time for some reason.",err)
+        #TODO old code to change the time. No longer needed as the method for changing time has changed.
+        # buf = b''
+        # while True: # Is expecting 6 bytes. (YEAR, MONTH, DAY, HOUR, MINUTE, SECOND)
+        #     time.sleep(.5)
+        #     waiting = chip.byte_read(SC16IS750.REG_RXLVL)
+        #     if waiting >= 6 :
+        #         for i in range(6):
+        #             buf += bytes([chip.byte_read(SC16IS750.REG_RHR)])
+        #         break
+        #
+        # logger.logSystem([["Time received from the WTC.",str(2000 + buf[0]), str(buf[1]), str(buf[2]), str(buf[3]), str(buf[4]), str(buf[5])]])
+        # # (Year, Month, Day, Hour, Minute, Second)
+        # time_tuple = (2000 + buf[0], buf[1], buf[2], buf[3], buf[4], buf[5])
+        # # Change the system time on the pi.
+        # try:
+        #     class timespec(ctypes.Structure):
+        #         _fields_ = [("tv_sec", ctypes.c_long),
+        #                     ("tv_nsec", ctypes.c_long)]
+        #
+        #     librt = ctypes.CDLL(ctypes.util.find_library("rt"))
+        #
+        #     ts = timespec()
+        #     ts.tv_sec = int(time.mktime(datetime.datetime(*time_tuple).timetuple()))
+        #     ts.tv_nsec = 0 # We don't care about nanoseconds
+        #
+        #     # http://linux.die.net/man/3/clock_settime
+        #     librt.clock_settime(0, ctypes.byref(ts))
+        # except Exception as err:
+        #     #TODO Alert WTC of problem, wait for new commands.
+        #     logger.logError("Could not set the Pi's system time for some reason.",err)
 
         try:
             # Begin running the rest of the code for the Pi.
-            ethernetHandler = Thread(name='socketHandler',target=_openSocketForSibling,args=(chip,))
-            ethernetHandler.start()
+            # NOTE: Hold on the ethernet. Not needed for now.
+            # Start ethernet stuff
+            #ethernetHandler = Thread(name='socketHandler',target=_openSocketForSibling,args=(chip,))
+            #ethernetHandler.start()
 
             logger.logSystem([["Beginning the main loop for the WTC Handler..."]])
             # Create a threading.Event to determine if an experiment is running or not.
