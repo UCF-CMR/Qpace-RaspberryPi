@@ -219,7 +219,7 @@ def pingPi(chip,cmd,args):
     logger.logSystem([["Pong!"]])
     _sendBytesToWTC(chip,b'OK')
 
-# TODO Probably uneccessary now. Less information. Not sure what is and what isn't necessary here anymore
+# TODO Probably uneccessary now. Should make less information. Not sure what is and what isn't necessary here anymore
 # TODO it will need to be looked at and determined what exactly needs to be done here.
 def getStatus():
     logger.logSystem([["Attempting to get the status of the Pi"]])
@@ -310,110 +310,3 @@ def saveStatus(chip,cmd,args):
             with open(STATUSPATH+'status_'+timestamp+'.txt','w') as statFile:
                 statFile.write("Unable to write status file.")
         except:pass
-
-#TODO Come back to ethernet stuff at a later time.
-# def _getEthernetConnection():
-#     """
-#     This method establishes the ethernet connection for methods that use it.
-#
-#     Parameters
-#     ----------
-#     Nothing.
-#
-#     Returns
-#     -------
-#     The socket connection.
-#
-#     Raises
-#     ------
-#     ConnectionError - if it cannot make a connection for some reason.
-#     """
-#     client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-#     logger.logSystem([['Attempting to connect to the other Pi via Ethernet.']])
-#     try:
-#         with open(WHO_FILEPATH,'r') as f:
-#             identity = f.read(1)
-#         if identity == 1:
-#             host = "192.168.1.2"
-#         elif identity == 2:
-#             host = "192.168.1.1"
-#         else:
-#             err = ConnectionError("Could not connect to Sibling. Bad Identity: " + identity)
-#             logger.logError('EthernetConnection: Bad Identity', err)
-#             raise err
-#         client.connect((host,SOCKET_PORT))
-#         logger.logSystem([['EthernetConnection: Connection Established','Identity: Pi '+identity,'Host IP Address: '+host]])
-#     except (OSError,ConnectionError) as err:
-#         newErr = ConnectionError(str(err))
-#         logger.logError('EthernetConnection: There was a problem connecting via Ethernet', newErr)
-#         raise newErr from err
-#     client.settimeout(20)
-#     return client
-#
-# def checkSiblingPi(chip,cmd,args):
-#     """
-#     Check the sibling pi via ethernet to see if it's alive.
-#
-#     Parameters
-#     ----------
-#     chip - SC16IS750 - an SC16IS750 object which handles the WTC Connection
-#     cmd,args - string, array of args (seperated by ' ') - the actual command, the args for the command
-#     """
-#     try:
-#         connection = _getEthernetConnection()
-#         logger.logSystem([['Attempting to ping the other Pi.']])
-#         connection.send(b'Hello?') # See if the other guy is there by sending this.
-#         recvval = connection.recv(ETHERNET_BUFFER) # Will wait for response
-#         if recvval == b'Here!':
-#             logger.logSystem([['PiPong: Received message back from other pi. Everything Nominal.']])
-#             connection.close()
-#             _sendBytesToWTC(chip,b"OK")
-#     except TimeoutError:
-#         logger.logSystem([['EthernetConnection: Timeout has occured in qpacePiCommands.checkSiblingPi()']])
-#     except ConnectionError as err:
-#         logger.logError('There was a connection Error in qpacePiCommands.checkSibilingPi()',err)
-#     _sendBytesToWTC(chip,b'NO')
-#
-# def pipeCommandToSiblingPi(chip,cmd,args):
-#     """
-#     Inform the sibling pi to run a command found in the "args"
-#
-#     Parameters
-#     ----------
-#     chip - SC16IS750 - an SC16IS750 object which handles the WTC Connection
-#     cmd,args - string, array of args (seperated by ' ') - the actual command, the args for the command
-#     """
-#     try:
-#         connection = _getEthernetConnection()
-#         logger.logSystem([['Attempting to pipe a command to the the other Pi.']])
-#         connection.send(b'PIPE') # See if the other guy is there by sending this.
-#         recvval = connection.recv(ETHERNET_BUFFER) # Will wait for response
-#         if recvval == b'OK':
-#             logger.logSystem([['Handshake complete. Args:']+args])
-#             connection.send(' '.join(args).encode('utf-8'))
-#             ret = connection.recv(ETHERNET_BUFFER)
-#             if ret == b'working':
-#                 logger.logSystem([['Command was received by the other pi and is attempting to be completed.']])
-#                 _sendBytesToWTC(chip,b'OK')
-#             else:
-#                 logger.logSystem([['Command has an issue for some reason and will not be run on the other pi.']])
-#                 _sendBytesToWTC(chip,b'NO')
-#     except TimeoutError:
-#         logger.logSystem([['EthernetConnection: Timeout has occured in qpacePiCommands.checkSiblingPi()']])
-#         _sendBytesToWTC(chip,b'NO')
-#     except ConnectionError as err:
-#         logger.logError('There was a connection Error in qpacePiCommands.checkSibilingPi()',err)
-#         _sendBytesToWTC(chip,b'NO')
-#
-# def performUARTCheck(chip,cmd,args):
-#     """
-#     Tell the pi to ping the WTC and wait for a response back. Similar to a "reverse" ping.
-#
-#     Parameters
-#     ----------
-#     chip - SC16IS750 - an SC16IS750 object which handles the WTC Connection
-#     cmd,args - string, array of args (seperated by ' ') - the actual command, the args for the command
-#     """
-#     logger.logSystem([['Attempting to use UART...']])
-#     _sendBytesToWTC(chip, b'HI')
-#     _waitForWTCResponse(chip,trigger = 'OK') #Wait until timeout.

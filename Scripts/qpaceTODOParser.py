@@ -162,17 +162,6 @@ def _processTask(chip,task,runningEvent = None):
             runningEvent.set()
         else: # If runningEvent does not exist or is set, return True to know there is a failure.
             return False
-    # TODO: This will be done manually and not automatically.
-	# elif currentTask == "SEND": # Send a file down to Ground Station
-	# 	#Sending data on the downlink? What's going to go here? Do we need this or is it handled
-	# 	#somewhere else?
-	# 	logger.logSystem([["Sending " + task[2] +" down to ground station"]]) # Placeholder
-    #     return cmd.sendFile(chip,'SEND',[task[2]]) # Return true if succesful. Return false if fail.
-    # TODO: Determine if Compare is necessary. I don't think this is necessary anymore.
-    # elif currentTask == "COMPARE": #compare two file's checksums
-	# 	#Verification methods. Figure out what this is actually going to be.
-	# 	logger.logSystem([["Comparing " + task[2] + " and " + task[3]]]) # Placeholder
-    #     checksum.compareChecksum(task[2],task[3])
 	elif currentTask == "BACKUP":  #Back up a file
 		copy(task[2],task[3]) #Copy the file from task[2] to task[3]
 		print("Attempting to create a backup of", task[2]) # Placeholder

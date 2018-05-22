@@ -8,9 +8,6 @@
 from threading import *
 import SC16IS750
 
-
-SOCKET_PORT = 8675 #Jenny, who can I turn to?
-ETHERNET_BUFFER = 2048
 WHO_FILEPATH = 'WHO'
 WTC_IRQ = 7 # BCM 4, board pin 7
 def initWTCConnection():
@@ -65,93 +62,12 @@ def initWTCConnection():
     time.sleep(2.0/XTAL_FREQ)
     return chip
 
-#def _openSocketForSibling(chip = None):
-    """
-    This function acts as a server and arbitrator for the Ethernet connection.
-    It will be spawned as it's own process.
-
-    Parameters
-    ----------
-    chip - SC16IS750 - chip instance to use for communication with the WTC.
-
-    Returns
-    -------
-    Nothing.
-
-    Raises
-    ------
-    ConnectionError - if it cannot make a connection for some reason.
-    BufferError - if the buffer to the WTC has an error.
-    OSError - if there was a problem with file handling.
-    """
-    logger.logSystem([["Opening socket for ethernet."]])
-    server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    # Read in only the first character from the WHO file to get the current identity.
-    try:
-        logger.logSystem([["Attempting to determine Identity"]])
-        with open(WHO_FILEPATH,'r') as f:
-            identity = f.read(1)
-        if identity == 1:
-            host = "192.168.1.1"
-        elif identity == 2:
-            host = "192.168.1.2"
-        else:
-            raise ConnectionError("Could not connect to Sibling. Bad Identity: " + identity)
-        logger.logSystem([["Host was set to an IP address.", host],["Binding the address to the socket..."]])
-        server.bind((host, SOCKET_PORT))
-
-        class QPClientHandler(Thread):
-            def __init__(self, socket, addr):
-                Thread.__init__(self)
-                logger.logSystem([["Ethernet: Client is connceting..."]])
-                self.socket = socket
-                self.addr = addr
-                self.start()
-
-            def run(self):
-                logger.logSystem([["Ethernet: Waiting for data..."]])
-                while True:
-                    try:
-                        recvval = self.socket.recv(ETHERNET_BUFFER)
-                        logger.logSystem([["Ethernet: Data received.",str(recvval)]])
-                        if recvval:
-                            recvval = recvval.split(b' ')
-
-                            if recvval[0] == b'Hello?':
-                                self.socket.send(b'Here!')
-
-                            elif recvval[0] == b'PIPE':
-                                self.socket.send(b'OK')
-                                command = self.socket.recv(ETHERNET_BUFFER)
-                                if qpI.isCommand(command) and chip:
-                                    self.socket.send(b'working')
-                                    qpI.processCommand(chip,command, fromWhom='Pipe (to Pi '+identity+')')
-                                else:
-                                    self.socket.send(b'not command')
-                    except BrokenPipeError:
-                        logger.logSystem([["Ethernet: Client Disconnected."]])
-                        break
-                    except (BufferError,ConnectionError) as err:
-                        logger.logSystem([["Ethernet: An Error has occured.",str(err)]])
-                        logger.logError("Ethernet: An Error has occured.", err)
-                        raise err
-
-        server.listen(2)
-        #print ('server started and listening')
-        while True:
-            client, address = server.accept()
-            QPClientHandler(client, address)
-    except (OSError,ConnectionError,BufferError) as err:
-        logger.logError("Ethernet: There was an error.", err)
-        raise ConnectionError(str(err)) from err
-
 if __name__ == '__main__':
     import sys
     import datetime
     import ctypes
     import ctypes.util
     import time
-    #import socket
     import RPi.GPIO as gpio
 
     import qpaceInterpreter as qpI
@@ -206,11 +122,6 @@ if __name__ == '__main__':
 
         try:
             # Begin running the rest of the code for the Pi.
-            # NOTE: Hold on the ethernet. Not needed for now.
-            # Start ethernet stuff
-            #ethernetHandler = Thread(name='socketHandler',target=_openSocketForSibling,args=(chip,))
-            #ethernetHandler.start()
-
             logger.logSystem([["Beginning the main loop for the WTC Handler..."]])
             # Create a threading.Event to determine if an experiment is running or not.
             experimentRunningEvent = threading.Event()
