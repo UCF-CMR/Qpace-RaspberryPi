@@ -4,10 +4,6 @@
 #Q-Pace project, Center for Microgravity Research
 #University of Central Florida
 
-<<<<<<< HEAD
-import zlib
-=======
->>>>>>> jon
 import os.path
 import qpaceLogger
 import zlib
