@@ -5,7 +5,8 @@
 # University of Central Florida
 #
 # The Qpace Unornamented Information Protocol module. Provides the necessary tools needed to use QUIP
-#TODO DOESNT WORK FOR SOME REASON. FIX SOON.
+
+#TODO: Async decode does not work after exiting. (using the --async option)
 import argparse
 import sys
 import os, os.path
@@ -559,9 +560,15 @@ class Decoder():
                 # If the packet cannot be found, throw a FileNotFoundError to indicate that.
                 information = self.readPacketInfo(pid)
                 scaffold_data = self.insertScaffoldData(scaffold_data,information,pid)
+                if not quip_LOGGER:
+                    sys.stdout.write("\rDecoding file: %d%%" % (pid*100/ceil(self.expected_packets)))
+                    sys.stdout.flush()
 
             except FileNotFoundError as e:
                 if pid == self.expected_packets: #If the PID is the expected packets then we are done.
+                    if not quip_LOGGER:
+                        sys.stdout.write("\rDecoding file: 100%\n")
+                        sys.stdout.flush()
                     try:
                         with open(newFile+".scaff", 'wb') as scaffoldToBuild:
                             # Write the scaffold data to the file. We first need to flatten the list
@@ -665,7 +672,7 @@ class Decoder():
                 # Open and read the file.
                 with open(filePath,'rb') as scaffold:
                     scaffold_data = scaffold.read()
-                    split = Packet.data_size
+                    split = Packet.data_size-1 #-1 for the ETX char
                     # Split the data into a list that is separated by 77 bytes that way the
                     # packet information placeholders can be overwritten.
                     scaffold_data = [scaffold_data[i:i+split] for i in range(0, len(scaffold_data), split)]
@@ -704,12 +711,12 @@ class Decoder():
         ----------
         missedPackets - list - list of ints for the pids of the packets that are missing.
         """
-        if not self.suppress: quipPrint("Attempting an async for: ", len(missedPackets), "packets")
+        if not self.suppress: quipPrint("Attempting an async for: ", len(missedPackets or []), "packets")
         # If we want to rush, only do this once and don't wait for any packets it couldn't do.
         if self.rush:
             missedPackets = self.asyncBulkDecode(missedPackets)
             if missedPackets:
-                quipPrint("There were packets missing: ", len(missedPackets),"packets\n Your scaffold will be intact at", self.file_path)
+                quipPrint("There were packets missing: ", len(missedPackets or []),"packets\n Your scaffold will be intact at", self.file_path)
             else:
                 if not self.suppress: quipPrint("Completed asynchronously building the scaffold.")
         else: # otherwise, attempt to decode and then poll to get the erst of the packets.
@@ -717,7 +724,7 @@ class Decoder():
                 while missedPackets: # While there are still packets to wait for
                     time.sleep(Decoder.waitDelay)
                     missedPackets = self.asyncBulkDecode(missedPackets)
-                    if not self.suppress: quipPrint("Waiting for packets:", len(missedPackets), "packets")
+                    if not self.suppress: quipPrint("Waiting for packets:", len(missedPackets or []), "packets")
                 self.buildScaffold()
             except OSError as err:
                 quipPrint(err)
