@@ -97,7 +97,7 @@ def turntofile(input):
         # If we have a string, it must be a filepath. Otherwise, we have an error.
         if isinstance(input, str):
             if os.path.isfile(input):
-                return input.open('rb')
+                return open(input,'rb')
             else:
                 raise TypeError("Not valid filepath.")
 

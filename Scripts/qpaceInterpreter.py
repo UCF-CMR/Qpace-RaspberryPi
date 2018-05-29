@@ -21,7 +21,7 @@ import qpaceLogger as logger
 
 PACKET_SIZE = Packet.max_size
 
-INTERP_PACKETS_PATH = "packets/"
+INTERP_PACKETS_PATH = "temp/packets/"
 INTERP_CMD_SIZE = 2 # How many characters will we expect to be the command length
 
 # Add commands to the map. Format is "String to recognize for command" : function name
@@ -96,8 +96,6 @@ def processCommand(chip = None, query = None, fromWhom = 'WTC'):
             COMMAND_LIST[query[0]](chip,query[0],query[1:]) # Run the command
 
 def processQUIP(chip = None,buf = None):
-    #TODO do we need to determine the opcode or can we force the packets to be sent in order?
-    #TODO we will need to determine the opcode iff we use control packets.
     """
     Take the data in the buffer and write files to it. We will assume they are QUIP packets.
 
@@ -120,41 +118,37 @@ def processQUIP(chip = None,buf = None):
     if not buf:
         raise BufferError("Buffer is empty, no QUIP data received.")
 
-
-
-    logger.logSystem([["Processing input as QUIP packets.", "Packets Received: " + str(len(buf)/PACKET_SIZE)]])
+    logger.logSystem([["Processing input as QUIP packets.", "Packets Received: " + str(len(buf))]])
     if len(buf) > 0:
         missedPackets = []
-        # write the initial init packet
-        try:
-            with open(INTERP_PACKETS_PATH+"init.qp",'wb') as f:
-                f.write(buf[:PACKET_SIZE])
-        except:
-            missedPackets.append('init')
-
-        buf = buf[PACKET_SIZE:]
         attempt = 0
 
-        def _getPacketID(packet):
-            header = Decoder.decipherHeader(packet) #19 should be the size of the header of the packet.
-            return header['pid']
+        def _writePacketToFile(packetID,dataToWrite):
+            with open(INTERP_PACKETS_PATH+str(packetID)+ ".qp",'wb') as f:
+                f.write(b'D'+dataToWrite)
 
-        while len(buf) > 0:
+        for i in range(0,len(buf))
             try:
-                psuedo_packet = buf[:PACKET_SIZE]
-                packetID = _getPacketID(psuedo_packet)
-                with open(INTERP_PACKETS_PATH+packetID+ ".qp",'wb') as f:
-                    f.write()
+                # Create an int from the 4 bytes
+                packetID = struct.unpack('>I',buf[i][:Packet.header_size])[0]
             except:
-                attempt += 1
-                if attempt > 1:
-                    missedPackets.append(packetID)
-                    buf = buf[PACKET_SIZE:]
+                misedPackets.append('i'+str(i))
             else:
-                buf = buf[PACKET_SIZE:]
+                try:
+                    # Write that packet
+                    _writePacketToFile(packetID,buf[i])
+                except:
+                    # If we failed, try again
+                    try:
+                        _writePacketToFile(packetID,buf[i])
+                    except:
+                        #If we failed, consider the packet lost and then carry on.
+                        missedPackets.append(str(packetID))
         logger.logSystem([["Attempted to write all packets to file system."],
                           ["Missing packets: ", str(missedPackets) if missedPackets else "None"]])
         return missedPackets
+    else:
+        return []
 
 def run(chip = None,runningEvent = None):
     """
@@ -170,7 +164,7 @@ def run(chip = None,runningEvent = None):
 
     Raises
     ------
-    ConnectionError - if the WTC cannot be connected to for some reason.
+    ConnectionError - if the CCDR cannot be connected to for some reason.
     BufferError - if the FIFO in the WTC cannot be read OR the buffer was empty.
     InterruptedError - if another InterruptedError was thrown.
     All other exceptions raised by this function are passed up the stack or ignored and not raised at all.
@@ -188,7 +182,7 @@ def run(chip = None,runningEvent = None):
     buf = b''
     while True:
         try:
-            time.sleep(1)
+            time.sleep(.5)
             attempt = 0
             status = chip.byte_read(SC16IS750.REG_LSR) # Checks the status bit to see if there is something in the RHR
 
@@ -229,19 +223,23 @@ def run(chip = None,runningEvent = None):
             logger.logError("A BufferError was thrown.",err)
             raise BufferError("A BufferError was thrown.") from err
     try:
-        if isCommand(buf): # Is the input to the buffer a command?
-            if not runningEvent.is_set():
-                processCommand(chip,buf,fromWhom='WTC')
+        if buf:
+            # Split the buffer into a list of 127 byte packets (chops off the first byte.)
+            buf =  [buf[i:i+128] for i in range(0,len(buf),128)]
+            if isCommand(buf[0]): # Is the input to the buffer a command?
+                # Process the command
+                # NOTE: This will execute and process the command regardless of experiments running.
+                processCommand(chip,buf[0][Packet.header_size:],fromWhom='WTC')
             else:
-                pass #TODO what should we actually do if we have an experiment running but we also get a command?
-        else:
-            missingPackets = processQUIP(chip,buf) # IF it's not a command, assume it's QUIP data.
-            #TODO how to handle any packets that weren't interpreted correctly?
-            decoder = Decoder(file_location,TEMP_PACKET_LOCATION,suppress=True,rush=True)
-            decoder.run(True)
+                missingPackets = processQUIP(chip,buf) # IF it's not a command, assume it's QUIP data.
+                #TODO how to handle any packets that weren't interpreted correctly?
+                decoder = Decoder(file_location,TEMP_PACKET_LOCATION,suppress=True,rush=True)
+                decoder.run(True)
     except (BufferError,ConnectionError) as err:
         logger.logError("An error was thrown while trying to interpret the incoming data.", err)
         raise err
     except InterruptedError as interrupt:
         logger.logSystem([["The Interpreter was interrupted...", str(interrupt)]])
         raise interrupt
+    except IndexError as err:
+        raise IndexError('Bad programming resulted in the index not being read properly. Index error.') from err

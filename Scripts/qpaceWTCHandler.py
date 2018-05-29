@@ -5,10 +5,23 @@
 # University of Central Florida
 #
 # This script is run at boot to initialize the system clock and then wait for interrupts.
+try:
+    import specialTasks
+    import os
+    os.rename('specialTasks.py','graveyard/specialTasks'+'.py')
+except ImportError:
+    pass
+except FileNotFoundError:
+    try:
+        os.mkdir('/home/pi/graveyard')
+        os.rename('specialTasks.py','graveyard/specialTasks.py')
+    except:
+        pass
+
 from threading import *
 import SC16IS750
 
-WHO_FILEPATH = 'WHO'
+WHO_FILEPATH = '/home/pi/WHO'
 WTC_IRQ = 7 # BCM 4, board pin 7
 def initWTCConnection():
     """

@@ -19,7 +19,7 @@ from itertools import zip_longest
 import qpaceChecksum as checksum
 
 try:
-    raise ImportError
+    #raise ImportError
     import qpaceLogger as logger
     quip_LOGGER=True
 except ImportError:
@@ -58,7 +58,7 @@ class Packet():
     max_size = 128          # in bytes
     data_size = None        # in bytes. Initial state is None. Gets calculated later
     max_id = 0xFFFFFFFF     # 4 bytes. Stored as an int.
-    last_id = -1            # -1 if there are no packets yet.
+    last_id = 0            # -1 if there are no packets yet.
 
     validDesignators = [0]   # WTC, Pi 1, Pi 2, GS.
 
@@ -110,7 +110,7 @@ class Packet():
                 Packet.last_id = pid
                 self.pid = pid % Packet.max_id # If the pid is > max_id, force it to be smaller!
             else:
-                if pid == 'init':
+                if pid == 0:
                     Packet.pid = 0
                 else:
                     raise ValueError("Packet pid out of order.")
@@ -253,11 +253,11 @@ class Encoder():
         try:
             with open(self.file,'rb') as fileToEncode:
                 if not self.suppress: quipPrint("Beginning to encode file into packets.")
-                pid = -1 #-1 to start at zero
+                pid = 0 # zero so we can start at 1
                 try:
                     packetToBuild = None
-                    while True: #Until we are done...
-                        pid += 1 #choose the next PID in order
+                    while True: # Until we are done...
+                        pid += 1 # choose the next PID in order
                         data = fileToEncode.read(Packet.data_size-1)
                         if data:
                             try:
@@ -308,13 +308,13 @@ class Encoder():
         """
         if not self.suppress: quipPrint("Creating initialization packet.")
         try:
-            with open(self.packets+"init.qp",'wb') as packet:
+            with open(self.packets+"0.qp",'wb') as packet:
                 # Write to the actual packet. Make sure the op_code is 0x1 since it's the init packet
                 # Separate the data with a ':' since filenames should not have that anyway.
                 initdata = " ".join(self.buildFileInfo())
-                packet.write(Packet(initdata,"init",0,useFEC=self.useFEC).build())
+                packet.write(Packet(initdata,0,0,useFEC=self.useFEC).build())
         except (OSError,ValueError,Exception) as error:
-            err = Warning("Could not write initialization packet: init.qp")
+            err = Warning("Could not write initialization packet: 0.qp")
             quipPrint("Exception message: " + str(error) + "\n" + str(err))
             raise err from error
     def saveLastPacket(self,packet):
@@ -359,7 +359,7 @@ class Encoder():
 class Decoder():
     # TODO init file should have file checksum and parity with it.
     # TODO Make decoder work with streams.
-    #TODO Make Decoder check checksums to see if file is corrupt automatically.
+    # TODO Make Decoder check checksums to see if file is corrupt automatically.
     waitDelay = 1 # In seconds. This is for the asynchronous decoding.
 
     def __init__(self, path_for_decode, path_for_packets, useFEC=True, suppress=False,rush=False):
@@ -448,10 +448,11 @@ class Decoder():
         try:
             initPacket = self.readInit()
             if self.file_name is None:
-                self.file_name = str(initPacket[0].decode('utf-8'))
+                self.file_name = initPacket[0].decode('utf-8')
             self.expected_packets = int(initPacket[1])
             self.file_size = int(initPacket[2])
-            self.destination = str(initPacket[3].decode('utf-8'))
+            self.destination = initPacket[3].decode('utf-8')
+            self.crc32checksum = initPacket[4].decode('utf-8')
         except (OSError,ValueError,Corrupted): raise
 
     def readInit(self):
@@ -470,7 +471,7 @@ class Decoder():
         """
         information = None
         try:
-            with open(self.packets+"init.qp",'rb') as init:
+            with open(self.packets+"0.qp",'rb') as init:
                 information = init.read()
                 # Resolve the TMR expansion from the packet.
                 self.corruptedTest(information)
@@ -480,6 +481,7 @@ class Decoder():
                     information = information[Packet.header_size:]
                 # Split on the ' ' since that should not be in any data
                 information = information.split(b' ')
+
         except OSError as err:
             quipPrint("Could not read init file from ", self.packets)
             raise err
@@ -552,7 +554,7 @@ class Decoder():
             if not self.suppress: quipPrint("File already exists. Overwriting with new data (", newFile,")")
             os.remove(newFile)
 
-        pid = -1 # -1 to start at zero
+        pid = 0 # zero to start at 1
         scaffold_data = []
         while True: # Until we are done...
             try:
@@ -627,9 +629,19 @@ class Decoder():
     def buildScaffold(self):
         """
         Turn the file from a scaffold to a useable file.
+
+        Raises
+        ------
+        Corrupted - The file checksums don't match.
         """
         newFile = self.file_path+self.file_name
-        os.rename(newFile+".scaff",newFile)
+        newChecksum = checksum.checksum(open(newFile+'.scaff','rb'))
+        if  newChecksum == self.crc32checksum:
+            quipPrint("The checksums match! ("  + str(self.crc32checksum) +" == "+ newChecksum +")")
+            os.rename(newFile+".scaff",newFile)
+        else:
+            quipPrint('The file does not have the same checksum. (' + str(self.crc32checksum) +" != "+ newChecksum +")")
+            raise Corrupted("The file does not have the same checksum with the init packet.")
 
     def asyncBulkDecode(self,pidList):
         """
@@ -726,6 +738,9 @@ class Decoder():
                     missedPackets = self.asyncBulkDecode(missedPackets)
                     if not self.suppress: quipPrint("Waiting for packets:", len(missedPackets or []), "packets")
                 self.buildScaffold()
+            except Corrupted as err:
+                quipPrint(err)
+                raise err
             except OSError as err:
                 quipPrint(err)
             except KeyboardInterrupt: # If a SIGINT is sent, then it's time to stop.
@@ -841,7 +856,11 @@ class Controller():
         an asynchronous decoding.
         """
         if isinstance(coder,Decoder) and self.asyncList:
-            self.coder.fullAsyncDecode(self.asyncList)
+            try:
+                self.coder.fullAsyncDecode(self.asyncList)
+            except Corrupted as err:
+                quipPrint(err)
+                #TODO what to do if the file is corrupted?
         elif not self.asyncList:
             try:
                 self.coder.run()
