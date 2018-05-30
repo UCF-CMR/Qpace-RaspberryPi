@@ -9,6 +9,7 @@
 # The interpreter will be invoked when pin 7 goes high. This will grab incoming data from the WTC,
 # Figure out if they are QUIP packets or commands. If it's a command it will execute the command
 # and if they are QUIP packets it will direct them to the packet directory and then decode it.
+#TODO: Look into implementing the new CHIP module from James.
 
 import time
 import SC16IS750
@@ -18,8 +19,6 @@ from qpaceWTCHandler import initWTCConnection
 from qpaceQUIP import Packet,Decoder
 import qpacePiCommands as cmd
 import qpaceLogger as logger
-
-PACKET_SIZE = Packet.max_size
 
 INTERP_PACKETS_PATH = "temp/packets/"
 INTERP_CMD_SIZE = 2 # How many characters will we expect to be the command length
@@ -31,10 +30,10 @@ COMMAND_LIST = {
     "SF":cmd.sendFile,                # Initiate sending files to WTC from the pi filesystem
     "AP":cmd.asynchronousSendPackets, # Send specific packets from the Pi to the WTC
     "HI":cmd.pingPi,                  # Ping the pi!
-    "ST":cmd.saveStatus,            # Accumulate status about the operation of the pi, assemble a txt file, and send it. (Invokes sendFile)
-    #"CS":cmd.checkSiblingPi,          # Check to see if the sibling Pi is alive. Similar to ping but instead it's through ethernet
-    #"PC":cmd.pipeCommandToSiblingPi,  # Take the args that are in the form of a command and pass it along to the sibling pi through ethernet
-    #"UC":cmd.performUARTCheck         # Tell the pi to perform a "reverse" ping to the WTC. Waits for a response from the WTC.
+    "ST":cmd.saveStatus,              # Accumulate status about the operation of the pi, assemble a txt file, and send it. (Invokes sendFile)
+    #"CS":cmd.checkSiblingPi,         # Check to see if the sibling Pi is alive. Similar to ping but instead it's through ethernet
+    #"PC":cmd.pipeCommandToSiblingPi, # Take the args that are in the form of a command and pass it along to the sibling pi through ethernet
+    #"UC":cmd.performUARTCheck        # Tell the pi to perform a "reverse" ping to the WTC. Waits for a response from the WTC.
 }
 
 class LastCommand():

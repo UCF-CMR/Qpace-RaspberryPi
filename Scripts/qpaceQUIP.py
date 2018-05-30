@@ -6,7 +6,6 @@
 #
 # The Qpace Unornamented Information Protocol module. Provides the necessary tools needed to use QUIP
 
-#TODO: Async decode does not work after exiting. (using the --async option)
 import argparse
 import sys
 import os, os.path
@@ -19,7 +18,7 @@ from itertools import zip_longest
 import qpaceChecksum as checksum
 
 try:
-    #raise ImportError
+    raise ImportError
     import qpaceLogger as logger
     quip_LOGGER=True
 except ImportError:
@@ -294,7 +293,11 @@ class Encoder():
 
     def buildFileInfo(self):
         try:
-            return [self.file.split("/")[-1],str(self.packets_built),str(self.filesize),str(self.destination),str(self.crc32checksum)]
+            if self.useFEC:
+                fec = 'OkEC'
+            else:
+                fec = 'NoEC'
+            return [self.file.split("/")[-1],str(self.packets_built),str(self.filesize),str(self.destination),str(self.crc32checksum),fec]
         except:
             raise ValueError("Can not build file info.")
     def buildInitPacket(self):
@@ -312,7 +315,7 @@ class Encoder():
                 # Write to the actual packet. Make sure the op_code is 0x1 since it's the init packet
                 # Separate the data with a ':' since filenames should not have that anyway.
                 initdata = " ".join(self.buildFileInfo())
-                packet.write(Packet(initdata,0,0,useFEC=self.useFEC).build())
+                packet.write(Packet(initdata,0,0,useFEC=True).build())
         except (OSError,ValueError,Exception) as error:
             err = Warning("Could not write initialization packet: 0.qp")
             quipPrint("Exception message: " + str(error) + "\n" + str(err))
@@ -357,9 +360,7 @@ class Encoder():
             os.remove(f)
 
 class Decoder():
-    # TODO init file should have file checksum and parity with it.
     # TODO Make decoder work with streams.
-    # TODO Make Decoder check checksums to see if file is corrupt automatically.
     waitDelay = 1 # In seconds. This is for the asynchronous decoding.
 
     def __init__(self, path_for_decode, path_for_packets, useFEC=True, suppress=False,rush=False):
@@ -453,6 +454,15 @@ class Decoder():
             self.file_size = int(initPacket[2])
             self.destination = initPacket[3].decode('utf-8')
             self.crc32checksum = initPacket[4].decode('utf-8')
+            fec=initPacket[5].decode('utf-8')
+            if fec == 'OkEC':
+                self.useFEC = True
+                Packet.data_size = (Packet.max_size - Packet.header_size) // 3
+            elif fec == 'NoEC':
+                self.useFEC = False
+                Packet.data_size = Packet.max_size - Packet.header_size
+            else:
+                raise Corrupted("Could not determine if FEC was used.")
         except (OSError,ValueError,Corrupted): raise
 
     def readInit(self):
@@ -474,11 +484,12 @@ class Decoder():
             with open(self.packets+"0.qp",'rb') as init:
                 information = init.read()
                 # Resolve the TMR expansion from the packet.
-                self.corruptedTest(information)
-                if self.useFEC:
-                    information = Decoder.resolveExpansion(information[Packet.header_size:])
-                else:
-                    information = information[Packet.header_size:]
+                self.corruptedTest(information,True)
+                information = Decoder.resolveExpansion(information[Packet.header_size:])
+                #if self.useFEC:
+                #    information = Decoder.resolveExpansion(information[Packet.header_size:])
+                #else:
+                #    information = information[Packet.header_size:information.rfind(b'\x03')]
                 # Split on the ' ' since that should not be in any data
                 information = information.split(b' ')
 
@@ -517,7 +528,7 @@ class Decoder():
                 if self.useFEC:
                     return Decoder.resolveExpansion(information)
                 else:
-                    return information
+                    return information[:information.rfind(b'\x03')]
         except (FileNotFoundError,OSError,Corrupted): raise
 
     def bulkDecode(self):
@@ -584,14 +595,14 @@ class Decoder():
                 else: # If there are any packets after the packet we are missing.
                     missedPackets.append(pid)
                     # Ammend the scaffold with placeholder bytes if there is no packet for it.
-                    scaffold_data = self.insertScaffoldData(scaffold_data,bytearray(b'_')*Packet.data_size,pid)
+                    scaffold_data = self.insertScaffoldData(scaffold_data,bytearray(b'_')*(Packet.data_size-1),pid) #-1 to account for ETX
                     continue # Not necessary but good for readability. Hop back to the top of the while loop.
             except OSError:
                 quipPrint("Unable to read the packet: ",self.packets+str(pid)+".qp")
             except Corrupted as err:
                 missedPackets.append(pid)
                 # Ammend the scaffold with placeholder bytes if there is no packet for it.
-                scaffold_data = self.insertScaffoldData(scaffold_data,bytearray(b'_')*Packet.data_size,pid)
+                scaffold_data = self.insertScaffoldData(scaffold_data,bytearray(b'_')*(Packet.data_size-1),pid) #-1 to account for ETX
                 continue # Not necessary but good for readability. Hop back to the top of the while loop.
         if missedPackets:
             if not self.suppress: quipPrint("Packets missing during decoding. Scaffold intact.")
@@ -619,7 +630,7 @@ class Decoder():
         """
         # Every Packet.data_size bytes, split into a list.
         try:
-            scaffold_data[int(pid)]=to_write
+            scaffold_data[int(pid)-1]=to_write #-1 because the pids are shifted.
         except IndexError:
             scaffold_data.append(to_write)
         except ValueError:
@@ -662,13 +673,13 @@ class Decoder():
         TypeError - input is not a list
         Corrupted - if the init file is corrupted
         """
-        # Make sure we have an integer or list
-        if isinstance(pidList,int):
-            pidList = [pidList]
-        elif not isinstance(pidList,list):
-            raise TypeError("Argument must be a list of integers.")
 
         if pidList:
+            # Make sure we have an integer or list
+            if isinstance(pidList,int):
+                pidList = [pidList]
+            elif not isinstance(pidList,list):
+                raise TypeError("Argument must be a list of integers.")
             # Make sure the init file has already been read and read it if not.
             try:
                 if self.file_name is None: self.init()
@@ -684,7 +695,7 @@ class Decoder():
                 # Open and read the file.
                 with open(filePath,'rb') as scaffold:
                     scaffold_data = scaffold.read()
-                    split = Packet.data_size-1 #-1 for the ETX char
+                    split = Packet.data_size-1 #-1 to account for the ETX
                     # Split the data into a list that is separated by 77 bytes that way the
                     # packet information placeholders can be overwritten.
                     scaffold_data = [scaffold_data[i:i+split] for i in range(0, len(scaffold_data), split)]
@@ -811,7 +822,7 @@ class Decoder():
         header_dict = {}
         return struct.unpack('>L',header[0:4])[0] # Convert byte array to int.
 
-    def corruptedTest(self,packetData):
+    def corruptedTest(self,packetData,ignoreLength=False):
         """
         Check if the header, footer, or sync is corrupted. Also check the file size.
 
@@ -825,7 +836,7 @@ class Decoder():
         """
         if len(packetData) != Packet.max_size or\
            packetData[0] not in Packet.validDesignators or\
-           Packet.max_size - Packet.header_size != Packet.data_size * (3 if self.useFEC else 1):
+           ((Packet.max_size - Packet.header_size != Packet.data_size * (3 if self.useFEC else 1)) and not ignoreLength):
            raise Corrupted("Packet determined to be corrupted.")
 
 class Controller():
@@ -867,6 +878,7 @@ class Controller():
             except Corrupted as err:
                 quipPrint("Something was corrupted. Most likely the init packet. Requesting that the init packet is sent again.")
                 #Controller.sendAgain(['init'])
+                #TODO this protocol.
                 try:
                     self.coder.run()
                 except Corrupted as err:
