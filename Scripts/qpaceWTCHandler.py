@@ -18,11 +18,13 @@ except FileNotFoundError:
     except:
         pass
 
-from threading import *
+import threading
 import SC16IS750
+import pigpio
 
+gpio = pigpio.pi()
 WHO_FILEPATH = '/home/pi/WHO'
-WTC_IRQ = 7 # BCM 4, board pin 7
+WTC_IRQ = 12
 def initWTCConnection():
     """
     This function Initializes and returns the SC16IS750 object to interact with the registers.
@@ -43,36 +45,32 @@ def initWTCConnection():
     I2C_BUS = 1 # I2C bus identifier
     PIN_IRQ_WTC = 4 # Interrupt request pin. BCM pin 4, header pin 7
     I2C_ADDR_WTC = 0x48 # I2C addresses for WTC comm chips
-    I2C_BAUD_WTC = 9600 # UART baudrates for WTC comm chips
+    I2C_BAUD_WTC = 115200 # UART baudrates for WTC comm chips
     XTAL_FREQ = 1843200 # Crystal frequency for comm chips
+    DATA_BITS = SC16IS750.LCR_DATABITS_8
+    STOP_BITS = SC16IS750.LCR_STOPBITS_1
+    PARITY_BITS = SC16IS750.LCR_PARITY_NONE
 
-    chip = SC16IS750.SC16IS750(I2C_ADDR_WTC, I2C_BUS, I2C_BAUD_WTC, XTAL_FREQ)
+    chip = SC16IS750.SC16IS750(gpio,I2C_BUS,I2C_ADDR_WTC, XTAL_FREQ, I2C_BAUD_WTC, DATA_BITS, STOP_BITS, PARITY_BITS)
 
     # Reset chip and handle exception thrown by NACK
     try: chip.byte_write_verify(SC16IS750.REG_IOCONTROL, 0x01 << 3)
     except OSError: print("REG_IOCONTROL: %s 0x00" % (chip.byte_read(SC16IS750.REG_IOCONTROL) == 0x00))
 
-    # Define UART with 8 databits, 1 stopbit, and no parity
-    chip.write_LCR(SC16IS750.DATABITS_8, SC16IS750.STOPBITS_1, SC16IS750.PARITY_NONE)
+    # Reset TX and RX FIFOs
+    fcr = SC16IS750.FCR_TX_FIFO_RESET | SC16IS750.FCR_RX_FIFO_RESET
+    chip_wtc.byte_write(SC16IS750.REG_FCR, fcr)
+    time.sleep(2.0/XTAL_FREQ_WTC)
+
+    # Enable FIFOs and set RX FIFO trigger level
+    fcr = SC16IS750.FCR_FIFO_ENABLE | SC16IS750.FCR_RX_TRIGGER_56_BYTES
+    chip_wtc.byte_write(SC16IS750.REG_FCR, fcr)
 
     # Toggle divisor latch bit in LCR register and set appropriate DLH and DLL register values
-    chip.define_register_set(special = True)
-    chip.set_divisor_latch()
-    chip.define_register_set(special = False)
-    #print("REG_LCR:       %s 0x%02X" % chip.define_register_set(special = True))
-    #print("REG_DLH/DLL:   %s 0x%04X" % chip.set_divisor_latch())
-    #print("REG_LCR:       %s 0x%02X" % chip.define_register_set(special = False))
+    # chip.define_register_set(special = True)
+    # chip.set_divisor_latch()
+    # chip.define_register_set(special = False)
 
-    # Enable RHR register interrupt
-    chip.byte_write(SC16IS750.REG_IER, 0x01)
-
-    # Reset TX and RX FIFOs and disable FIFOs
-    chip.byte_write(SC16IS750.REG_FCR, 0x06)
-    time.sleep(2.0/XTAL_FREQ)
-
-    # Enable FIFOs
-    chip.byte_write(SC16IS750.REG_FCR, 0x01)
-    time.sleep(2.0/XTAL_FREQ)
     return chip
 
 if __name__ == '__main__':
@@ -81,15 +79,13 @@ if __name__ == '__main__':
     import ctypes
     import ctypes.util
     import time
-    import RPi.GPIO as gpio
 
     import qpaceInterpreter as qpI
     import qpaceLogger as logger
     import qpaceTODOParser as todo
 
     chip = None
-    gpio.set_mode(gpio.BOARD)
-    gpio.setup(WTC_IRQ, gpio.IN)
+    gpio.set_mode(WTC_IRQ, pigpio.INPUT)
     try:
         # Read in only the first character from the WHO file to get the current identity.
         with open(WHO_FILEPATH,'r') as f:
@@ -140,15 +136,15 @@ if __name__ == '__main__':
             experimentRunningEvent = threading.Event()
             # This is the main loop for the Pi.
             while True:
-                if gpio.input(WTC_IRQ):
-                    logger.logSystem("Pin " + WTC_IRQ + " was found to be HIGH. Running the interpreter and then the TODO Parser.")
+                if gpio.read(WTC_IRQ):
+                    logger.logSystem("Pin " + str(WTC_IRQ) + " was found to be HIGH. Running the interpreter and then the TODO Parser.")
 
                     qpI.run(chip,experimentRunningEvent) # Run the interpreter to read in data from the CCDR.
                     todo.run(chip,experimentRunningEvent) # Run the todo parser
-                    logger.logSystem("Listining to Pin " + WTC_IRQ + " and waiting for the interrupt signal.")
+                    logger.logSystem("Listining to Pin " + str(WTC_IRQ) + " and waiting for the interrupt signal.")
                 else:
                     todo.run(chip,experimentRunningEvent) # Run the todo parser
-                time.sleep(.5) # Sleep for a moment before checking the pin again.
+                time.sleep(.4) # Sleep for a moment before checking the pin again.
 
         except BufferError as err:
             #TODO Alert the WTC of the problem and/or log it and move on

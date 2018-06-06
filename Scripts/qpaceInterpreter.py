@@ -13,7 +13,7 @@
 
 import time
 import SC16IS750
-import RPi.GPIO as gpio
+import pigpio
 import datetime
 from qpaceWTCHandler import initWTCConnection
 from qpaceQUIP import Packet,Decoder
@@ -59,7 +59,7 @@ def isCommand(query = None):
     False - If it is not a command
     """
     if query:
-        return query[:INTERP_CMD_SIZE].decode('utf-8') in COMMAND_LIST
+        return query[:INTERP_CMD_SIZE].decode('ascii') in COMMAND_LIST
     else:
         return False
 
@@ -83,7 +83,7 @@ def processCommand(chip = None, query = None, fromWhom = 'WTC'):
         raise ConnectionError("Connection to the WTC not established.")
     if query:
         try:
-            query = query.decode('utf-8')
+            query = query.decode('ascii')
         except UnicodeError:
             raise BufferError("Could not decode bytes to string for command query.")
         else:
@@ -168,7 +168,7 @@ def run(chip = None,runningEvent = None):
     InterruptedError - if another InterruptedError was thrown.
     All other exceptions raised by this function are passed up the stack or ignored and not raised at all.
     """
-    WTC_IRQ = 7
+    WTC_IRQ = 12
     TEMP_PACKET_LOCATION = 'temp/packets/'
     logger.logSystem([["Beginning the WTC Interpreter..."]])
     if chip is None:
@@ -176,12 +176,12 @@ def run(chip = None,runningEvent = None):
         if chip is None:
             raise ConnectionError("A connection could not be made to the CCDR.")
     # Initialize the pins
-    gpio.set_mode(gpio.BOARD)
-    gpio.setup(WTC_IRQ, gpio.IN)
+    gpio = pigpio.pi()
+    gpio.set_mode(WTC_IRQ, pigpio.INPUT)
     buf = b''
     while True:
         try:
-            time.sleep(.5)
+            time.sleep(.4)
             attempt = 0
             status = chip.byte_read(SC16IS750.REG_LSR) # Checks the status bit to see if there is something in the RHR
 
@@ -198,7 +198,7 @@ def run(chip = None,runningEvent = None):
                 if attempt > 1:
                     logger.logError("Something is wrong with the CCDR FIFO and it cannot be read.")
                     try:
-                        logger.logSystem([["Attempted to read from the CCDR FIFO but something went wrong.","Current contents of the buffer:",buf.decode('utf-8')]])
+                        logger.logSystem([["Attempted to read from the CCDR FIFO but something went wrong.","Current contents of the buffer:",buf.decode('ascii')]])
                         raise BufferError("The FIFO could not be read after " + str(attempt+1) +" attempts.")
                     except UnicodeError:
                         raise BufferError("The FIFO could not be read on the CCDR as Unicode.")
@@ -208,7 +208,7 @@ def run(chip = None,runningEvent = None):
                     attempt += 1
             else:
                 # If the Interrupt Request pin is Logical Low then break. We don't want to read anymore.
-                if not gpio.input(WTC_IRQ):
+                if not gpio.read(WTC_IRQ):
                     raise InterruptedError("The WTC has ended transmission.")
 
         except KeyboardInterrupt as interrupt: # If we get a SIGINT, we can also break off.
