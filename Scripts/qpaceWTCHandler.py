@@ -1,22 +1,26 @@
 #!/usr/bin/env python3
-# qpaceQUIP.py by Jonathan Kessluk
+# qpaceWTCHandler.py by Jonathan Kessluk
 # 4-19-2018, Rev. 1
 # Q-Pace project, Center for Microgravity Research
 # University of Central Florida
 #
 # This script is run at boot to initialize the system clock and then wait for interrupts.
+import qpaceLogger as logger
+import qpaceExperiment as exp
+
+exp.pinInit()
+
 try:
     import specialTasks
     import os
-    os.rename('specialTasks.py','graveyard/specialTasks'+'.py')
+    from time import strftime,gmtime
+    timestamp = strftime("%Y%m%d-%H%M%S",gmtime())
+    os.rename('specialTasks.py','graveyard/specialTasks'+str(timestamp)+'.py')
 except ImportError:
     pass
-except FileNotFoundError:
-    try:
-        os.mkdir('/home/pi/graveyard')
-        os.rename('specialTasks.py','graveyard/specialTasks.py')
-    except:
-        pass
+except OSError:
+    logger.logSystem([["SpecialTasks: Was not able to run any special tasks."]])
+    pass
 
 import threading
 import SC16IS750
@@ -81,7 +85,6 @@ if __name__ == '__main__':
     import time
 
     import qpaceInterpreter as qpI
-    import qpaceLogger as logger
     import qpaceTODOParser as todo
 
     chip = None

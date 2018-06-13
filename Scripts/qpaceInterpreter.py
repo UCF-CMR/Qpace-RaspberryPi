@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# qpaceQUIP.py by Jonathan Kessluk
+# qpaceInterpreter.py by Jonathan Kessluk
 # 4-19-2018, Rev. 1
 # Q-Pace project, Center for Microgravity Research
 # University of Central Florida
@@ -224,7 +224,7 @@ def run(chip = None,runningEvent = None):
     try:
         if buf:
             # Split the buffer into a list of 127 byte packets (chops off the first byte.)
-            buf =  [buf[i:i+128] for i in range(0,len(buf),128)]
+            buf = [buf[i:i+128] for i in range(0,len(buf),128)]
             if isCommand(buf[0]): # Is the input to the buffer a command?
                 # Process the command
                 # NOTE: This will execute and process the command regardless of experiments running.

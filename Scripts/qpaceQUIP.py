@@ -177,7 +177,7 @@ class Packet():
         return parity
 
 class Encoder():
-    def __init__(self,path_for_encode,path_for_packets, useFEC=True,destination=None,suppress=False):
+    def __init__(self,path_for_encode,path_for_packets, useFEC=False,destination=None,suppress=False):
         """
         Constructor for the Encoder.
 
@@ -363,7 +363,7 @@ class Decoder():
     # TODO Make decoder work with streams.
     waitDelay = 1 # In seconds. This is for the asynchronous decoding.
 
-    def __init__(self, path_for_decode, path_for_packets, useFEC=True, suppress=False,rush=False):
+    def __init__(self, path_for_decode, path_for_packets, useFEC=True, firstPacket=None, lastPacket=None, suppress=False,rush=False):
         """
         Constructor for the Decoder.
 
@@ -399,6 +399,9 @@ class Decoder():
         self.expected_packets = None
         self.file_size = None
         self.useFEC = useFEC
+        self.firstPacket = firstPacket
+        self.lastPacket = lastPacket
+        if firstPacket
 
         if useFEC:
             Packet.data_size = (Packet.max_size - Packet.header_size) // 3
@@ -565,9 +568,9 @@ class Decoder():
             if not self.suppress: quipPrint("File already exists. Overwriting with new data (", newFile,")")
             os.remove(newFile)
 
-        pid = 0 # zero to start at 1
+        pid = self.firstPacket - 1 # the packet we want to start at (minus 1)
         scaffold_data = []
-        while True: # Until we are done...
+        while self.lastPacket is None or pid != self.lastPacket: # Until we are done...
             try:
                 pid += 1
                 # If the packet cannot be found, throw a FileNotFoundError to indicate that.
@@ -578,7 +581,7 @@ class Decoder():
                     sys.stdout.flush()
 
             except FileNotFoundError as e:
-                if pid == self.expected_packets: #If the PID is the expected packets then we are done.
+                if pid == self.expected_packets or pid == self.lastPacket: #If the PID is the expected packets then we are done.
                     if not quip_LOGGER:
                         sys.stdout.write("\rDecoding file: 100%\n")
                         sys.stdout.flush()
