@@ -5,6 +5,8 @@
 # University of Central Florida
 #
 # This module handles the individual commands for the Pi
+#TODO: Re-do comments/documentation
+
 import os
 from subprocess import check_output,Popen
 from math import ceil
@@ -73,80 +75,6 @@ WHO_FILEPATH = ''
 #         return buf
 #     else:
 #         return False
-
-def _sendBytesToCCDR(chip,sendData):
-    """
-    Send a string or bytes to the WTC. This method, by default, is dumb. It will pass whatever
-    is the input and passes it directly on to the WTC.
-
-    Parameters
-    ----------
-    chip - SC16IS750 - an SC16IS750 object which handles the WTC Connection
-    sendData - a string or bytes that we want to send to the WTC
-
-    Raises
-    ------
-    TypeError - thrown if sendData is not a string or bytes
-    """
-    if isinstance(sendData,str):
-        sendData = sendData.encode('ascii')
-    elif not isinstance(sendData,bytes) and not isinstance(sendData,bytearray):
-        logger.logSystem([['Data will not be sent to the WTC: not string or bytes.']])
-        raise TypeError("Data to the WTC must be in the form of bytes or string")
-    try:
-        logger.logSystem([['Sending to the WTC:', str(sendData)]])
-        for byte in sendData:
-            chip.block_write(SC16IS750.REG_THR, sendData[Packet.max_size:])
-    except Exception as err:
-        #TODO do we actually handle the case where it just doesn't work?
-        logger.logError('sendBytesToCCDR: An error has occured when attempting to send data to the WTC. Data to send:' + str(sendData),err)
-        pass
-
-def _readPacketFromCCDR(chip):
-    buf = b''
-    time_to_wait = 5#s
-    time_to_sleep = .4#s
-    numOfAttempts = (time_to_wait//time_to_sleep) + 1
-
-    for i in range(0,4): #We will receive 4, 32 byte chunks to make a 128 packet
-        attempt = 0
-        while True:
-            try:
-                sleep(time_to_sleep)
-                attempt += 1
-                # See how much we want to read.
-                waiting = chip.byte_read(SC16IS750.REG_RXLVL)
-                if waiting == 32:   # If we have 32 bytes in the level register
-                    logger.logSystem([["Reading in "+ str(waiting) +" bytes from the CCDR"]])
-                    for i in range(waiting):
-                        # Read from the chip and write to the buffer.
-                        buf += bytes([chip.byte_read(SC16IS750.REG_RHR)])
-
-                    _sendBytesToCCDR(chip,b'OK') #Acknowledge reading 32 bytes
-
-                if attempt == numOfAttempts:
-                    raise BlockingIOError("BeepBoop I'm a robot")
-
-
-            except BlockingIOError:
-                # TODO Write the start over methods.
-            except BufferError as err:
-                logger.logError("A BufferError was thrown.",err)
-                raise BufferError("A BufferError was thrown.") from err
-
-    return buf
-
-def _readDataFromCCDR(chip):
-    gpio = pigpio.pi()
-    gpio.set_mode(WTC_IRQ, pigpio.INPUT)
-    buf = []
-    while(gpio.read(WTC_IRQ)):
-        buf.append(_readPacketFromCCDR(chip))
-
-    return buf
-
-def _readBlockFromCCDR(chip):
-    pass
 
 class CMDPacket():
     def __init__(self,opcode='Empty'):
@@ -279,7 +207,7 @@ class Command():
         SystemExit - If the interpreter can even get to this point... Close the interpreter.
         """
         logger.logSystem([['Shutting down...']])
-        _sendBytesToCCDR(chip,b'SP') # SP = Shutdown Proceeding
+        sendBytesToCCDR(chip,b'SP') # SP = Shutdown Proceeding
         Popen(["sudo", "halt"],shell=True) #os.system('sudo halt')
         raise SystemExit # Close the interpreter and clean up the buffers before reboot happens.
 
@@ -298,7 +226,7 @@ class Command():
         SystemExit - If the interpreter can even get to this point... Close the interpreter.
         """
         logger.logSystem([['Rebooting...']])
-        _sendBytesToCCDR(chip,b'SP') # SP = Shutdown Proceeding
+        sendBytesToCCDR(chip,b'SP') # SP = Shutdown Proceeding
         Popen(["sudo", "reboot"],shell=True) #os.system('sudo reboot')
         raise SystemExit # Close the interpreter and clean up the buffers before reboot happens.
 
@@ -330,18 +258,18 @@ class Command():
                             data = f.read()
                             if len(data) is 256: #256 bytes
                                 #TODO Figure out a protocol if we can't just bulk send 256 bytes.
-                                _sendBytesToCCDR(chip,data)
+                                sendBytesToCCDR(chip,data)
                     except OSError as err:
                         logger.logError('Could not read packet for sending: ' + filepath, err)
             except OSError:
                 logger.logError('Could not read directory for sending packets.')
                 if chip:
-                    _sendBytesToCCDR(chip,b'NO')
+                    sendBytesToCCDR(chip,b'NO')
                 return False
         else:
             logger.logSystem([['There was a problem fully encoding the file.']])
             if chip:
-                _sendBytesToCCDR(chip,b'NO')
+                sendBytesToCCDR(chip,b'NO')
             return False
         return True # If successful.
 
@@ -365,7 +293,7 @@ class Command():
                     data = f.read()
                     if len(data) is 256:
                         #TODO Figure out a protocol if we can't just bulk send 256 bytes.
-                        _sendBytesToCCDR(chip,data)
+                        sendBytesToCCDR(chip,data)
             except OSError as err:
                 readIssue = True
         if readIssue:
@@ -381,7 +309,7 @@ class Command():
         cmd,args - string, array of args (seperated by ' ') - the actual command, the args for the command
         """
         logger.logSystem([["Pong!"]])
-        _sendBytesToCCDR(chip,b'OK')
+        sendBytesToCCDR(chip,b'OK')
 
     # TODO Probably uneccessary now. Should make less information. Not sure what is and what isn't necessary here anymore
     # TODO it will need to be looked at and determined what exactly needs to be done here.

@@ -27,17 +27,6 @@ TODO_TEMP = "todo_temp.tmp"
 
 WTC_IRQ = 7
 
-def _checkInterrupt():
-    """
-    Check the WTC_IRQ pin to see if it's HIGH or LOW. If it's HIGH, throw an InterruptedError
-
-    Raises
-    ------
-    InterruptedError - If the WTC_IRQ pin is HIGH
-    """
-    if gpio.input(WTC_IRQ):
-        raise InterruptedError("The WTC has requested to relinquish control.")
-
 def getTodoList():
 	"""
 		This function will gather the data from the todo list and parse it into a 2D array for manipulation and processing.
@@ -204,8 +193,6 @@ def executeTodoList(chip,todo_list, runningEvent = None):
         if runningEvent is None:
             runningEvent = threading.Event()
 		while todo_list:
-			#If we need to stop execution:
-			_checkInterrupt() # Check the interrupt BEFORE doing anything
 			# How many seconds until our next task?
 			try:
                 wait_time = (todo_list[0][0] - datetime.now()).total_seconds() # Determine how long to wait.
@@ -218,7 +205,6 @@ def executeTodoList(chip,todo_list, runningEvent = None):
                 # Wait for wait_time seconds but also check the interrupt every second.
                 for i in range(wait_time):
                     time.sleep(.5)
-                    _checkInterrupt()
     			# run the next item on the todolist.
     			taskCompleted = _processTask(chip,todo_list[0],runningEvent)
                 if taskCompleted:
@@ -293,13 +279,10 @@ def run(chip = None,runningEvent = None):
 		["Opening up the todo file and begining execution.",TODO_FILE_PATH]
 	])
 	try:
-		_checkInterrupt() # Check the interrupt pin before interacting with the todo list
 		todo_list = getTodoList()
 		if todo_list:
-			_checkInterrupt() # Chek the interrupt pin before sorting
 			# We will assume the todo-list is NOT sorted, and sort it.
 			sortTodoList(todo_list)
-			_checkInterrupt() # Check the interrupt pin before execution
             if chip is not None:
 			    todo_list = executeTodoList(chip,todo_list,runningEvent)
 

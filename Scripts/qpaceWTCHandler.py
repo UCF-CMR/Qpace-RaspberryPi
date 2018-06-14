@@ -5,6 +5,8 @@
 # University of Central Florida
 #
 # This script is run at boot to initialize the system clock and then wait for interrupts.
+#TODO: Re-do comments/documentation
+
 import qpaceLogger as logger
 import qpaceExperiment as exp
 
@@ -14,8 +16,7 @@ try:
     import specialTasks
     import os
     from time import strftime,gmtime
-    timestamp = strftime("%Y%m%d-%H%M%S",gmtime())
-    os.rename('specialTasks.py','graveyard/specialTasks'+str(timestamp)+'.py')
+    os.rename('specialTasks.py','graveyard/specialTasks'+str(strftime("%Y%m%d-%H%M%S",gmtime()))+'.py')
 except ImportError:
     pass
 except OSError:
@@ -47,7 +48,7 @@ def initWTCConnection():
     """
 
     I2C_BUS = 1 # I2C bus identifier
-    PIN_IRQ_WTC = 4 # Interrupt request pin. BCM pin 4, header pin 7
+    PIN_IRQ_WTC = None #TODO need to determine this pin # Interrupt request pin. BCM pin 4, header pin 7
     I2C_ADDR_WTC = 0x48 # I2C addresses for WTC comm chips
     I2C_BAUD_WTC = 115200 # UART baudrates for WTC comm chips
     XTAL_FREQ = 1843200 # Crystal frequency for comm chips
@@ -63,17 +64,16 @@ def initWTCConnection():
 
     # Reset TX and RX FIFOs
     fcr = SC16IS750.FCR_TX_FIFO_RESET | SC16IS750.FCR_RX_FIFO_RESET
-    chip_wtc.byte_write(SC16IS750.REG_FCR, fcr)
-    time.sleep(2.0/XTAL_FREQ_WTC)
+    chip.byte_write(SC16IS750.REG_FCR, fcr)
+    time.sleep(2.0/XTAL_FREQ)
 
     # Enable FIFOs and set RX FIFO trigger level
     fcr = SC16IS750.FCR_FIFO_ENABLE | SC16IS750.FCR_RX_TRIGGER_56_BYTES
-    chip_wtc.byte_write(SC16IS750.REG_FCR, fcr)
+    chip.byte_write(SC16IS750.REG_FCR, fcr)
 
-    # Toggle divisor latch bit in LCR register and set appropriate DLH and DLL register values
-    # chip.define_register_set(special = True)
-    # chip.set_divisor_latch()
-    # chip.define_register_set(special = False)
+    # Enable RX error and RX ready interrupts
+    ier = SC16IS750.IER_RX_ERROR | SC16IS750.IER_RX_READY
+    chip.byte_write_verify(SC16IS750.REG_IER, ier)
 
     return chip
 
@@ -144,6 +144,7 @@ if __name__ == '__main__':
 
                     qpI.run(chip,experimentRunningEvent) # Run the interpreter to read in data from the CCDR.
                     todo.run(chip,experimentRunningEvent) # Run the todo parser
+
                     logger.logSystem("Listining to Pin " + str(WTC_IRQ) + " and waiting for the interrupt signal.")
                 else:
                     todo.run(chip,experimentRunningEvent) # Run the todo parser
