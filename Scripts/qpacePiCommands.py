@@ -76,6 +76,8 @@ WHO_FILEPATH = ''
 #     else:
 #         return False
 
+
+
 class CMDPacket():
     def __init__(self,opcode='Empty'):
         self.routing = 0x00
@@ -90,17 +92,32 @@ class CMDPacket():
     def confirmIntegrity(self): #TODO Make sure the packet is not corrupted
         pass
 
+    # TODO make this work for us
+    def generateChecksum(self):
+        bitarray = self.PadBitArray(self.packet, self.length-4)
+        checksum = 0x811C9DC5 # 32-Bit FNV Offset Basis
+        for byte in bitarray.bytes:
+            checksum ^= byte
+            checksum *= 0x1000193 # 32-Bit FNV Prime
+            checksum &= 0xFFFFFFFF
+            return bitstring.Bits(hex=('0x%08X' % checksum))
+
 class PrivledgedPacket(CMDPacket):
-    def __init__(self,tag,optype):
+    def __init__(self,tag,optype, encodedData = None):
         self.tag = tag
         CMDPacket.__init__(self,"NOOP"+optype)
 
-        self.packetData = None
+        if encodedData:
+            self.packedData = PrivledgedPacket.decodeXTEA(encodedData)
+        else:
+            self.packetData = None
 
-    def _encodeXTEA(self):
+    @classmethod
+    def encodeXTEA(encodedData):
         pass
 
-    def _decodeXTEA(self):
+    @classmethod
+    def decodeXTEA(encodedData):
         pass
 
     @classmethod

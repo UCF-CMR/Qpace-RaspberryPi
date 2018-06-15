@@ -115,7 +115,7 @@ def sortTodoList(todo_list):
 		todo_list.sort() # Python will sort a 2D list based off the first argument of each nested list in ascending order.
 	return todo_list
 
-def _processTask(chip,task,runningEvent = None):
+def _processTask(chip,task,experimentEvent = None):
 	"""
 		This function handles processing a specific command given. This is what does the real "parsing"
 
@@ -142,14 +142,14 @@ def _processTask(chip,task,runningEvent = None):
 	logger.logSystem([["Beginning execution of a task", str(task[1:])]])
 	currentTask = task[1].upper()
 	if currentTask == "EXPERIMENT":
-        # If runningEvent exists and is not set, then let's run an experiment.
-        if runningEvent is not None and not runningEvent.is_set():
+        # If experimentEvent exists and is not set, then let's run an experiment.
+        if experimentEvent is not None and not experimentEvent.is_set():
     		#Run an experiment file from the experiment directory
     		logger.logSystem([["Running an experiment.", task[2]]]) # Placeholder
-            parserThread = threading.Thread(name='experimentParser',target=exp.experimentparser, args=(task[2],runningEvent))
+            parserThread = threading.Thread(name='experimentParser',target=exp.experimentparser, args=(task[2],experimentEvent))
             parserThread.start()
-            runningEvent.set()
-        else: # If runningEvent does not exist or is set, return True to know there is a failure.
+            experimentEvent.set()
+        else: # If experimentEvent does not exist or is set, return True to know there is a failure.
             return False
 	elif currentTask == "BACKUP":  #Back up a file
 		copy(task[2],task[3]) #Copy the file from task[2] to task[3]
@@ -165,14 +165,14 @@ def _processTask(chip,task,runningEvent = None):
 
     return True # If we reach here, assume everything was a success.
 
-def executeTodoList(chip,todo_list, runningEvent = None):
+def executeTodoList(chip,todo_list, experimentEvent = None):
 	"""
 		This function will execute the todoList in order. If it is interrupted, it will return the todolist
 
 	    Parameters
 	    ----------
 	    todo_list - List - Sorted todo_list. (Sorted by the timestamp to execute.)
-        runningEvent - threading.Event - pass through an event object to determine whether or not an experiment
+        experimentEvent - threading.Event - pass through an event object to determine whether or not an experiment
                                          is running.
 
 	    Returns
@@ -190,8 +190,8 @@ def executeTodoList(chip,todo_list, runningEvent = None):
 	try:
         # We ideally want to use the global threading.Event, but worst case is it doesn't exist.
         # If it doesn't, lets create one locally so we have something to use regardless.
-        if runningEvent is None:
-            runningEvent = threading.Event()
+        if experimentEvent is None:
+            experimentEvent = threading.Event()
 		while todo_list:
 			# How many seconds until our next task?
 			try:
@@ -206,7 +206,7 @@ def executeTodoList(chip,todo_list, runningEvent = None):
                 for i in range(wait_time):
                     time.sleep(.5)
     			# run the next item on the todolist.
-    			taskCompleted = _processTask(chip,todo_list[0],runningEvent)
+    			taskCompleted = _processTask(chip,todo_list[0],experimentEvent)
                 if taskCompleted:
                     logger.logSystem([["Task completed.",str(todo_list[0])]])
                     todo_list = todo_list[1:] # pop the first item off the list.
@@ -252,14 +252,14 @@ def updateTodoFile(todo_list):
 		return False
 	return True
 
-def run(chip = None,runningEvent = None):
+def run(chip,experimentEvent, runEvent, shutdownEvent):
     """
     Method to handle the todo parser when running it. This allows the parser to be used when calling
     it from another module.
 
     Paramters
     ---------
-    runningEvent - threading.Event - pass through an event object to determine whether or not an experiment
+    experimentEvent - threading.Event - pass through an event object to determine whether or not an experiment
                                      is running.
 
     Raises
@@ -284,7 +284,7 @@ def run(chip = None,runningEvent = None):
 			# We will assume the todo-list is NOT sorted, and sort it.
 			sortTodoList(todo_list)
             if chip is not None:
-			    todo_list = executeTodoList(chip,todo_list,runningEvent)
+			    todo_list = executeTodoList(chip,todo_list,experimentEvent)
 
 			if todo_list:
 				logger.logSystem([["The TODO parser has terminated early. Updating the todo file."]])

@@ -17,27 +17,23 @@ import pigpio
 import datetime
 from qpaceWTCHandler import initWTCConnection
 from qpaceQUIP import Packet,Decoder
-import qpacePiCommands as cmd
+from  qpacePiCommands import *
 import qpaceLogger as logger
 
 INTERP_PACKETS_PATH = "temp/packets/"
-INTERP_CMD_SIZE = 2 # How many characters will we expect to be the command length
+
 
 # Add commands to the map. Format is "String to recognize for command" : function name
 COMMANDS = {
-    "SD":cmd.immediateShutdown,       # Shutdown the Pi
-    "RE":cmd.immediateReboot,         # Reboot the Pi
-    "SF":cmd.sendFile,                # Initiate sending files to WTC from the pi filesystem
-    "AP":cmd.asynchronousSendPackets, # Send specific packets from the Pi to the WTC
-    "HI":cmd.pingPi,                  # Ping the pi!
-    "ST":cmd.saveStatus,              # Accumulate status about the operation of the pi, assemble a txt file, and send it. (Invokes sendFile)
-    #"CS":cmd.checkSiblingPi,         # Check to see if the sibling Pi is alive. Similar to ping but instead it's through ethernet
-    #"PC":cmd.pipeCommandToSiblingPi, # Take the args that are in the form of a command and pass it along to the sibling pi through ethernet
-    #"UC":cmd.performUARTCheck        # Tell the pi to perform a "reverse" ping to the WTC. Waits for a response from the WTC.
-}
-
-XTEACOMMANDS = {
-
+    # b"SD":cmd.immediateShutdown,       # Shutdown the Pi
+    # b"RE":cmd.immediateReboot,         # Reboot the Pi
+    # b"SF":cmd.sendFile,                # Initiate sending files to WTC from the pi filesystem
+    # b"AP":cmd.asynchronousSendPackets, # Send specific packets from the Pi to the WTC
+    # b"HI":cmd.pingPi,                  # Ping the pi!
+    # b"ST":cmd.saveStatus,              # Accumulate status about the operation of the pi, assemble a txt file, and send it. (Invokes sendFile)
+    # b"CS":cmd.checkSiblingPi,         # Check to see if the sibling Pi is alive. Similar to ping but instead it's through ethernet
+    # b"PC":cmd.pipeCommandToSiblingPi, # Take the args that are in the form of a command and pass it along to the sibling pi through ethernet
+    # b"UC":cmd.performUARTCheck        # Tell the pi to perform a "reverse" ping to the WTC. Waits for a response from the WTC.
 }
 
 class LastCommand():
@@ -110,6 +106,7 @@ def readDataFromCCDR(chip):
                     # TODO Write the start over methods.
                     # TODO Alert WTC?
                     # TODO log it!
+                    pass
                 except BufferError as err:
                     logger.logError("A BufferError was thrown.",err)
                     raise BufferError("A BufferError was thrown.") from err
@@ -129,17 +126,21 @@ def isCommand(query = None):
 
     Returns
     -------
-    True - If it is a command
-    False - If it is not a command
+    isValid:
+        True - If it is a command
+        False - If it is not a command
+    query:
+        the original query OR the query after decoding it from XTEA
     """
-    #TODO:
-    #   Check if the command exists.
-    #   If it doesnt, decode it from XTEA and THEN check if it exists
-    #   If it does, do it.
-    #   If it doesn't exist then return false
-    # I.e. First check COMMANDS, then check XTEACOMMANDS, then return false otherwise true
+
     if query:
-        return query[:INTERP_CMD_SIZE].decode('ascii') in COMMANDS
+        # Is the command just in there?
+        isValid = query.split(b' ')[0] in COMMANDS
+        if not isValid:
+            # If it's not in there, double check to see if it's an XTEA command.
+            query = PrivledgedPacket.decodeXTEA(query)
+            isValid = query.split(b' ')[0] in COMMANDS
+        return isValid, query
     else:
         return False
 
@@ -160,12 +161,13 @@ def processCommand(chip = None, query = None, fromWhom = 'WTC'):
     """
 
     if not chip:
-        raise ConnectionError("Connection to the WTC not established.")
+        raise ConnectionError("Connection to the CCDR not established.")
     if query:
         try:
             query = query.decode('ascii')
         except UnicodeError:
-            raise BufferError("Could not decode bytes to string for command query.")
+            #TODO Alert ground of problem decoding command!
+            raise BufferError("Could not decode ASCII bytes to string for command query.")
         else:
             query = query.split(' ')
             logger.logSystem([["Command Received:",query[0],' '.join(query[1:])]])
@@ -207,7 +209,7 @@ def processQUIP(chip = None,buf = None):
             with open(INTERP_PACKETS_PATH+str(packetID)+ ".qp",'wb') as f:
                 f.write(b'D'+dataToWrite)
 
-        for i in range(0,len(buf))
+        for i in range(0,len(buf)):
             try:
                 # Create an int from the 4 bytes
                 packetID = struct.unpack('>I',buf[i][:Packet.header_size])[0]
@@ -230,7 +232,7 @@ def processQUIP(chip = None,buf = None):
     else:
         return []
 
-def run(chip = None,runningEvent = None):
+def run(chip,experimentEvent, runEvent, shutdownEvent):
     """
     This function is the "main" purpose of this module. Placed into a function so that it can be called in another module.
 
@@ -264,8 +266,10 @@ def run(chip = None,runningEvent = None):
     packetBuffer = []
 
     def WTCRXBufferHandler(gpio,level,tick):
+        runEvent.wait() #Mutex for running.
         packetData = readPacketFromCCDR()
-        if isCommand(packetData): # Is the input to the buffer a command?
+        isValid,packetData = isCommand(packetData)
+        if isValid: # Is the input to the buffer a command?
             # Process the command
             # NOTE: This will execute and process the command regardless of experiments running.
             processCommand(chip,packetData,fromWhom='CCDR')
@@ -274,18 +278,27 @@ def run(chip = None,runningEvent = None):
 
     callback = gpio.callback(CCDR_IRQ, pigpio.FALLING_EDGE, WTCRXBufferHandler)
 
-    try:
-        while True:
+    while True:
+
+        try:
+            runEvent.wait() #Mutex for the run
+            if shutdownEvent.is_set():
+                logger.logSystem([["Shutdown flag was set."]])
+                raise StopIteration("It's time to shutdown!")
             time.sleep(.1) # wait for a moment
 
             while len(packetBuffer) > 0:
                 packetData = packetBuffer.pop(0)
-                missingPackets = processQUIP(chip,buf)
+                missingPackets = processQUIP(chip,packetBuffer)
                 #TODO how to handle any packets that weren't interpreted correctly?
-                decoder = Decoder(file_location,TEMP_PACKET_LOCATION,suppress=True,rush=True)
-                decoder.run(True)
 
-    except KeyboardInterrupt: break
+        except KeyboardInterrupt:
+            break
+        except StopIteration:
+            break
+
+    decoder = Decoder(file_location,TEMP_PACKET_LOCATION,suppress=True,rush=True)
+    decoder.run(True)
 
     callback.cancel()
     chip.close()

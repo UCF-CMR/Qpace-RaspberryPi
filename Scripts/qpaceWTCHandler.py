@@ -29,7 +29,7 @@ import pigpio
 
 gpio = pigpio.pi()
 WHO_FILEPATH = '/home/pi/WHO'
-WTC_IRQ = 12
+CCDR_IRQ = 36
 def initWTCConnection():
     """
     This function Initializes and returns the SC16IS750 object to interact with the registers.
@@ -84,11 +84,11 @@ if __name__ == '__main__':
     import ctypes.util
     import time
 
-    import qpaceInterpreter as qpI
+    import qpaceInterpreter as qpi
     import qpaceTODOParser as todo
 
     chip = None
-    gpio.set_mode(WTC_IRQ, pigpio.INPUT)
+    gpio.set_mode(CCDR_IRQ, pigpio.INPUT)
     try:
         # Read in only the first character from the WHO file to get the current identity.
         with open(WHO_FILEPATH,'r') as f:
@@ -136,20 +136,38 @@ if __name__ == '__main__':
             # Begin running the rest of the code for the Pi.
             logger.logSystem([["Beginning the main loop for the WTC Handler..."]])
             # Create a threading.Event to determine if an experiment is running or not.
+            # Or if we are doing something and should wait until it's done.
             experimentRunningEvent = threading.Event()
+            runEvent = threading.Event()
+            shutdownEvent = threading.Event()
+            # Ensure these are in the state we want them in.
+            runEvent.set()
+            experimentRunningEvent.clear()
+            shutdownEvent.clear()
             # This is the main loop for the Pi.
+            logger.logSystem("Listining to Pin " + str(CCDR_IRQ) + " and waiting for the interrupt signal (negative edge triggered).")
+
+            interpreter = threading.Thread(target=qpi.run,args=(chip,experimentRunningEvent,runEvent,shutdownEvent))
+            todoParser = threading.Thread(target=todo.run,args=(chip,experimentRunningEvent,runEvent,shutdownEvent))
+
+            logger.logSystem([["Starting up the Interpreter and TodoParser."]])
+            interpreter.start() # Run the Interpreter
+            # TODO NOt needed for DIL
+            #todoParser.start() # Run the TodoParser
+
             while True:
-                if gpio.read(WTC_IRQ):
-                    logger.logSystem("Pin " + str(WTC_IRQ) + " was found to be HIGH. Running the interpreter and then the TODO Parser.")
+                time.sleep(.4)
+                # If the scripts aren't running then we have two options
+                if not (interpreter.isAlive() or todoParser.isAlive()):
+                    # If we want to shutdown, then break out of the loop and shutdown.
+                    if shutdownEvent.is_set():
+                        break
+                    else: # Otherwise, something must have happened....restart the Interpreter and TodoParser
+                        interpreter.start()
+                        # TODO Not needed for DIL
+                        #todoParser.start()
 
-                    qpI.run(chip,experimentRunningEvent) # Run the interpreter to read in data from the CCDR.
-                    todo.run(chip,experimentRunningEvent) # Run the todo parser
-
-                    logger.logSystem("Listining to Pin " + str(WTC_IRQ) + " and waiting for the interrupt signal.")
-                else:
-                    todo.run(chip,experimentRunningEvent) # Run the todo parser
-                time.sleep(.4) # Sleep for a moment before checking the pin again.
-
+            logger.logSystem([["The Interpreter and TodoParser have exited, shutting down the python scripts."]])
         except BufferError as err:
             #TODO Alert the WTC of the problem and/or log it and move on
             #TODO figure out what we actually want to do.
@@ -160,4 +178,6 @@ if __name__ == '__main__':
             #TODO figure out what we actually want to do.
             logger.logError("There is a problem with the connection to the WTC", err)
 
+        # If we've reached this point, just shutdown.
         gpio.cleanup()
+        os.system('sudo halt') # Shutdown.
