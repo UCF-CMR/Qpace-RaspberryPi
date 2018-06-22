@@ -74,102 +74,6 @@ def pinInit():
 	reset(PINGROUP.stepper)
 	reset(PINGROUP.led)
 	reset(PINGROUP.solenoid)
-
-<<<<<<< HEAD
-def goProOn():
-	logger.logSystem([["ExpCtrl: Initializing the GoPro."]])
-	#Turning on the device
-	on(PIN.GOPPWR) #Active High
-	time.sleep(2.25)
-	# Press the button
-	off(PIN.GOPBUT) #Active Low
-	time.sleep(.75)
-	on(PIN.GOPBUT)
-	time.sleep(5)
-
-def goProCapToggle():
-	logger.logSystem([["ExpCtrl: Pressing capture button."]])
-	off(PIN.GOPCAP) #Active Low
-	time.sleep(.75)
-	on(PIN.GOPCAP)
-
-def goProOff():
-	logger.logSystem([["ExpCtrl: Turning the GoPro off."]])
-	#Turn off the gopro
-	off(PIN.GOPPWR)
-	time.sleep(.25)
-	#reset pins to initial state
-	reset(PINGROUP.gopro)
-
-def goProTransfer():
-	time.sleep(1)
-	if GPIO.input(PIN.GOPPWR):
-		#TURN USB ENABLE
-		logger.logSystem([["ExpCtrl: Enabling the USB and mounting the drive..."]])
-		on(PIN.GOPDEN)
-
-		import os
-		try: # Mount the GoPro
-			os.system('sudo mount /dev/sda1 /home/pi/gopro')
-		except Exception as e:	# MOUNTING THE DRIVE FAILED
-			logger.logError("ExpCtrl: Could not mount the drive", e)
-		else:	# Mounting the drive was successful
-			try:
-				from shutil import move
-				import re
-				logger.logSystem([["ExpCtrl: Moving video over to the Pi"]])
-				files = os.listdir('/home/pi/gopro/DCIM/101GOPRO')
-				for name in files:
-					if re.match('.+\.(MP4|JPG)',name):
-						os.system('cp /home/pi/gopro/DCIM/101GOPRO/'+name+ ' /home/pi/data/vid/')
-			except Exception as e:	#Moving the file from the GOPRO failed
-				logger.logError("ExpCtrl: Could not move the video", e)
-			else: #Moving the file is successful
-				try: # Delete all other uneccessary files
-					logger.logSystem([["ExpCtrl: Removing misc files from GoPro"]])
-					for name in files:
-						if re.match('.+\..+',name):
-							os.system('sudo rm /home/pi/gopro/DCIM/101GOPRO/'+name)
-				except Exception as e: # Could not delete the files
-					logger.logError("ExpCtrl: Could not delete misc files on the GoPro", e)
-			logger.logSystem([["ExpCtrl: Turning off the GoPro and unmounting the USB"]])
-			try: # Attempt to umount.
-				os.system('sudo umount /dev/sda1')
-			except Exception as e: # Failed to call the shell
-				logger.logError("ExpCtrl: Could not unmount the drive", e)
-
-def goProRec(recordingTime):
-	"""
-	This function activates the GoPro camera.
-
-	Parameters
-	----------
-	Integer / Float - recordingTime - The desired time that the camera will be
-	recording for, in seconds.
-
-	Returns
-	-------
-	None.
-	"""
-
-	def init_gopro():
-		#Turning on the device
-		on(PIN.GOPPWR) #Active High
-		time.sleep(.75)
-		off(PIN.GOPBUT) #Active Low
-		time.sleep(1)
-		on(PIN.GOPBUT)
-		time.sleep(10)
-	def press_capture():
-		off(PIN.GOPCAP) #Active Low
-		time.sleep(0.75)
-		on(PIN.GOPCAP)
-	logger.logSystem([["ExpCtrl: Initializing the GoPro"]])
-	init_gopro() #Turn on camera and set mode
-	logger.logSystem([["ExpCtrl: Beginning to record for "+ recordingTime +" seconds."]])
-	press_capture() #Begin Recording
-	time.sleep(recordingTime) #Delay for recording time
-=======
 """
 The goPro section has been broken into several functions to allow the Pis to perform complex experiments without using multiple threads
 """
@@ -187,20 +91,19 @@ def press_capture():
 	time.sleep(0.5)
 	on(PIN.GOPCAP)
 	logger.logSystem([["ExpCtrl: Initializing the GoPro"]])
-    
+
 def gopro_wait(recordingtime): #this just allows for long waits of continuous recording
 	logger.logSystem([["ExpCtrl: GoPro is recording for " + recordingtime +" seconds"]])
 	time.wait(recordingtime)
-	
-	
+
+
 def gopro_start():
-	init_gopro() #Turn on camera and set mode
+	init_gopro() # Turn on camera and set mode
 	logger.logSystem([["ExpCtrl: Beginning to record"]])
-    press_capture() #Begin Recording
-	
-	
-def gopro_stop_and_USB()
->>>>>>> 596f596d14f26cb2736a737385acaee7c332ffae
+	press_capture() # Begin Recording
+
+
+def gopro_stop_and_USB():
 	logger.logSystem([["ExpCtrl: Stopping recording..."]])
 	press_capture() #Stop Recording
 
@@ -242,11 +145,16 @@ def gopro_stop_and_USB()
 	time.sleep(.25)
 	#reset pins to initial state
 	reset(PINGROUP.gopro)
-<<<<<<< HEAD
 
-def stepper(delay, qturn):
+def setStep(a, b):
+	GPIO.output(29, a)
+	GPIO.output(21, b)
+
+#NOTE: Stepper code needs to be tested again
+
+def stepper_forward(delay, qturn):
 		"""
-		This function activates the stepper motor.
+		This function activates the stepper motor in the forward direction.
 
 		Parameters
 		----------
@@ -258,91 +166,6 @@ def stepper(delay, qturn):
 		None.
 
 		"""
-		#Setstep definition
-
-		def setStep(a, b):
-			GPIO.output(29, a)
-			GPIO.output(21, b)
-
-		#qturn
-		'''
-		for i in range(0, qturn):
-		setStep(1, 0, 1, 0)
-		time.sleep(delay)
-		setStep(0, 1, 1, 0)
-		time.sleep(delay)
-		setStep(0, 1, 0, 1)
-		time.sleep(delay)
-		setStep(1, 0, 0, 1)
-		time.sleep(delay)
-		setStep(1, 0, 1, 0)
-		time.sleep(delay)
-
-		'''
-
-
-		for i in range(0, qturn):
-				setStep(0, 0)
-				time.sleep(delay)
-				setStep(1, 0)
-				time.sleep(delay)
-				setStep(1, 1)
-				time.sleep(delay)
-				setStep(0, 1)
-				time.sleep(delay)
-
-		time.sleep(3)
-
-		#reverse qturn
-		'''
-		for i in range(0, qturn):
-		setStep(1, 0, 1, 0)
-		time.sleep(delay)
-		setStep(1, 0, 0, 1)
-		time.sleep(delay)
-		setStep(0, 1, 0, 1)
-		time.sleep(delay)
-		setStep(0, 1, 1, 0)
-		time.sleep(delay)
-		setStep(1, 0, 1, 0)
-		time.sleep(delay)
-		'''
-
-		for i in range(0, qturn):
-				setStep(1, 1)
-				time.sleep(delay)
-				setStep(1, 0)
-				time.sleep(delay)
-				setStep(0, 0)
-				time.sleep(delay)
-				setStep(0, 1)
-				time.sleep(delay)
-
-		#complete
-=======
-	
-	
-	
-def setStep(a, b):
-	GPIO.output(29, a)
-	GPIO.output(21, b)
-
-#NOTE: Stepper code needs to be tested again	
-	
-def stepper_forward(delay, qturn):
-        """
-        This function activates the stepper motor in the forward direction.
-
-        Parameters
-        ----------
-        Integer / Float - delay - The time between each phase of the stepper motor.
-        Integer - qturn - The number of turns.
-
-        Returns
-        -------
-        None.
-
-        """
 
 	for i in range(0, qturn):
 		setStep(0, 0)
@@ -381,8 +204,6 @@ def stepper_reverse(delay, qturn):
 			setStep(0, 1)
 			time.sleep(delay)
 	time.sleep(3)
-        
->>>>>>> 596f596d14f26cb2736a737385acaee7c332ffae
 
 def led(power):
 	"""
