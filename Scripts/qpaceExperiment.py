@@ -75,6 +75,7 @@ def pinInit():
 	reset(PINGROUP.led)
 	reset(PINGROUP.solenoid)
 
+<<<<<<< HEAD
 def goProOn():
 	logger.logSystem([["ExpCtrl: Initializing the GoPro."]])
 	#Turning on the device
@@ -168,6 +169,38 @@ def goProRec(recordingTime):
 	logger.logSystem([["ExpCtrl: Beginning to record for "+ recordingTime +" seconds."]])
 	press_capture() #Begin Recording
 	time.sleep(recordingTime) #Delay for recording time
+=======
+"""
+The goPro section has been broken into several functions to allow the Pis to perform complex experiments without using multiple threads
+"""
+
+def init_gopro():
+	#Turning on the device
+	on(PIN.GOPPWR) #Active High
+	time.sleep(3)
+	off(PIN.GOPBUT) #Active Low
+	time.sleep(1)
+	on(PIN.GOPBUT)
+	time.sleep(10)
+def press_capture():
+	off(PIN.GOPCAP) #Active Low
+	time.sleep(0.5)
+	on(PIN.GOPCAP)
+	logger.logSystem([["ExpCtrl: Initializing the GoPro"]])
+    
+def gopro_wait(recordingtime): #this just allows for long waits of continuous recording
+	logger.logSystem([["ExpCtrl: GoPro is recording for " + recordingtime +" seconds"]])
+	time.wait(recordingtime)
+	
+	
+def gopro_start():
+	init_gopro() #Turn on camera and set mode
+	logger.logSystem([["ExpCtrl: Beginning to record"]])
+    press_capture() #Begin Recording
+	
+	
+def gopro_stop_and_USB()
+>>>>>>> 596f596d14f26cb2736a737385acaee7c332ffae
 	logger.logSystem([["ExpCtrl: Stopping recording..."]])
 	press_capture() #Stop Recording
 
@@ -209,6 +242,7 @@ def goProRec(recordingTime):
 	time.sleep(.25)
 	#reset pins to initial state
 	reset(PINGROUP.gopro)
+<<<<<<< HEAD
 
 def stepper(delay, qturn):
 		"""
@@ -285,6 +319,70 @@ def stepper(delay, qturn):
 				time.sleep(delay)
 
 		#complete
+=======
+	
+	
+	
+def setStep(a, b):
+	GPIO.output(29, a)
+	GPIO.output(21, b)
+
+#NOTE: Stepper code needs to be tested again	
+	
+def stepper_forward(delay, qturn):
+        """
+        This function activates the stepper motor in the forward direction.
+
+        Parameters
+        ----------
+        Integer / Float - delay - The time between each phase of the stepper motor.
+        Integer - qturn - The number of turns.
+
+        Returns
+        -------
+        None.
+
+        """
+
+	for i in range(0, qturn):
+		setStep(0, 0)
+		time.sleep(delay)
+		setStep(1, 0)
+		time.sleep(delay)
+		setStep(1, 1)
+		time.sleep(delay)
+		setStep(0, 1)
+		time.sleep(delay)
+
+	time.sleep(3)
+
+def stepper_reverse(delay, qturn):
+	 """
+	This function activates the stepper motor in the forward direction.
+
+	Parameters
+	----------
+	Integer / Float - delay - The time between each phase of the stepper motor.
+	Integer - qturn - The number of turns.
+
+	Returns
+	-------
+	None.
+
+	"""
+
+	for i in range(0, qturn):
+			setStep(1, 1)
+			time.sleep(delay)
+			setStep(1, 0)
+			time.sleep(delay)
+			setStep(0, 0)
+			time.sleep(delay)
+			setStep(0, 1)
+			time.sleep(delay)
+	time.sleep(3)
+        
+>>>>>>> 596f596d14f26cb2736a737385acaee7c332ffae
 
 def led(power):
 	"""
