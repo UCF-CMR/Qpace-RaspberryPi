@@ -9,175 +9,146 @@
 
 import qpaceLogger as logger
 import qpaceExperiment as exp
-
-exp.pinInit()
-
-try:
-    import specialTasks
-    import os
-    from time import strftime,gmtime
-    os.rename('specialTasks.py','graveyard/specialTasks'+str(strftime("%Y%m%d-%H%M%S",gmtime()))+'.py')
-except ImportError:
-    pass
-except OSError:
-    logger.logSystem([["SpecialTasks: Was not able to run any special tasks."]])
-    pass
-
+import os
 import threading
-import SC16IS750
+import SC16IS750 as SC16IS750
 import pigpio
+import time
 
 gpio = pigpio.pi()
 WHO_FILEPATH = '/home/pi/WHO'
-CCDR_IRQ = 36
+CCDR_IRQ = 16 #BCM 16, board 36
 def initWTCConnection():
-    """
-    This function Initializes and returns the SC16IS750 object to interact with the registers.
+	"""
+	This function Initializes and returns the SC16IS750 object to interact with the registers.
 
-    Parameters
-    ----------
-    Nothing
+	Parameters
+	----------
+	Nothing
 
-    Returns
-    -------
-    "chip" - SC16IS750 - the chip data to be used for reading and writing to registers.
+	Returns
+	-------
+	"chip" - SC16IS750 - the chip data to be used for reading and writing to registers.
 
-    Raises
-    ------
-    Any exceptions are passed up the call stack.
-    """
+	Raises
+	------
+	Any exceptions are passed up the call stack.
+	"""
 
-    I2C_BUS = 1 # I2C bus identifier
-    PIN_IRQ_WTC = None #TODO need to determine this pin # Interrupt request pin. BCM pin 4, header pin 7
-    I2C_ADDR_WTC = 0x48 # I2C addresses for WTC comm chips
-    I2C_BAUD_WTC = 115200 # UART baudrates for WTC comm chips
-    XTAL_FREQ = 1843200 # Crystal frequency for comm chips
-    DATA_BITS = SC16IS750.LCR_DATABITS_8
-    STOP_BITS = SC16IS750.LCR_STOPBITS_1
-    PARITY_BITS = SC16IS750.LCR_PARITY_NONE
+	I2C_BUS = 1 # I2C bus identifier
+	CCDR_IRQ = 16 #BCM 16, board 36
+	I2C_ADDR_WTC = 0x48 # I2C addresses for WTC comm chips
+	I2C_BAUD_WTC = 115200 # UART baudrates for WTC comm chips
+	XTAL_FREQ = 1843200 # Crystal frequency for comm chips
+	DATA_BITS = SC16IS750.LCR_DATABITS_8
+	STOP_BITS = SC16IS750.LCR_STOPBITS_1
+	PARITY_BITS = SC16IS750.LCR_PARITY_NONE
 
-    chip = SC16IS750.SC16IS750(gpio,I2C_BUS,I2C_ADDR_WTC, XTAL_FREQ, I2C_BAUD_WTC, DATA_BITS, STOP_BITS, PARITY_BITS)
+	# init the chip
+	chip = SC16IS750.SC16IS750(gpio,I2C_BUS,I2C_ADDR_WTC, XTAL_FREQ, I2C_BAUD_WTC, DATA_BITS, STOP_BITS, PARITY_BITS)
 
-    # Reset chip and handle exception thrown by NACK
-    try: chip.byte_write_verify(SC16IS750.REG_IOCONTROL, 0x01 << 3)
-    except OSError: print("REG_IOCONTROL: %s 0x00" % (chip.byte_read(SC16IS750.REG_IOCONTROL) == 0x00))
+	# Reset TX and RX FIFOs
+	fcr = SC16IS750.FCR_TX_FIFO_RESET | SC16IS750.FCR_RX_FIFO_RESET
+	chip.byte_write(SC16IS750.REG_FCR, fcr)
+	time.sleep(2.0/XTAL_FREQ)
 
-    # Reset TX and RX FIFOs
-    fcr = SC16IS750.FCR_TX_FIFO_RESET | SC16IS750.FCR_RX_FIFO_RESET
-    chip.byte_write(SC16IS750.REG_FCR, fcr)
-    time.sleep(2.0/XTAL_FREQ)
+	# Enable FIFOs and set RX FIFO trigger level
+	fcr = SC16IS750.FCR_FIFO_ENABLE | SC16IS750.FCR_RX_TRIGGER_56_BYTES
+	chip.byte_write(SC16IS750.REG_FCR, fcr)
 
-    # Enable FIFOs and set RX FIFO trigger level
-    fcr = SC16IS750.FCR_FIFO_ENABLE | SC16IS750.FCR_RX_TRIGGER_56_BYTES
-    chip.byte_write(SC16IS750.REG_FCR, fcr)
+	# Enable RX error and RX ready interrupts
+	ier = SC16IS750.IER_RX_ERROR | SC16IS750.IER_RX_READY
+	chip.byte_write_verify(SC16IS750.REG_IER, ier)
 
-    # Enable RX error and RX ready interrupts
-    ier = SC16IS750.IER_RX_ERROR | SC16IS750.IER_RX_READY
-    chip.byte_write_verify(SC16IS750.REG_IER, ier)
+	return chip
 
-    return chip
+def run():
+	try:
+		import specialTasks
+		from time import strftime,gmtime
+		os.rename('specialTasks.py','graveyard/specialTasks'+str(strftime("%Y%m%d-%H%M%S",gmtime()))+'.py')
+	except ImportError:
+		logger.logSystem([["SpecialTasks: No special tasks to run on boot..."]])
+	except OSError:
+		logger.logSystem([["SpecialTasks: Was not able to run special tasks. (OSError)"]])
+	import sys
+	import datetime
+	import time
+
+	import qpaceInterpreter as qpi
+	import qpaceTODOParser as todo
+
+	exp.pinInit()
+	# gpio.set_mode(CCDR_IRQ, pigpio.INPUT)
+	try:
+		# Read in only the first character from the WHO file to get the current identity.
+		with open(WHO_FILEPATH,'r') as f:
+			identity = f.read(1)
+	except OSError:
+		identity = '0'
+	logger.logSystem([["Identity determined as Pi: " + str(identity)]])
+	chip = initWTCConnection()
+	if chip:
+		#chip.byte_write(SC16IS750.REG_THR, ord(identity)) # Send the identity to the WTC
+		#TODO Implement identity on the WTC
+		try:
+			# Begin running the rest of the code for the Pi.
+			logger.logSystem([["Beginning the main loop for the WTC Handler..."]])
+			# Create a threading.Event to determine if an experiment is running or not.
+			# Or if we are doing something and should wait until it's done.
+			experimentRunningEvent = threading.Event()
+			runEvent = threading.Event()
+			shutdownEvent = threading.Event()
+			# Ensure these are in the state we want them in.
+			runEvent.set()
+			experimentRunningEvent.clear()
+			shutdownEvent.clear()
+			# This is the main loop for the Pi.
+			logger.logSystem("Listining to Pin " + str(CCDR_IRQ) + " and waiting for the interrupt signal (negative edge triggered).")
+
+			interpreter = threading.Thread(target=qpi.run,args=(chip,experimentRunningEvent,runEvent,shutdownEvent))
+			todoParser = threading.Thread(target=todo.run,args=(chip,experimentRunningEvent,runEvent,shutdownEvent))
+
+			logger.logSystem([["Starting up the Interpreter and TodoParser."]])
+			interpreter.start() # Run the Interpreter
+			# TODO NOt needed for DIL
+			#todoParser.start() # Run the TodoParser
+
+			while True:
+				try:
+					time.sleep(.4)
+					# If the scripts aren't running then we have two options
+					if not (interpreter.isAlive() or todoParser.isAlive()):
+						# If we want to shutdown, then break out of the loop and shutdown.
+						if shutdownEvent.is_set():
+							break
+						else: # Otherwise, something must have happened....restart the Interpreter and TodoParser
+							interpreter = threading.Thread(target=qpi.run,args=(chip,experimentRunningEvent,runEvent,shutdownEvent))
+							todoParser = threading.Thread(target=todo.run,args=(chip,experimentRunningEvent,runEvent,shutdownEvent))
+							interpreter.start()
+							# TODO Not needed for DIL
+							#todoParser.start()
+				except KeyboardInterrupt:
+					break
+
+			logger.logSystem([["The Interpreter and TodoParser have exited, shutting down the python scripts."]])
+		except BufferError as err:
+			#TODO Alert the WTC of the problem and/or log it and move on
+			#TODO figure out what we actually want to do.
+			logger.logError("Something went wrong when reading the buffer of the WTC.", err)
+
+		except ConnectionError as err:
+			#TODO Alert the WTC of the problem and/or log it and move on
+			#TODO figure out what we actually want to do.
+			logger.logError("There is a problem with the connection to the WTC", err)
+
+		# If we've reached this point, just shutdown.
+		gpio.stop()
+		print('Shutting down...')
+		shutdownEvent.set()
+		interpreter.join()
+		#todoParser.join()
+		#os.system('sudo halt') # Shutdown.
 
 if __name__ == '__main__':
-    import sys
-    import datetime
-    import ctypes
-    import ctypes.util
-    import time
-
-    import qpaceInterpreter as qpi
-    import qpaceTODOParser as todo
-
-    chip = None
-    gpio.set_mode(CCDR_IRQ, pigpio.INPUT)
-    try:
-        # Read in only the first character from the WHO file to get the current identity.
-        with open(WHO_FILEPATH,'r') as f:
-            identity = f.read(1)
-    except OSError:
-        identity = '0'
-    chip = initWTCConnection()
-    logger.logSystem([["Identity determined as Pi: " + str(identity)]])
-    if chip:
-        chip.byte_write(SC16IS750.REG_THR, ord(identity)) # Send the identity to the WTC
-        # Change the clock to be the proper date time based on 1 int coming in that is time since epoch.
-
-        #TODO old code to change the time. No longer needed as the method for changing time has changed.
-        # buf = b''
-        # while True: # Is expecting 6 bytes. (YEAR, MONTH, DAY, HOUR, MINUTE, SECOND)
-        #     time.sleep(.5)
-        #     waiting = chip.byte_read(SC16IS750.REG_RXLVL)
-        #     if waiting >= 6 :
-        #         for i in range(6):
-        #             buf += bytes([chip.byte_read(SC16IS750.REG_RHR)])
-        #         break
-        #
-        # logger.logSystem([["Time received from the WTC.",str(2000 + buf[0]), str(buf[1]), str(buf[2]), str(buf[3]), str(buf[4]), str(buf[5])]])
-        # # (Year, Month, Day, Hour, Minute, Second)
-        # time_tuple = (2000 + buf[0], buf[1], buf[2], buf[3], buf[4], buf[5])
-        # # Change the system time on the pi.
-        # try:
-        #     class timespec(ctypes.Structure):
-        #         _fields_ = [("tv_sec", ctypes.c_long),
-        #                     ("tv_nsec", ctypes.c_long)]
-        #
-        #     librt = ctypes.CDLL(ctypes.util.find_library("rt"))
-        #
-        #     ts = timespec()
-        #     ts.tv_sec = int(time.mktime(datetime.datetime(*time_tuple).timetuple()))
-        #     ts.tv_nsec = 0 # We don't care about nanoseconds
-        #
-        #     # http://linux.die.net/man/3/clock_settime
-        #     librt.clock_settime(0, ctypes.byref(ts))
-        # except Exception as err:
-        #     #TODO Alert WTC of problem, wait for new commands.
-        #     logger.logError("Could not set the Pi's system time for some reason.",err)
-
-        try:
-            # Begin running the rest of the code for the Pi.
-            logger.logSystem([["Beginning the main loop for the WTC Handler..."]])
-            # Create a threading.Event to determine if an experiment is running or not.
-            # Or if we are doing something and should wait until it's done.
-            experimentRunningEvent = threading.Event()
-            runEvent = threading.Event()
-            shutdownEvent = threading.Event()
-            # Ensure these are in the state we want them in.
-            runEvent.set()
-            experimentRunningEvent.clear()
-            shutdownEvent.clear()
-            # This is the main loop for the Pi.
-            logger.logSystem("Listining to Pin " + str(CCDR_IRQ) + " and waiting for the interrupt signal (negative edge triggered).")
-
-            interpreter = threading.Thread(target=qpi.run,args=(chip,experimentRunningEvent,runEvent,shutdownEvent))
-            todoParser = threading.Thread(target=todo.run,args=(chip,experimentRunningEvent,runEvent,shutdownEvent))
-
-            logger.logSystem([["Starting up the Interpreter and TodoParser."]])
-            interpreter.start() # Run the Interpreter
-            # TODO NOt needed for DIL
-            #todoParser.start() # Run the TodoParser
-
-            while True:
-                time.sleep(.4)
-                # If the scripts aren't running then we have two options
-                if not (interpreter.isAlive() or todoParser.isAlive()):
-                    # If we want to shutdown, then break out of the loop and shutdown.
-                    if shutdownEvent.is_set():
-                        break
-                    else: # Otherwise, something must have happened....restart the Interpreter and TodoParser
-                        interpreter.start()
-                        # TODO Not needed for DIL
-                        #todoParser.start()
-
-            logger.logSystem([["The Interpreter and TodoParser have exited, shutting down the python scripts."]])
-        except BufferError as err:
-            #TODO Alert the WTC of the problem and/or log it and move on
-            #TODO figure out what we actually want to do.
-            logger.logError("Something went wrong when reading the buffer of the WTC.", err)
-
-        except ConnectionError as err:
-            #TODO Alert the WTC of the problem and/or log it and move on
-            #TODO figure out what we actually want to do.
-            logger.logError("There is a problem with the connection to the WTC", err)
-
-        # If we've reached this point, just shutdown.
-        gpio.cleanup()
-        os.system('sudo halt') # Shutdown.
+	run()

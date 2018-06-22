@@ -1,4 +1,4 @@
-#! /usr/bin/env python3
+#!/usr/bin/env python3
 # qpaceLogger.py by Jonathan Kessluk
 # 2-20-2018, Rev. 1.3
 # Q-Pace project, Center for Microgravity Research
@@ -20,6 +20,7 @@ DELIMITER = ","
 SYSTEMLOG_ERROR_DESCRIPTION = "Unable to write to a CSV to log data."
 
 def _logData(data, csvName):
+    print(data)
     """
     This function handles logging the actual data. It should not be called by a user.
 
@@ -105,4 +106,4 @@ def logSystem(data):
         return _logData(data, 'system_')
     except Exception as e:
         # Guess we had a problem, so we'll log the error as an error.
-        logError(SYSTEMLOG_ERROR_DESCRIPTION,e) # Actually log the error.
+        pass#logError(SYSTEMLOG_ERROR_DESCRIPTION,e) # Actually log the error.
