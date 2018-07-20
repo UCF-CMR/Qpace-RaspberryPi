@@ -20,14 +20,16 @@ from qpaceQUIP import Packet,Decoder
 from  qpacePiCommands import *
 import qpaceLogger as logger
 import surfsatStates as ss
+import qpaceFileHandler as fh
 
 INTERP_PACKETS_PATH = "temp/packets/"
 # Routing ID defined in packet structure document
-PI1ROUTE = 0X01
-PI2ROUTE = 0X02
-GNDROUTE = 0X00
-WTCROUTE = 0XFF
-
+ROUTES{
+	'PI1ROUTE' = 0X01
+	'PI2ROUTE' = 0X02
+	'GNDROUTE' = 0X00
+	'WTCROUTE' = 0XFF
+}
 ssStates = ss.SSCOMMAND
 ssErrors = ss.SSERRORS
 
@@ -137,7 +139,6 @@ def readDataFromCCDR(chip):
 			print('Assuming a packet...')
 			#We'll assume if it's not 1 byte, that it's going to be a 128 byte packet.
 			for i in range(0,4): #We will receive 4, 32 byte chunks to make a 128 packet
-
 				attempt = 0
 				while(True):
 					waiting = chip.byte_read(SC16IS750.REG_RXLVL)
@@ -169,9 +170,6 @@ def readDataFromCCDR(chip):
 				chip.byte_read(SC16IS750.REG_RHR)# Clear the buffer. WTC will send ERRNONE
 			break
 		time.sleep(.75)
-
-
-
 
 	return buf
 
@@ -210,62 +208,6 @@ def processCommand(chip, fieldData, fromWhom = 'CCDR'):
 			LastCommand.fromWhom = fromWhom
 			COMMANDS[fieldData['opcode']](chip,command,arguments) # Run the command
 
-#TODO FIX QUIP, possibly remove.
-def processQUIP(chip = None,buf = None):
-	"""
-	Take the data in the buffer and write files to it. We will assume they are QUIP packets.
-
-	Paramters
-	---------
-	chip - SC16IS750() - an SC16IS750 object to read/write from/to
-	buf - bytes - the input buffer from the WTC
-
-	Returns
-	-------
-	missedPackets - List - a list of missing packets.
-
-	Raises
-	------
-	BufferError - If the buffer is empty, assume that there was a problem.
-	ConnectionError - If the connection to the WTC was not passed to this method.
-	"""
-	if not chip:
-		raise ConnectionError("Connection to the CCDR not established.")
-	if not buf:
-		raise BufferError("Buffer is empty, no QUIP data received.")
-
-	logger.logSystem([["Processing input as QUIP packets.", "Packets Received: " + str(len(buf))]])
-	if len(buf) > 0:
-		missedPackets = []
-		attempt = 0
-
-		def _writePacketToFile(packetID,dataToWrite):
-			with open(INTERP_PACKETS_PATH+str(packetID)+ ".qp",'wb') as f:
-				f.write(b'D'+dataToWrite)
-
-		for i in range(0,len(buf)):
-			try:
-				# Create an int from the 4 bytes
-				packetID = struct.unpack('>I',buf[i][:Packet.header_size])[0]
-			except:
-				missedPackets.append(str(i))
-			else:
-				try:
-					# Write that packet
-					_writePacketToFile(packetID,buf[i])
-				except:
-					# If we failed, try again
-					try:
-						_writePacketToFile(packetID,buf[i])
-					except:
-						#If we failed, consider the packet lost and then carry on.
-						missedPackets.append(str(packetID))
-		logger.logSystem([["Attempted to write all packets to file system."],
-						  ["Missing packets: ", str(missedPackets) if missedPackets else "None"]])
-		return missedPackets
-	else:
-		return []
-
 def run(chip,experimentEvent, runEvent, shutdownEvent):
 	"""
 	This function is the "main" purpose of this module. Placed into a function so that it can be called in another module.
@@ -300,32 +242,6 @@ def run(chip,experimentEvent, runEvent, shutdownEvent):
 	configureTimestamp = False
 	packetBuffer = []
 
-	class ChunkPacket():
-		chunks = []
-		complete = False
-
-		def push(self,data):
-			if not self.complete:
-				self.chunks.append(data)
-				#Acknowledge WTC with chunk number
-				sendBytesToCCDR(chip,0x60 + len(self.chunks)) # Defined by WTC state machine
-				print('Chunk:' ,len(self.chunks))
-				if len(self.chunks) == 4: # We are doing 4 chunks!
-					self.complete = True
-			else:
-				print('Chunk is complete')
-				self.complete = True
-
-		def build(self):
-			print('Building a packet!')
-			packet = b''
-			for chunk in self.chunks:
-				packet += chunk
-			if len(packet) != 128: print("Packet is not 128 bytes!") #TODO what should we actually do here.
-			self.chunks[:] = []
-			self.complete = False
-			return packet
-
 	def splitPacket(packetData):
 		packet = {
 			"route":       packetData[0],
@@ -341,7 +257,7 @@ def run(chip,experimentEvent, runEvent, shutdownEvent):
 	def checkValidity(fieldData):
 		# return True,fieldData
 		packetString = bytes([fieldData['route']]) + fieldData['opcode'] + fieldData['information']
-		isValid = fieldData['route'] in (PI1ROUTE, PI2ROUTE) and fieldData['checksum'] == CMDPacket.generateChecksum(packetString)
+		isValid = fieldData['route'] in (ROUTES['P1ROUTE'], ROUTES['P2ROUTE']) and fieldData['checksum'] == CMDPacket.generateChecksum(packetString)
 		if isValid and (fieldData['opcode'] == b'NOOP*' or fieldData['opcode'] == b'NOOP<'):
 			returnVal = PrivledgedPacket.decodeXTEA(fieldData['information'])
 			fieldData['opcode'] = returnVal[4:6] # 4:6 as defined in the packet structure document for XTEA packets
@@ -357,8 +273,6 @@ def run(chip,experimentEvent, runEvent, shutdownEvent):
 		# Manual testing. Remove for real test.
 		#testData = b'\x01MANUL====\x00' + b'Q'*93 +b'EE======' + b'\x00'*12
 		#packetData = testData + CMDPacket.generateChecksum(testData)
-
-
 
 	def wtc_respond(response):
 		chip.byte_write(SC16IS750.REG_THR,ss.SSCOMMAND[response])
@@ -418,7 +332,7 @@ def run(chip,experimentEvent, runEvent, shutdownEvent):
 	callback = gpio.callback(CCDR_IRQ, pigpio.FALLING_EDGE, WTCRXBufferHandler)
 	while True:
 		try:
-			packet = ChunkPacket()
+			packet = fh.ChunkPacket(chip)
 			while(len(packetBuffer)>0):
 				packetData = packetBuffer.pop(0)
 				packetData, configureTimestamp = surfSatPseudoStateMachine(packetData,configureTimestamp)

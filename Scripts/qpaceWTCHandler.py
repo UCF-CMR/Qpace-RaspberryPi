@@ -9,11 +9,15 @@
 
 import qpaceLogger as logger
 import qpaceExperiment as exp
+import qpaceInterpreter as qpi
+import qpaceTODOParser as todo
 import os
 import threading
 import SC16IS750 as SC16IS750
 import pigpio
 import time
+
+time.sleep(2)
 
 gpio = pigpio.pi()
 WHO_FILEPATH = '/home/pi/WHO'
@@ -37,9 +41,9 @@ def initWTCConnection():
 
 	I2C_BUS = 1 # I2C bus identifier
 	CCDR_IRQ = 16 #BCM 16, board 36
-	I2C_ADDR_WTC = 0x48 # I2C addresses for WTC comm chips
+	I2C_ADDR_WTC = 0x4c#0x48 # I2C addresses for WTC comm chips
 	I2C_BAUD_WTC = 115200 # UART baudrates for WTC comm chips
-	XTAL_FREQ = 1843200 # Crystal frequency for comm chips
+	XTAL_FREQ = 11059200#1843200 # Crystal frequency for comm chips
 	DATA_BITS = SC16IS750.LCR_DATABITS_8
 	STOP_BITS = SC16IS750.LCR_STOPBITS_1
 	PARITY_BITS = SC16IS750.LCR_PARITY_NONE
@@ -70,14 +74,10 @@ def run():
 	except ImportError:
 		logger.logSystem([["SpecialTasks: No special tasks to run on boot..."]])
 	except OSError:
-		logger.logSystem([["SpecialTasks: Was not able to run special tasks. (OSError)"]])
+		logger.logSystem([["SpecialTasks: Was not able to run special tasks or could not rename. (OSError)"]])
 	import sys
 	import datetime
 	import time
-
-	import qpaceInterpreter as qpi
-	import qpaceTODOParser as todo
-
 	exp.pinInit()
 	# gpio.set_mode(CCDR_IRQ, pigpio.INPUT)
 	try:
