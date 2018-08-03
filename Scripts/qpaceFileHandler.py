@@ -17,7 +17,7 @@ class Corrupted(Exception):
 	def __init__(self, message):
 		super(Exception, self).__init__(message)
 
-class Packet():
+class DataPacket():
 	"""
 	Packet structure for QPACE:
 	----------------------------------------------------------------------
@@ -69,25 +69,25 @@ class Packet():
 			raise TypeError("Input data is of incorrect type. Must input str, bytes, or bytearray")
 
 
-		headerSize = Packet.xtea_header_size if xtea else Packet.header_size
+		headerSize = DataPacket.xtea_header_size if xtea else DataPacket.header_size
 		if useFEC:
-			Packet.data_size = (Packet.max_size - headerSize) // 3
+			DataPacket.data_size = (DataPacket.max_size - headerSize) // 3
 		else:
-			Packet.data_size = Packet.max_size - headerSize
+			DataPacket.data_size = DataPacket.max_size - headerSize
 		# Is the data size set yet or is it valid?
-		if Packet.data_size is None:
+		if DataPacket.data_size is None:
 			raise ValueError('data_size is not set.')
 
 		data_in_bytes = len(data)
-		if data_in_bytes <= Packet.data_size: # Make sure the data is below the max bytes
-			if (Packet.last_id + 1) == pid:
-				if pid < 0 or pid > Packet.max_id:
+		if data_in_bytes <= DataPacket.data_size: # Make sure the data is below the max bytes
+			if (DataPacket.last_id + 1) == pid:
+				if pid < 0 or pid > DataPacket.max_id:
 					raise ValueError("Packet pid is invalid.")
-				Packet.last_id = pid
-				self.pid = pid % Packet.max_id # If the pid is > max_id, force it to be smaller!
+				DataPacket.last_id = pid
+				self.pid = pid % DataPacket.max_id # If the pid is > max_id, force it to be smaller!
 			else:
 				if pid == 0:
-					Packet.pid = 0
+					DataPacket.pid = 0
 				else:
 					raise ValueError("Packet pid out of order.")
 			self.data = data
@@ -97,7 +97,7 @@ class Packet():
 			self.lastPacket = lastPacket
 			self.xtea = xtea
 		else:
-			raise ValueError("Packet size is too large for the current header information ("+str(len(data))+"). Data input restricted to " + str(Packet.data_size) + " Bytes.")
+			raise ValueError("Packet size is too large for the current header information ("+str(len(data))+"). Data input restricted to " + str(DataPacket.data_size) + " Bytes.")
 
 
 	def build(self):
@@ -119,8 +119,8 @@ class Packet():
 
 		packet = self.rid.to_bytes(1,byteorder='big') + self.pid.to_bytes(4,byteorder='big') + data
 		# After constructing the packet's contents, pad the end of the packet until we reach the max size.
-		padding = Packet.max_size - len(packet)
-		packet += Packet.padding_byte * padding
+		padding = DataPacket.max_size - len(packet)
+		packet += DataPacket.padding_byte * padding
 		return packet
 
 	@staticmethod
@@ -191,24 +191,24 @@ class Transmitter():
         self.route = route
         self.checksum = b' ' #TODO figure out the checksum stuff
 
-		headerSize = Packet.xtea_header_size if xtea else Packet.header_size
+		headerSize = DataPacket.xtea_header_size if xtea else DataPacket.header_size
         if useFEC:
-			self.data_size = (Packet.max_size - headerSize) // 3
+			self.data_size = (DataPacket.max_size - headerSize) // 3
 		else:
-			self.data_size = Packet.max_size - headerSize
-		self.expected_packets = ceil(self.filesize / Packet.data_size)
+			self.data_size = DataPacket.max_size - headerSize
+		self.expected_packets = ceil(self.filesize / DataPacket.data_size)
 
     def run(self):
-        packetList = getPackets()
+        packetData = getPacketData()
 		# Get the length of all the packets if NONE was supplied as the last packet.
 		if self.lastPacket == None:
-            self.lastPacket = len(packetList)
+            self.lastPacket = len(packetData)
         totalAcks = ceil((self.lastPacket - self.firstPacket + 1)/self.packetsPerAck)
         for ackCount in range(totalAcks):
             sessionPackets = []
             for i in range(packetsPerAck):
                 pid = (ackCount * self.packetsPerAck + i) + self.firstPacket
-                packet = Packet(packetList[pid], pid, self.route ,useFEC = self.useFEC)
+                packet = DataPacket(packetData[pid], pid, self.route ,useFEC = self.useFEC)
                 packet.send()
             #TODO work out handshake with packets
 			#TODO this is where the handshake will go.
@@ -218,16 +218,16 @@ class Transmitter():
         allDone = TransmitCompletePacket(self.pathname,self.checksum,self.expected_packets,self.route,useFEC=self.useFEC)
 		allDone.send(self.chip)
 
-    def getPackets():
-        packetList = []
+    def getPacketData():
+        packetData = []
         with open(pathname,'rb') as f:
             while(True):
-                data = f.read(Packet.max_size - self.data_size)
+                data = f.read(DataPacket.max_size - self.data_size)
                 if data:
-                    packetList.append(data)
+                    packetData.append(data)
                 else:
                     break
-        return packetList
+        return packetData
 
 class Receiver():
 	class ReceivedPacket():
@@ -235,6 +235,7 @@ class Receiver():
 			self.rid = rid
 			self.pid = pid
 			self.data = data
+
     def __init__(self, chip, pathname, prepend='',route=None, useFEC=False, packetsPerAck = 1, delayPerTransmit = 135, firstPacket = 1, lastPacket = None, xtea = False):
         self.chip = chip
 		self.prepend = prepend
@@ -247,29 +248,50 @@ class Receiver():
         self.route = route
         self.checksum = b' ' #TODO figure out the checksum stuff
 
-        headerSize = Packet.xtea_header_size if xtea else Packet.header_size
+        headerSize = DataPacket.xtea_header_size if xtea else DataPacket.header_size
         if useFEC:
-			self.data_size = (Packet.max_size - headerSize) // 3
+			self.data_size = (DataPacket.max_size - headerSize) // 3
 		else:
 			self.data_size = Packet.max_size - headerSize
-		self.expected_packets = ceil(self.filesize / Packet.data_size)
+		self.expected_packets = ceil(self.filesize / DataPacket.data_size)
 
-	def run():
+	def run(self):
+
 		with open(self.prepend+self.pathname,'rb+') as scaffold:
-			while(acceptingPackets):
-				packet = getPacket()
-				if packet.rid == ROUTES['PI1ROUTE'] or packet.rid == ROUTES['PI2ROUTE']:
-					data = scaffold.read()
-					scaffold.seek(0)
-					offset = packet.pid*self.data_size
-					data = data[:offset] + packet.data + data[offset:]
-					scaffold.write(data)
+			packetCount = 0
+			while(True): # Continue to accept packets until we break and are done
+				packetsReceived = 0
+				acceptingPackets = True
+				while(acceptingPackets):
+					packet = getPacket()
+					packetsReceived += 1
+					packetCount += 1
+					if packet.rid == ROUTES['PI1ROUTE'] or packet.rid == ROUTES['PI2ROUTE']:
+						data = scaffold.read()
+						scaffold.seek(0)
+						offset = packet.pid*self.data_size
+						data = data[:offset] + packet.data + data[offset:]
+						scaffold.write(data)
+					if packetsReceived >= self.packetsPerAck or packetCount >= self.expected_packets:
+						acceptingPackets = False
+
+				#TODO do the acknoledgement process
+				# If the acknkoledgement fails or we get a STOP, stop accepting packets.
+				# If the acknoledgeement is successful then continue on accepting more packets
+				if acknowledgement_fail or stop_code:
+					break
+
+				# If we've receieved all the packets, then break. We are done.
+				if packetCount >= self.expected_packets:
+					break
 
 
 
 
 
-	def getPacket():
+
+
+	def getPacket(self):
 		buf = b''
 		time_to_wait = 5#s
 		time_to_sleep = .4#s
@@ -305,5 +327,5 @@ class Receiver():
 
 
 
-	def writeFile():
+	def writeFile(self):
 		pass

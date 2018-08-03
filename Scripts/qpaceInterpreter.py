@@ -16,7 +16,7 @@ import SC16IS750
 import pigpio
 import datetime
 from qpaceWTCHandler import initWTCConnection
-from qpaceQUIP import Packet,Decoder
+from qpaceQUIP import DataPacket,Decoder
 from  qpacePiCommands import *
 import qpaceLogger as logger
 import surfsatStates as ss
