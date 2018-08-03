@@ -7,8 +7,8 @@
 # Credit to the SurfSat team for CCDR driver and usage.
 #
 # The interpreter will be invoked when pin 7 goes high. This will grab incoming data from the WTC,
-# Figure out if they are QUIP packets or commands. If it's a command it will execute the command
-# and if they are QUIP packets it will direct them to the packet directory and then decode it.
+# Figure out if they are packets or commands. If it's a command it will execute the command
+# and if they are packets it will direct them to the packet directory and then decode it.
 #TODO: Re-do comments/documentation
 
 import time
@@ -16,7 +16,6 @@ import SC16IS750
 import pigpio
 import datetime
 from qpaceWTCHandler import initWTCConnection
-from qpaceQUIP import DataPacket,Decoder
 from  qpacePiCommands import *
 import qpaceLogger as logger
 import surfsatStates as ss
