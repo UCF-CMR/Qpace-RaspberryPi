@@ -1,6 +1,6 @@
 #! /usr/bin/env python3
-# experiment.py by Minh Pham, Jonathan Kessluk, Chris Britt
-# 3-06-2018, Rev. 1.1
+# qpaceExperiment.py by Minh Pham, Jonathan Kessluk, Chris Britt
+# 08-07-2018, Rev. 2
 # Q-Pace project, Center for Microgravity Research
 # University of Central Florida
 
@@ -31,24 +31,31 @@ class PINGROUP():
 	led = (PIN.LEDPWR)
 
 def put(pin,state):
+	# Set a pin to a specific state
 	GPIO.output(pin,state)
 
 def low(pin):
-	put(pin,0) # Clear the pin
+	# Clear a pin
+	put(pin,0)
 
 def high(pin):
-	put(pin, 1)# Set the pin
+	# Set a pin
+	put(pin, 1)
 
 def toggle(pin):
-	put(pin,GPIO.input(pin)^1) # Invert the pin
+	# Invert a pin
+	put(pin,GPIO.input(pin)^1)
 
 def flip(pin,delay=.1):
+	# Invert and then revert the pin. Similar to pressing a button.
 	put(pin,GPIO.input(pin)^1) # Invert the pin
 	time.sleep(delay)
 	put(pin,GPIO.input(pin)^1) # Put it back
 
 def reset(pingroup=None):
-	if pingroup is None:
+	# Initialize the pins.
+
+	if pingroup is None: # If None, reset all pins
 		reset(PINGROUP.gopro)
 		reset(PINGROUP.stepper)
 		reset(PINGROUP.led)
@@ -58,9 +65,9 @@ def reset(pingroup=None):
 		GPIO.setup(PIN.LEDPWR, GPIO.OUT, initial=0)				#Controls the LEDs
 	elif pingroup == PINGROUP.solenoid:
 		#Solenoid setup
-		GPIO.setup(PIN.SOL1, GPIO.OUT, initial=0)				#Solenoid 1
-		GPIO.setup(PIN.SOL2, GPIO.OUT, initial=0)				#Solenoid 2
-		GPIO.setup(PIN.SOL3, GPIO.OUT, initial=0)				#Solenoid 3
+		GPIO.setup(PIN.SOL1, GPIO.OUT, initial=1)				#Solenoid 1
+		GPIO.setup(PIN.SOL2, GPIO.OUT, initial=1)				#Solenoid 2
+		GPIO.setup(PIN.SOL3, GPIO.OUT, initial=1)				#Solenoid 3
 	elif pingroup == PINGROUP.stepper:
 		#Stepper pin setup
 		GPIO.setup(PIN.STPEN, GPIO.OUT, initial=1)				#Step Enable
@@ -74,47 +81,37 @@ def reset(pingroup=None):
 		GPIO.setup(PIN.GOPDEN, GPIO.OUT, initial=0)
 
 def pinInit():
-	"""
-	This function initializes all of the pins for the experiment.
-
-	Parameters
-	----------
-	None.
-
-	Returns
-	-------
-	None.
-
-	"""
+	# This method is depreciated
 	print('\nNOTE: pinInit() is depreciated. Please use reset()\n')
 	reset()
-"""
-The goPro section has been broken into several functions to allow the Pis to perform complex experiments without using multiple threads
-"""
 
-def init_gopro():
-	#Turning on the device
+def gopro_on():
+	# Turn on the gopro
 	high(PIN.GOPPWR) #Active High
 	time.sleep(3)
 	flip(PIN.GOPBUT,delay=1)
 	time.sleep(5)
 
+def init_gopro():
+	# This method is depreciated
+	print('\nNOTE: init_gopro() is depreciated. Please use gopro_on()\n')
+	gopro_on()
+
 def press_capture():
+	# Press the capture button
 	flip(PIN.GOPCAP,delay=.5)
-	logger.logSystem([["ExpCtrl: Initializing the GoPro"]])
-
-def gopro_wait(recordingtime): #this just allows for long waits of continuous recording
-	logger.logSystem([["ExpCtrl: GoPro is recording for " + recordingtime +" seconds"]])
-	time.wait(recordingtime)
-
 
 def gopro_start():
+	# Turn on the go pro and start recording.
 	init_gopro() # Turn on camera and set mode
 	logger.logSystem([["ExpCtrl: Beginning to record"]])
 	press_capture() # Begin Recording
 
-
 def gopro_stop_and_USB():
+	# Stop the recording and transfer the data.
+	# Will be depreciated.
+	print('\nNOTE: gopro_stop_and_USB() is depreciated. Please use TBD\n')
+
 	logger.logSystem([["ExpCtrl: Stopping recording..."]])
 	press_capture() #Stop Recording
 
@@ -158,10 +155,9 @@ def gopro_stop_and_USB():
 	reset(PINGROUP.gopro)
 
 def setStep(a, b):
-	put(PIN.STEPENA, a)
-	put(PIN.STEPENB, b)
-
-#NOTE: Stepper code needs to be tested again
+	# Set the steppers to a and b for Stepper A and stepper B
+	put(PIN.STPENA, a)
+	put(PIN.STPENB, b)
 
 def stepper_forward(delay, qturn):
 	"""
@@ -226,7 +222,7 @@ def led(state):
 	"""
 	put(PIN.LEDPWR,state)
 
-def solenoid(solPins):
+def solenoid(solPins,iterations):
 		"""
 		This function handles the operation of the solenoids.
 
@@ -247,11 +243,12 @@ def solenoid(solPins):
 		put(PIN.SOL3, 1)
 
 		def fire(pin : tuple):
-				put(pin[1], 0)		#Turn solenoid on
-				time.sleep(pin[0])			#Waits for specific duty cycle
-				put(pin[1], 1)		#Turn solenoid off
+			put(pin[1], 0)		#Turn solenoid on
+			time.sleep(.05)		# Punch the solenoid
+			put(pin[1], 1)		#Turn solenoid off
+			time.sleep(pin[0])	# Wait for duty cycle
 
-		for i in range(0, 10):
-				fire(solPins[-1])
-		for j in range(0, len(solPins) - 1):
+		for i in range(0, iterations):
+			fire(solPins[-1])
+			for j in range(0, len(solPins) - 1):
 				fire(solPins[j])
