@@ -13,13 +13,14 @@ import signal
 import time
 import RPi.GPIO as gpio
 from datetime import datetime, date, timedelta
+from math import ceil
 from shutil import copy
 import threading
 import qpaceLogger as logger
 import qpaceExperimentParser as exp
 import qpacePiCommands as cmd
 
-TODO_PATH = "/home/pi/todo_dir/"
+TODO_PATH = "/home/pi/data/text/"
 TODO_FILE = "todo.txt"
 TODO_FILE_PATH = TODO_PATH + TODO_FILE
 TODO_TEMP = "todo_temp.tmp"
@@ -48,16 +49,14 @@ def getTodoList():
 	todo_list = []
 	try:
 		with open(TODO_FILE_PATH, 'r') as todofile:
-			task_list = todofile.read().splitlines()
+			task_list = todofile.readlines()
 			for task in task_list:
 				# Convert every string to uppercase and then add it to the todo_list
 				todo_list.append(task.split(" "))
-			logger.logSystem([["Closing todo file."]])
 
 	except OSError as e:
 		# Couldn't open the todo file. Send an error to the error log.
-		logger.logError("Could not open todo file for reading.", e)
-		logger.logSystem([["Error opening the todo file."]])
+		logger.logError("TodoParser: Could not open todo file for reading.", e)
 
 	return todo_list
 
@@ -106,7 +105,7 @@ def sortTodoList(todo_list):
 				todo_list[i][0] = datetime.strptime(todo_list[i][0],"%Y%m%d-%H%M%S")
 			except (ValueError,TypeError) as e:
 				logger.logSystem([
-					["Todo list","Time to invoke command is an invalid format and will be removed from the queue."].append(todo_list[i][0])
+					["TodoParser: an item has an invalid time format and will be removed from the queue."] + todo_list[i]
 				])
 				del todo_list[i]
 			else:
@@ -138,20 +137,20 @@ def _processTask(chip,task,experimentEvent = None):
 		---------
 		Rev. 1.1 - 4/10/2018 Minh Pham (Added code execution to tasks.)
 	"""
-	logger.logSystem([["Beginning execution of a task", str(task[1:])]])
+	logger.logSystem([["TodoParser: Beginning execution of a task", str(task[1:])]])
 	currentTask = task[1].upper()
 	if currentTask == "EXPERIMENT":
 		# If experimentEvent exists and is not set, then let's run an experiment.
 		if experimentEvent is not None and not experimentEvent.is_set():
 			#Run an experiment file from the experiment directory
-			logger.logSystem([["Running an experiment.", task[2]]]) # Placeholder
+			logger.logSystem([["TodoParser: Running an experiment.", task[2]]]) # Placeholder
 			parserThread = threading.Thread(name='experimentParser',target=exp.experimentparser, args=(task[2],experimentEvent))
 			parserThread.start()
 			experimentEvent.set()
 		else: # If experimentEvent does not exist or is set, return True to know there is a failure.
 			return False
 	elif currentTask == "BACKUP":  #Back up a file
-		copy(task[2],task[3]) #Copy the file from task[2] to task[3]
+		#copy(task[2],task[3]) #Copy the file from task[2] to task[3]
 		print("Attempting to create a backup of", task[2]) # Placeholder
 		#TODO write backup scripts
 	elif currentTask == "REPORT":  #Get the status
@@ -160,11 +159,11 @@ def _processTask(chip,task,experimentEvent = None):
 		cmd.saveStatus(None,None,None)
 		cmd.sendFile(chip,'REPORT','status_*.txt') #TODO test if this actually works
 	else:
-		logger.logSystem([["Unknown task!", str(task[1:])]])
+		logger.logSystem([["TodoParser: Unknown task!", str(task[1:])]])
 
 	return True # If we reach here, assume everything was a success.
 
-def executeTodoList(chip,todo_list, experimentEvent = None):
+def executeTodoList(chip,todo_list, shutdownEvent, experimentEvent = None):
 	"""
 		This function will execute the todoList in order. If it is interrupted, it will return the todolist
 
@@ -186,34 +185,34 @@ def executeTodoList(chip,todo_list, experimentEvent = None):
 	"""
 	#signal.signal(STOP_SIGNAL, stop_handler)
 	completedTask = True
-	try:
-		# We ideally want to use the global threading.Event, but worst case is it doesn't exist.
-		# If it doesn't, lets create one locally so we have something to use regardless.
-		if experimentEvent is None:
-			experimentEvent = threading.Event()
-		while todo_list:
-			# How many seconds until our next task?
-			try:
-				wait_time = (todo_list[0][0] - datetime.now()).total_seconds() # Determine how long to wait.
-			except:
-				todo_list = todo_list[1:] # IF there is a problem determining when to execute, remove it from the list.
-			else:
-				# Wait until it's time to run our next task. If the time has already passed wait a second and then do it.
-				wait_time = wait_time if wait_time > 0 else 1
-				logger.logSystem([["Waiting for " + str(wait_time) + " seconds to complete the next task."]])
-				# Wait for wait_time seconds but also check the interrupt every second.
-				for i in range(wait_time):
-					time.sleep(.5)
-				# run the next item on the todolist.
-				taskCompleted = _processTask(chip,todo_list[0],experimentEvent)
-				if taskCompleted:
-					logger.logSystem([["Task completed.",str(todo_list[0])]])
-					todo_list = todo_list[1:] # pop the first item off the list.
 
-	except InterruptedError as interrupt:
-		logger.logSystem([["The interrupt pin was set to high. Stopping execution of the todo list."]])
-	finally:
-		return todo_list
+	# We ideally want to use the global threading.Event, but worst case is it doesn't exist.
+	# If it doesn't, lets create one locally so we have something to use regardless.
+	if experimentEvent is None:
+		experimentEvent = threading.Event()
+	while todo_list and not shutdownEvent.isSet():
+		# How many seconds until our next task?
+		try:
+			wait_time = ceil((todo_list[0][0] - datetime.now()).total_seconds()) # Determine how long to wait.
+		except:
+			todo_list = todo_list[1:] # IF there is a problem determining when to execute, remove it from the list.
+		else:
+			# Wait until it's time to run our next task. If the time has already passed wait a second and then do it.
+			wait_time = wait_time if wait_time > 0 else 1
+			logger.logSystem([["TodoParser: Waiting " + str(wait_time) + " seconds for "+todo_list[0][1]+"."]])
+			# Wait for wait_time seconds but also check the interrupt every second.
+			for i in range(wait_time):
+				if shutdownEvent.isSet():
+					return todo_list
+				time.sleep(.5)
+			# run the next item on the todolist.
+			taskCompleted = _processTask(chip,todo_list[0],experimentEvent)
+			if taskCompleted:
+				logger.logSystem([["TodoParser: Task completed.",str(todo_list[0])]])
+				todo_list = todo_list[1:] # pop the first item off the list.
+
+
+	return todo_list
 
 def updateTodoFile(todo_list):
 	"""
@@ -244,10 +243,10 @@ def updateTodoFile(todo_list):
 		os.remove(TODO_FILE_PATH)
 		os.rename(TODO_PATH+TODO_TEMP, TODO_FILE_PATH)
 	except (OSError, PermissionError) as e:
-		logger.logError("Could not record new todo list.", e)
+		logger.logError("TodoParser: Could not record new todo list.", e)
 		return False
 	except FileNotFoundError as e:
-		logger.logError("The todo file does not exist right now!", e)
+		logger.logError("TodoParser: The todo file does not exist right now!", e)
 		return False
 	return True
 
@@ -270,36 +269,31 @@ def run(chip,experimentEvent, runEvent, shutdownEvent):
 	None
 	"""
 
-	gpio.set_mode(gpio.BOARD)
-	gpio.setup(WTC_IRQ, gpio.IN)
-
-	logger.logSystem([
-		["Entering main in the TODO parser", os.getcwd()],
-		["Opening up the todo file and begining execution.",TODO_FILE_PATH]
-	])
+	logger.logSystem([["TodoParser: Starting ...", TODO_FILE_PATH]])
 	try:
 		todo_list = getTodoList()
 		if todo_list:
 			# We will assume the todo-list is NOT sorted, and sort it.
 			sortTodoList(todo_list)
 			if chip is not None:
-				todo_list = executeTodoList(chip,todo_list,experimentEvent)
+				todo_list = executeTodoList(chip,todo_list,shutdownEvent,experimentEvent)
 
 			if todo_list:
-				logger.logSystem([["The TODO parser has terminated early. Updating the todo file."]])
+				logger.logSystem([["TodoParser: The TodoParser has terminated early. Updating the todo file."]])
 				if updateTodoFile(todo_list): # If we terminated early, re-write the todo file before leaving.
 					logger.logSystem([
-						["Successfuly updated the todo file.", TODO_FILE_PATH],
-						["Exiting the TODO parser.", os.getcwd()]
+						["TodoParser: Successfuly updated the todo file.", TODO_FILE_PATH],
+						["TodoParser: Done"]
 					])
 				else:
-					message = "Encountered a problem when trying to update the todo file!"
-					logger.logSystem([[message, TODO_FILE_PATH]])
-					logger.logError(message)
+					logger.logError("TodoParser: Encountered a problem when trying to update the todo file!")
 			else:
-				logger.logSystem([["Todo file has finished execution", TODO_FILE_PATH]])
-				os.remove(TODO_FILE_PATH) # Do we want to delete the file or just leave it alone
+				logger.logSystem([["TodoParser: Finished execution", TODO_FILE_PATH]])
+				#os.remove(TODO_FILE_PATH) # Do we want to delete the file or just leave it alone
+		else:
+			logger.logSystem([["TodoParser: Todo list is empty."]])
 	except InterruptedError as interrupt:
-		logger.logSystem([["The Interpreter was interrupted. Shutting down the Interpreter..."]])
+		logger.logSystem([["TodoParser: Interrupted."]])
 
-	logger.logSystem([["Interpreter: Shutting down..."]])
+	logger.logSystem([["TodoParser: Shutting down..."]])
+	return

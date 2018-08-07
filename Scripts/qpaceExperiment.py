@@ -30,14 +30,30 @@ class PINGROUP():
 	stepper = (PIN.STPEN,PIN.STPENA,PIN.STPENB)
 	led = (PIN.LEDPWR)
 
-def off(pin):
-	GPIO.output(pin,0)
+def put(pin,state):
+	GPIO.output(pin,state)
 
-def on(pin):
-	GPIO.output(pin,1)
+def low(pin):
+	put(pin,0) # Clear the pin
 
-def reset(pingroup):
-	if pingroup == PINGROUP.led:
+def high(pin):
+	put(pin, 1)# Set the pin
+
+def toggle(pin):
+	put(pin,GPIO.input(pin)^1) # Invert the pin
+
+def flip(pin,delay=.1):
+	put(pin,GPIO.input(pin)^1) # Invert the pin
+	time.sleep(delay)
+	put(pin,GPIO.input(pin)^1) # Put it back
+
+def reset(pingroup=None):
+	if pingroup is None:
+		reset(PINGROUP.gopro)
+		reset(PINGROUP.stepper)
+		reset(PINGROUP.led)
+		reset(PINGROUP.solenoid)
+	elif pingroup == PINGROUP.led:
 		#LED pin setup
 		GPIO.setup(PIN.LEDPWR, GPIO.OUT, initial=0)				#Controls the LEDs
 	elif pingroup == PINGROUP.solenoid:
@@ -70,26 +86,21 @@ def pinInit():
 	None.
 
 	"""
-	reset(PINGROUP.gopro)
-	reset(PINGROUP.stepper)
-	reset(PINGROUP.led)
-	reset(PINGROUP.solenoid)
+	print('\nNOTE: pinInit() is depreciated. Please use reset()\n')
+	reset()
 """
 The goPro section has been broken into several functions to allow the Pis to perform complex experiments without using multiple threads
 """
 
 def init_gopro():
 	#Turning on the device
-	on(PIN.GOPPWR) #Active High
+	high(PIN.GOPPWR) #Active High
 	time.sleep(3)
-	off(PIN.GOPBUT) #Active Low
-	time.sleep(1)
-	on(PIN.GOPBUT)
-	time.sleep(10)
+	flip(PIN.GOPBUT,delay=1)
+	time.sleep(5)
+
 def press_capture():
-	off(PIN.GOPCAP) #Active Low
-	time.sleep(0.5)
-	on(PIN.GOPCAP)
+	flip(PIN.GOPCAP,delay=.5)
 	logger.logSystem([["ExpCtrl: Initializing the GoPro"]])
 
 def gopro_wait(recordingtime): #this just allows for long waits of continuous recording
@@ -109,7 +120,7 @@ def gopro_stop_and_USB():
 
 	#TURN USB ENABLE
 	logger.logSystem([["ExpCtrl: Enabling the USB and mounting the drive..."]])
-	on(PIN.GOPDEN)
+	high(PIN.GOPDEN)
 
 	import os
 	try: # Mount the GoPro
@@ -141,46 +152,19 @@ def gopro_stop_and_USB():
 		except Exception as e: # Failed to call the shell
 			logger.logError("ExpCtrl: Could not unmount the drive", e)
 	#Turn off the gopro
-	off(PIN.GOPPWR)
+	low(PIN.GOPPWR)
 	time.sleep(.25)
 	#reset pins to initial state
 	reset(PINGROUP.gopro)
 
 def setStep(a, b):
-	GPIO.output(29, a)
-	GPIO.output(21, b)
+	put(PIN.STEPENA, a)
+	put(PIN.STEPENB, b)
 
 #NOTE: Stepper code needs to be tested again
 
 def stepper_forward(delay, qturn):
-		"""
-		This function activates the stepper motor in the forward direction.
-
-		Parameters
-		----------
-		Integer / Float - delay - The time between each phase of the stepper motor.
-		Integer - qturn - The number of turns.
-
-		Returns
-		-------
-		None.
-
-		"""
-
-	for i in range(0, qturn):
-		setStep(0, 0)
-		time.sleep(delay)
-		setStep(1, 0)
-		time.sleep(delay)
-		setStep(1, 1)
-		time.sleep(delay)
-		setStep(0, 1)
-		time.sleep(delay)
-
-	time.sleep(3)
-
-def stepper_reverse(delay, qturn):
-	 """
+	"""
 	This function activates the stepper motor in the forward direction.
 
 	Parameters
@@ -195,17 +179,44 @@ def stepper_reverse(delay, qturn):
 	"""
 
 	for i in range(0, qturn):
-			setStep(1, 1)
-			time.sleep(delay)
-			setStep(1, 0)
-			time.sleep(delay)
-			setStep(0, 0)
-			time.sleep(delay)
-			setStep(0, 1)
-			time.sleep(delay)
+		setStep(0, 0)
+		time.sleep(delay)
+		setStep(1, 0)
+		time.sleep(delay)
+		setStep(1, 1)
+		time.sleep(delay)
+		setStep(0, 1)
+		time.sleep(delay)
+
 	time.sleep(3)
 
-def led(power):
+def stepper_reverse(delay, qturn):
+	"""
+	This function activates the stepper motor in the forward direction.
+
+	Parameters
+	----------
+	Integer / Float - delay - The time between each phase of the stepper motor.
+	Integer - qturn - The number of turns.
+
+	Returns
+	-------
+	None.
+
+	"""
+
+	for i in range(0, qturn):
+		setStep(1, 1)
+		time.sleep(delay)
+		setStep(1, 0)
+		time.sleep(delay)
+		setStep(0, 0)
+		time.sleep(delay)
+		setStep(0, 1)
+		time.sleep(delay)
+	time.sleep(3)
+
+def led(state):
 	"""
 	This function turns the LED light on or off.
 
@@ -213,10 +224,7 @@ def led(power):
 	----------
 	Boolean - power - To turn the LED on/off, power is set to True/False, respectively.
 	"""
-	if power:
-		on(PIN.LEDPWR)
-	else:
-		off(PIN.LEDPWR)
+	put(PIN.LEDPWR,state)
 
 def solenoid(solPins):
 		"""
@@ -234,23 +242,16 @@ def solenoid(solPins):
 		"""
 		solPins.sort()
 		# Set all solenoids off by default
-		GPIO.output(35, True)
-		GPIO.output(31, True)
-		GPIO.output(37, True)
+		put(PIN.SOL1, 1)
+		put(PIN.SOL2, 1)
+		put(PIN.SOL3, 1)
 
 		def fire(pin : tuple):
-				GPIO.output(pin[1], False)		#Turn solenoid on
+				put(pin[1], 0)		#Turn solenoid on
 				time.sleep(pin[0])			#Waits for specific duty cycle
-				GPIO.output(pin[1], True)		#Turn solenoid off
+				put(pin[1], 1)		#Turn solenoid off
 
 		for i in range(0, 10):
 				fire(solPins[-1])
 		for j in range(0, len(solPins) - 1):
 				fire(solPins[j])
-
-
-
-
-
-
-

@@ -12,7 +12,6 @@
 #TODO: Re-do comments/documentation
 
 import time
-import SC16IS750
 import pigpio
 import datetime
 from qpaceWTCHandler import initWTCConnection
@@ -23,12 +22,11 @@ import qpaceFileHandler as fh
 
 INTERP_PACKETS_PATH = "temp/packets/"
 # Routing ID defined in packet structure document
-ROUTES{
-	'PI1ROUTE' = 0X01
-	'PI2ROUTE' = 0X02
-	'GNDROUTE' = 0X00
-	'WTCROUTE' = 0XFF
-}
+class ROUTES():
+	PI1ROUTE= 0x01
+	PI2ROUTE= 0x02
+	GNDROUTE= 0x00
+	WTCROUTE= 0xFF
 ssStates = ss.SSCOMMAND
 ssErrors = ss.SSERRORS
 
@@ -60,14 +58,14 @@ def waitForBytesFromCCDR(chip,n,timeout = 2.5,interval = 0.25):
 	if timeout:
 		total_attempts = timeout//interval
 		attempts = 0
-		while(attempts < total_attempts and chip.byte_read(SC16IS750.REG_RXLVL) is not n):
+		while(attempts < total_attempts and chip.byte_read(chip.REG_RXLVL) is not n):
 			time.sleep(interval)
 			attempts += 1
 
 		if attempts >= total_attempts:
 			logger.logSystem([["WaitForBytesFromCCDR: Timeout occurred. Moving on."]])
 	else:
-		while(chip.byte_read(SC16IS750.REG_RXLVL) < n):
+		while(chip.byte_read(chip.REG_RXLVL) < n):
 			time.sleep(interval)
 
 def sendBytesToCCDR(chip,sendData):
@@ -89,10 +87,10 @@ def sendBytesToCCDR(chip,sendData):
 	elif isinstance(sendData,int):
 		sendData = bytes([sendData])
 	elif not isinstance(sendData,bytes) and not isinstance(sendData,bytearray):
-		logger.logSystem([['Data will not be sent to the WTC: not string or bytes.']])
+		logger.logSystem([['SendBytesToCCDR: Data will not be sent to the WTC: not string or bytes.']])
 		raise TypeError("Data to the WTC must be in the form of bytes or string")
 	try:
-		chip.block_write(SC16IS750.REG_THR, sendData)
+		chip.block_write(chip.REG_THR, sendData)
 	except Exception as err:
 		#TODO do we actually handle the case where it just doesn't work?
 		print(err)
@@ -103,8 +101,8 @@ def sendBytesToCCDR(chip,sendData):
 	return False
 
 def flushRxReg(chip):
-	while(chip.byte_read(SC16IS750.REG_RXLVL) > 0):
-		chip.byte_read(SC16IS750.REG_RHR)
+	while(chip.byte_read(chip.REG_RXLVL) > 0):
+		chip.byte_read(chip.REG_RHR)
 
 def readDataFromCCDR(chip):
 	"""
@@ -127,11 +125,11 @@ def readDataFromCCDR(chip):
 	time_to_sleep = .4#s
 	numOfAttempts = (time_to_wait//time_to_sleep) + 1
 	while(True):
-		waiting = chip.byte_read(SC16IS750.REG_RXLVL)
+		waiting = chip.byte_read(chip.REG_RXLVL)
 		print('Waiting: ', waiting)
 		if waiting <= 4 and waiting > 0:
 			for i in range(waiting):
-				buf += bytes([chip.byte_read(SC16IS750.REG_RHR)])
+				buf += bytes([chip.byte_read(chip.REG_RHR)])
 			byte = int.from_bytes(buf,byteorder='little')
 			break
 		elif waiting > 4:
@@ -140,17 +138,17 @@ def readDataFromCCDR(chip):
 			for i in range(0,4): #We will receive 4, 32 byte chunks to make a 128 packet
 				attempt = 0
 				while(True):
-					waiting = chip.byte_read(SC16IS750.REG_RXLVL)
+					waiting = chip.byte_read(chip.REG_RXLVL)
 					print('Packet Waiting: ', waiting)
 					try:
 						sleep(time_to_sleep)
 						attempt += 1
 						# See how much we want to read.
 						if waiting > 32:   # If we have 32 bytes in the level register
-							logger.logSystem([["Reading in "+ str(waiting) +" bytes from the CCDR"]])
+							logger.logSystem([["ReadDataFromCCDR: Reading in "+ str(waiting) +" bytes from the CCDR"]])
 							for i in range(waiting):
 								# Read from the chip and write to the buffer.
-								buf += bytes([chip.byte_read(SC16IS750.REG_RHR)])
+								buf += bytes([chip.byte_read(chip.REG_RHR)])
 
 
 
@@ -166,7 +164,7 @@ def readDataFromCCDR(chip):
 					except BufferError as err:
 						logger.logError("A BufferError was thrown.",err)
 						raise BufferError("A BufferError was thrown.") from err
-				chip.byte_read(SC16IS750.REG_RHR)# Clear the buffer. WTC will send ERRNONE
+				chip.byte_read(chip.REG_RHR)# Clear the buffer. WTC will send ERRNONE
 			break
 		time.sleep(.75)
 
@@ -201,7 +199,7 @@ def processCommand(chip, fieldData, fromWhom = 'CCDR'):
 			raise BufferError("Could not decode ASCII bytes to string for command query.")
 		else:
 			arguments = arguments.split(' ')
-			logger.logSystem([["Command Received:",command,str(arguments)]])
+			logger.logSystem([["Interpreter: Command Received!",command,str(arguments)]])
 			LastCommand.type = command
 			LastCommand.timestamp = str(datetime.datetime.now())
 			LastCommand.fromWhom = fromWhom
@@ -228,7 +226,7 @@ def run(chip,experimentEvent, runEvent, shutdownEvent):
 	"""
 	CCDR_IRQ = 16
 	TEMP_PACKET_LOCATION = 'temp/packets/'
-	logger.logSystem([["Beginning the WTC Interpreter..."]])
+	logger.logSystem([["Interpreter: Starting..."]])
 	if chip is None:
 		chip = initWTCConnection()
 		if chip is None:
@@ -256,7 +254,7 @@ def run(chip,experimentEvent, runEvent, shutdownEvent):
 	def checkValidity(fieldData):
 		# return True,fieldData
 		packetString = bytes([fieldData['route']]) + fieldData['opcode'] + fieldData['information']
-		isValid = fieldData['route'] in (ROUTES['P1ROUTE'], ROUTES['P2ROUTE']) and fieldData['checksum'] == CMDPacket.generateChecksum(packetString)
+		isValid = fieldData['route'] in (ROUTES.P1ROUTE, ROUTES.P2ROUTE) and fieldData['checksum'] == CMDPacket.generateChecksum(packetString)
 		if isValid and (fieldData['opcode'] == b'NOOP*' or fieldData['opcode'] == b'NOOP<'):
 			returnVal = PrivledgedPacket.decodeXTEA(fieldData['information'])
 			fieldData['opcode'] = returnVal[4:6] # 4:6 as defined in the packet structure document for XTEA packets
@@ -266,7 +264,7 @@ def run(chip,experimentEvent, runEvent, shutdownEvent):
 		return isValid, fieldData
 
 	def WTCRXBufferHandler(gpio,level,tick):
-		packetData = chip.block_read(SC16IS750.REG_RHR,chip.byte_read(SC16IS750.REG_RXLVL))#readDataFromCCDR(chip)
+		packetData = chip.block_read(chip.REG_RHR,chip.byte_read(chip.REG_RXLVL))#readDataFromCCDR(chip)
 		packetBuffer.append(packetData)
 		print("Data came in: ", packetData)
 		# Manual testing. Remove for real test.
@@ -274,7 +272,7 @@ def run(chip,experimentEvent, runEvent, shutdownEvent):
 		#packetData = testData + CMDPacket.generateChecksum(testData)
 
 	def wtc_respond(response):
-		chip.byte_write(SC16IS750.REG_THR,ss.SSCOMMAND[response])
+		chip.byte_write(chip.REG_THR,ss.SSCOMMAND[response])
 
 	def surfSatPseudoStateMachine(packetData,configureTimestamp):
 		# Start looking at a pseduo state machine so WTC code doesn't need to change
@@ -288,7 +286,7 @@ def run(chip,experimentEvent, runEvent, shutdownEvent):
 				#timestamp = int.from_bytes(timestampBytes, byteorder="little")
 				os.system("sudo date -s '@" + str(byte) +"'")
 				print('Sending back: ', packetData)
-				chip.block_write(SC16IS750.REG_THR,packetData)
+				chip.block_write(chip.REG_THR,packetData)
 				print('Configuration is complete! :D')
 				configureTimestamp = False
 			if byte in ssStates.values() or byte in ssErrors.values():
@@ -329,7 +327,7 @@ def run(chip,experimentEvent, runEvent, shutdownEvent):
 
 
 	callback = gpio.callback(CCDR_IRQ, pigpio.FALLING_EDGE, WTCRXBufferHandler)
-	while True:
+	while not shutdownEvent.is_set():
 		try:
 			packet = fh.ChunkPacket(chip)
 			while(len(packetBuffer)>0):
@@ -355,19 +353,14 @@ def run(chip,experimentEvent, runEvent, shutdownEvent):
 							#TODO Alert the WTC? Send OKAY back to ground?
 							print('Input is NOT valid!')
 
-				if shutdownEvent.is_set():
-					logger.logSystem([["Shutdown flag was set."]])
-					raise StopIteration("It's time to shutdown!")
-
 			runEvent.wait() #Mutex for the run
 			time.sleep(.5) # wait for a moment
 
 		except KeyboardInterrupt:
-			shutdownEvent.set()
-			break
+			continue
 		except StopIteration:
 			break
-
+	logger.logSystem([["Interpreter: Starting cleanup for shutdown."]])
 	#decoder = Decoder(file_location,TEMP_PACKET_LOCATION,suppress=True,rush=True)
 	#decoder.run(True)
 

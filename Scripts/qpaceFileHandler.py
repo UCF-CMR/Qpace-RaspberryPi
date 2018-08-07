@@ -9,7 +9,6 @@
 # Still in work
 
 import qpaceLogger as logger
-from qpaceInterpreter import ROUTES
 from qpacePiCommands import CMDPacket
 from math import ceil
 
@@ -21,18 +20,18 @@ class DataPacket():
 	"""
 	Packet structure for QPACE:
 	----------------------------------------------------------------------
-	|                      |                        |                    |
-	| Designator  (1 Byte) | Misc integer (4 Bytes) |  Data (123 Bytes)  |      (128Bytes)
-	|                      |                        |                    |
+	|					  |						|					|
+	| Designator  (1 Byte) | Misc integer (4 Bytes) |  Data (123 Bytes)  |	  (128Bytes)
+	|					  |						|					|
 	----------------------------------------------------------------------
 	"""
 	padding_byte = b' '
-	header_size = 5         # in bytes
-	max_size = 128          # in bytes
+	header_size = 5		 # in bytes
+	max_size = 128		  # in bytes
 	xtea_header_size = 10	# in bytes
-	data_size = None        # in bytes. Initial state is None. Gets calculated later
-	max_id = 0xFFFFFFFF     # 4 bytes. Stored as an int.
-	last_id = 0            # -1 if there are no packets yet.
+	data_size = None		# in bytes. Initial state is None. Gets calculated later
+	max_id = 0xFFFFFFFF	 # 4 bytes. Stored as an int.
+	last_id = 0			# -1 if there are no packets yet.
 
 	validDesignators = [0]   # WTC, Pi 1, Pi 2, GS.
 
@@ -110,9 +109,9 @@ class DataPacket():
 		"""
 		# Construct the packet's data
 
-        # Do a TMR expansion where the data is replicated 3 times but not next to each other
+		# Do a TMR expansion where the data is replicated 3 times but not next to each other
 		# to avoid burst errors.
-        if self.useFEC:
+		if self.useFEC:
 			data = self.data * 3
 		else:
 			data = self.data
@@ -168,66 +167,66 @@ class ChunkPacket():
 		self.complete = False
 		return packet
 
-class TransmitCompletePacket(Packet):
-    def __init__(self, pathname, checksum, pid,rid,useFEC = False):
-            data = b'\x04\x04' + checksum + b'\x00' + pathname
-            data += (116 - len(data)) * b'\x04' if len(data) < 116 else b''
-            data = data[:116] # only get the first 116 chars. Defined by the packet document
-            data += CMDPacket.generateChecksum(data)
-        super(Packet,self).__init__(data,pid,rid,useFEC)
+class TransmitCompletePacket(DataPacket):
+	def __init__(self, pathname, checksum, pid,rid,useFEC = False):
+		data = b'\x04\x04' + checksum + b'\x00' + pathname
+		data += (116 - len(data)) * b'\x04' if len(data) < 116 else b''
+		data = data[:116] # only get the first 116 chars. Defined by the packet document
+		data += CMDPacket.generateChecksum(data)
+		super(DataPacket,self).__init__(data,pid,rid,useFEC)
 
 class DownloadRequest():
 	pass
 
 class Transmitter():
-    def __init__(self, chip, pathname, route, useFEC=False, packetsPerAck = 1, delayPerTransmit = 135, firstPacket = 1, lastPacket = None, xtea = False):
-        self.chip = chip
-        self.pathname = pathname
-        self.useFEC = useFEC
-        self.packetsPerAck = packetsPerAck
-        self.delayPerTransmit = delayperTransmit
-        self.firstPacket = firstPacket if firstPacket > 1 else 1
-        self.lastPacket = lastPacket if lastPacket > lastPacket else None
-        self.route = route
-        self.checksum = b' ' #TODO figure out the checksum stuff
+	def __init__(self, chip, pathname, route, useFEC=False, packetsPerAck = 1, delayPerTransmit = 135, firstPacket = 1, lastPacket = None, xtea = False):
+		self.chip = chip
+		self.pathname = pathname
+		self.useFEC = useFEC
+		self.packetsPerAck = packetsPerAck
+		self.delayPerTransmit = delayperTransmit
+		self.firstPacket = firstPacket if firstPacket > 1 else 1
+		self.lastPacket = lastPacket if lastPacket > lastPacket else None
+		self.route = route
+		self.checksum = b' ' #TODO figure out the checksum stuff
 
 		headerSize = DataPacket.xtea_header_size if xtea else DataPacket.header_size
-        if useFEC:
+		if useFEC:
 			self.data_size = (DataPacket.max_size - headerSize) // 3
 		else:
 			self.data_size = DataPacket.max_size - headerSize
 		self.expected_packets = ceil(self.filesize / DataPacket.data_size)
 
-    def run(self):
-        packetData = getPacketData()
+	def run(self):
+		packetData = getPacketData()
 		# Get the length of all the packets if NONE was supplied as the last packet.
 		if self.lastPacket == None:
-            self.lastPacket = len(packetData)
-        totalAcks = ceil((self.lastPacket - self.firstPacket + 1)/self.packetsPerAck)
-        for ackCount in range(totalAcks):
-            sessionPackets = []
-            for i in range(packetsPerAck):
-                pid = (ackCount * self.packetsPerAck + i) + self.firstPacket
-                packet = DataPacket(packetData[pid], pid, self.route ,useFEC = self.useFEC)
-                packet.send()
-            #TODO work out handshake with packets
+			self.lastPacket = len(packetData)
+		totalAcks = ceil((self.lastPacket - self.firstPacket + 1)/self.packetsPerAck)
+		for ackCount in range(totalAcks):
+			sessionPackets = []
+			for i in range(packetsPerAck):
+				pid = (ackCount * self.packetsPerAck + i) + self.firstPacket
+				packet = DataPacket(packetData[pid], pid, self.route ,useFEC = self.useFEC)
+				packet.send()
+			#TODO work out handshake with packets
 			#TODO this is where the handshake will go.
 			#TODO we will WAIT here for the acknowledgement. Once we get it, continue on.
 
-        #When it's done it needs to send a DONE packet
-        allDone = TransmitCompletePacket(self.pathname,self.checksum,self.expected_packets,self.route,useFEC=self.useFEC)
+		#When it's done it needs to send a DONE packet
+		allDone = TransmitCompletePacket(self.pathname,self.checksum,self.expected_packets,self.route,useFEC=self.useFEC)
 		allDone.send(self.chip)
 
-    def getPacketData():
-        packetData = []
-        with open(pathname,'rb') as f:
-            while(True):
-                data = f.read(DataPacket.max_size - self.data_size)
-                if data:
-                    packetData.append(data)
-                else:
-                    break
-        return packetData
+	def getPacketData():
+		packetData = []
+		with open(pathname,'rb') as f:
+			while(True):
+				data = f.read(DataPacket.max_size - self.data_size)
+				if data:
+					packetData.append(data)
+				else:
+					break
+		return packetData
 
 class Receiver():
 	class ReceivedPacket():
@@ -236,20 +235,20 @@ class Receiver():
 			self.pid = pid
 			self.data = data
 
-    def __init__(self, chip, pathname, prepend='',route=None, useFEC=False, packetsPerAck = 1, delayPerTransmit = 135, firstPacket = 1, lastPacket = None, xtea = False):
-        self.chip = chip
+	def __init__(self, chip, pathname, prepend='',route=None, useFEC=False, packetsPerAck = 1, delayPerTransmit = 135, firstPacket = 1, lastPacket = None, xtea = False):
+		self.chip = chip
 		self.prepend = prepend
-        self.pathname = pathname
-        self.useFEC = useFEC
-        self.packetsPerAck = packetsPerAck
-        self.delayPerTransmit = delayperTransmit
-        self.firstPacket = firstPacket if firstPacket > 1 else 1
-        self.lastPacket = lastPacket if lastPacket > firstPacket else None
-        self.route = route
-        self.checksum = b' ' #TODO figure out the checksum stuff
+		self.pathname = pathname
+		self.useFEC = useFEC
+		self.packetsPerAck = packetsPerAck
+		self.delayPerTransmit = delayperTransmit
+		self.firstPacket = firstPacket if firstPacket > 1 else 1
+		self.lastPacket = lastPacket if lastPacket > firstPacket else None
+		self.route = route
+		self.checksum = b' ' #TODO figure out the checksum stuff
 
-        headerSize = DataPacket.xtea_header_size if xtea else DataPacket.header_size
-        if useFEC:
+		headerSize = DataPacket.xtea_header_size if xtea else DataPacket.header_size
+		if useFEC:
 			self.data_size = (DataPacket.max_size - headerSize) // 3
 		else:
 			self.data_size = Packet.max_size - headerSize
@@ -266,7 +265,7 @@ class Receiver():
 					packet = getPacket()
 					packetsReceived += 1
 					packetCount += 1
-					if packet.rid == ROUTES['PI1ROUTE'] or packet.rid == ROUTES['PI2ROUTE']:
+					if packet.rid == 1 or packet.rid == 2:
 						data = scaffold.read()
 						scaffold.seek(0)
 						offset = packet.pid*self.data_size
@@ -303,7 +302,7 @@ class Receiver():
 				waiting = chip.byte_read(SC16IS750.REG_RXLVL)
 				if waiting >= 32: # wait until we have a full chunk
 					try:
-						logger.logSystem([["Reading in "+ str(waiting) +" bytes from the CCDR"]])
+						logger.logSystem([["FileHandler: Reading in "+ str(waiting) +" bytes from the CCDR"]])
 						for i in range(32):
 							# Read from the chip and write to the buffer.
 							buf += bytes([chip.byte_read(SC16IS750.REG_RHR)])

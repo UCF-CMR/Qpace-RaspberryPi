@@ -13,12 +13,13 @@ import qpaceInterpreter as qpi
 import qpaceTODOParser as todo
 import os
 import threading
-import SC16IS750 as SC16IS750
+#import tstSC16IS750 as SC16IS750
+import SC16IS750
 import pigpio
 import time
 
 time.sleep(2)
-
+SHUTDOWN_ACTIVE = False #Change to true if we actually want to shutdown on exit
 gpio = pigpio.pi()
 WHO_FILEPATH = '/home/pi/WHO'
 CCDR_IRQ = 16 #BCM 16, board 36
@@ -86,14 +87,14 @@ def run():
 			identity = f.read(1)
 	except OSError:
 		identity = '0'
-	logger.logSystem([["Identity determined as Pi: " + str(identity)]])
+	logger.logSystem([["Main: Identity determined as Pi: " + str(identity)]])
 	chip = initWTCConnection()
 	if chip:
 		#chip.byte_write(SC16IS750.REG_THR, ord(identity)) # Send the identity to the WTC
 		#TODO Implement identity on the WTC
 		try:
 			# Begin running the rest of the code for the Pi.
-			logger.logSystem([["Beginning the main loop for the WTC Handler..."]])
+			logger.logSystem([["Main: Starting..."]])
 			# Create a threading.Event to determine if an experiment is running or not.
 			# Or if we are doing something and should wait until it's done.
 			experimentRunningEvent = threading.Event()
@@ -103,20 +104,18 @@ def run():
 			runEvent.set()
 			experimentRunningEvent.clear()
 			shutdownEvent.clear()
-			# This is the main loop for the Pi.
-			logger.logSystem("Listining to Pin " + str(CCDR_IRQ) + " and waiting for the interrupt signal (negative edge triggered).")
 
 			interpreter = threading.Thread(target=qpi.run,args=(chip,experimentRunningEvent,runEvent,shutdownEvent))
 			todoParser = threading.Thread(target=todo.run,args=(chip,experimentRunningEvent,runEvent,shutdownEvent))
 
-			logger.logSystem([["Starting up the Interpreter and TodoParser."]])
+			logger.logSystem([["Main: Starting up the Interpreter and TodoParser."]])
 			interpreter.start() # Run the Interpreter
-			# TODO NOt needed for DIL
-			#todoParser.start() # Run the TodoParser
+			todoParser.start() # Run the TodoParser
 
 			while True:
 				try:
 					time.sleep(.4)
+
 					# If the scripts aren't running then we have two options
 					if not (interpreter.isAlive() or todoParser.isAlive()):
 						# If we want to shutdown, then break out of the loop and shutdown.
@@ -126,29 +125,29 @@ def run():
 							interpreter = threading.Thread(target=qpi.run,args=(chip,experimentRunningEvent,runEvent,shutdownEvent))
 							todoParser = threading.Thread(target=todo.run,args=(chip,experimentRunningEvent,runEvent,shutdownEvent))
 							interpreter.start()
-							# TODO Not needed for DIL
-							#todoParser.start()
+							todoParser.start()
 				except KeyboardInterrupt:
-					break
+					shutdownEvent.set()
 
-			logger.logSystem([["The Interpreter and TodoParser have exited, shutting down the python scripts."]])
+			logger.logSystem([["Main: The Interpreter and TodoParser have exited."]])
 		except BufferError as err:
 			#TODO Alert the WTC of the problem and/or log it and move on
 			#TODO figure out what we actually want to do.
-			logger.logError("Something went wrong when reading the buffer of the WTC.", err)
+			logger.logError("Main: Something went wrong when reading the buffer of the WTC.", err)
 
 		except ConnectionError as err:
 			#TODO Alert the WTC of the problem and/or log it and move on
 			#TODO figure out what we actually want to do.
-			logger.logError("There is a problem with the connection to the WTC", err)
+			logger.logError("Main: There is a problem with the connection to the WTC", err)
 
 		# If we've reached this point, just shutdown.
+		logger.logSystem([["Main: Cleaning up."]])
 		gpio.stop()
-		print('Shutting down...')
 		shutdownEvent.set()
 		interpreter.join()
-		#todoParser.join()
-		#os.system('sudo halt') # Shutdown.
+		todoParser.join()
+		logger.logSystem([['Main: Shutting down RaspberryPi...']])
+		if SHUTDOWN_ACTIVE: os.system('sudo halt') # Shutdown.
 
 if __name__ == '__main__':
 	run()

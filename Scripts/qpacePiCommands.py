@@ -290,7 +290,7 @@ class Command():
 		------
 		SystemExit - If the interpreter can even get to this point... Close the interpreter.
 		"""
-		logger.logSystem([['Shutting down...']])
+		logger.logSystem([['CMD: Shutting down...']])
 		sendBytesToCCDR(chip,b'SP') # SP = Shutdown Proceeding
 		Popen(["sudo", "halt"],shell=True) #os.system('sudo halt')
 		raise SystemExit # Close the interpreter and clean up the buffers before reboot happens.
@@ -309,7 +309,7 @@ class Command():
 		------
 		SystemExit - If the interpreter can even get to this point... Close the interpreter.
 		"""
-		logger.logSystem([['Rebooting...']])
+		logger.logSystem([['CMD: Rebooting...']])
 		sendBytesToCCDR(chip,b'SP') # SP = Shutdown Proceeding
 		Popen(["sudo", "reboot"],shell=True) #os.system('sudo reboot')
 		raise SystemExit # Close the interpreter and clean up the buffers before reboot happens.
@@ -331,7 +331,7 @@ class Command():
 		"""
 		#from qpaceInterpreter import INTERP_PACKETS_PATH
 
-		logger.logSystem([['Running the QUIP Encoder...'+args]])
+		logger.logSystem([['CMD: Running the QUIP Encoder...'+args]])
 		successfulEncode = quip.Encoder(args[0],INTERP_PACKETS_PATH,suppress=False).run()
 		if successfulEncode:
 			logger.logSystem([['The encoding was successful. Beginning the transfer sequences.']])
