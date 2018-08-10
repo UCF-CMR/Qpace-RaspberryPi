@@ -11,6 +11,10 @@ import qpaceLogger as logger
 GPIO.setwarnings(False)
 GPIO.setmode(GPIO.BOARD)
 
+GoProDirectory = '/home/pi/gopro/DCIM/100GOPRO'
+MountPoint = '/home/pi/gopro'
+SavePoint = '/home/pi/data/vid/'
+
 class PIN():
 	GOPPWR = 19
 	GOPBUT = 13
@@ -33,6 +37,13 @@ class PINGROUP():
 def put(pin,state):
 	# Set a pin to a specific state
 	GPIO.output(pin,state)
+
+def on(pin):
+	print("\nThis method is depreciated. Please use high() next time.\n")
+	high(pin)
+
+def off(pin):
+	print("\nThis method is depreciated. Please use low() next time.\n")
 
 def low(pin):
 	# Clear a pin
@@ -82,7 +93,7 @@ def reset(pingroup=None):
 
 def pinInit():
 	# This method is depreciated
-	print('\nNOTE: pinInit() is depreciated. Please use reset()\n')
+	print('\nNOTE: pinInit() is depreciated. Please use reset() next time.\n')
 	reset()
 
 def gopro_on():
@@ -94,7 +105,7 @@ def gopro_on():
 
 def init_gopro():
 	# This method is depreciated
-	print('\nNOTE: init_gopro() is depreciated. Please use gopro_on()\n')
+	print('\nNOTE: init_gopro() is depreciated. Please use gopro_on() next time.\n')
 	gopro_on()
 
 def press_capture():
@@ -107,10 +118,56 @@ def gopro_start():
 	logger.logSystem([["ExpCtrl: Beginning to record"]])
 	press_capture() # Begin Recording
 
+def transOn():
+	high(PIN.GOPDEN)
+
+def transOff():
+	off(PIN.GOPDEN)
+
+def goProTransfer():
+    time.sleep(1)
+    if True:
+        #TURN USB ENABLE
+        logger.logSystem([["ExpCtrl: Enabling the USB and mounting the drive..."]])
+        transOn()
+        time.sleep(5)
+        import os
+        try: # Mount the GoPro
+            os.system('sudo mount /dev/sda1 '+MountPoint)
+        except Exception as e:  # MOUNTING THE DRIVE FAILED
+            logger.logError("ExpCtrl: Could not mount the drive", e)
+        else:   # Mounting the drive was successful
+            try:
+                from shutil import move
+                import re
+                logger.logSystem([["ExpCtrl: Moving video over to the Pi"]])
+                files = os.listdir(GoProDirectory)
+                for name in files:
+                    if re.match('.+\.(MP4|JPG)',name):
+                        os.system('cp '+GoProDirectory + name + ' ' + SavePoint)
+            except Exception as e:  #Moving the file from the GOPRO failed
+                logger.logError("ExpCtrl: Could not move the video", e)
+            else: #Moving the file is successful
+                try: # Delete all other uneccessary files
+                    logger.logSystem([["ExpCtrl: Removing misc files from GoPro"]])
+                    for name in files:
+                        if re.match('.+\..+',name):
+                            os.system('sudo rm '+GoProDirectory+name)
+                except Exception as e: # Could not delete the files
+                    logger.logError("ExpCtrl: Could not delete misc. files on the GoPro", e)
+            logger.logSystem([["ExpCtrl: Unmounting the USB"]])
+            try: # Attempt to umount.
+                os.system('sudo umount /dev/sda1')
+            except Exception as e: # Failed to call the shell
+                logger.logError("ExpCtrl: Could not unmount the drive", e)
+        transOff()
+
 def gopro_stop_and_USB():
 	# Stop the recording and transfer the data.
 	# Will be depreciated.
-	print('\nNOTE: gopro_stop_and_USB() is depreciated. Please use TBD\n')
+	print('\nNOTE: gopro_stop_and_USB() is depreciated.')
+	print('Please use individual methods next time to accomplish this.')
+	print('See documentation.\n')
 
 	logger.logSystem([["ExpCtrl: Stopping recording..."]])
 	press_capture() #Stop Recording
