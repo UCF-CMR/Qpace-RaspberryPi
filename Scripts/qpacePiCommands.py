@@ -24,8 +24,6 @@ CMD_DEFAULT_TIMEOUT = 5 #seconds
 CMD_POLL_DELAY = .35 #seconds
 STATUSPATH = ''
 WHO_FILEPATH = ''
-#SOCKET_PORT = 8675 #Jenny, who can I turn to?
-#ETHERNET_BUFFER = 2048
 
 UNAUTHORIZED = b'OKAY'
 
@@ -237,6 +235,39 @@ class DownloadFileHandler(): #In place for the request and the procedure
 		self.useFEC = useFEC
 
 class Command():
+	def sendBytesToCCDR(chip,sendData):
+		"""
+		Send a string or bytes to the WTC. This method, by default, is dumb. It will pass whatever
+		is the input and passes it directly on to the CCDR.
+
+		Parameters
+		----------
+		chip - SC16IS750 - an SC16IS750 object which handles the WTC Connection
+		sendData - a string or bytes that we want to send to the WTC (Can be large block)
+
+		Raises
+		------
+		TypeError - thrown if sendData is not a string or bytes
+		"""
+		if isinstance(sendData,str):
+			sendData = sendData.encode('ascii')
+		elif isinstance(sendData,int):
+			sendData = bytes([sendData])
+		elif not isinstance(sendData,bytes) and not isinstance(sendData,bytearray):
+			logger.logSystem([['SendBytesToCCDR: Data will not be sent to the WTC: not string or bytes.']])
+			raise TypeError("Data to the WTC must be in the form of bytes or string")
+		try:
+			chip.block_write(SC16IS750.REG_THR, sendData)
+		except Exception as err:
+			#TODO do we actually handle the case where it just doesn't work?
+			print(err)
+			logger.logError('sendBytesToCCDR: An error has occured when attempting to send data to the WTC. Data to send:' + str(sendData),err)
+			pass
+		else:
+			return True
+		return False
+
+
 	def status(chip,cmd,args):
 		StatusPacket().respond()
 	def directoryListingSet(chip,cmd,args):
@@ -250,7 +281,31 @@ class Command():
 	def dlReq(chip,cmd,args):
 		pass
 	def dlFile(chip,cmd,args):
-		pass
+		import qpaceFileHandler as qfh
+		fec = args[:4]
+		ppa = int.from_bytes(args[4:8], byteorder='big')
+		msdelay = int.from_bytes(args[8:12], byteorder='big')
+		start = int.from_bytes(args[12:16], byteorder='big')
+		end = int.from_bytes(args[16:20], byteorder='big')
+		filename = args[20:].replace(b'\x1f',b'')
+		print('FEC:',fec)
+		print('PPA:',ppa)
+		print('DEL:',msdelay)
+		print('STR:',start)
+		print('END:',end)
+		print('FNM:',filename)
+		transmitter = qfh.Transmitter(	chip,
+										filename.decode('ascii'),
+										0x01,
+										fec == b' FEC',
+										ppa,
+										msdelay,
+										start,
+										end,
+										False
+									)
+		transmitter.run()
+
 	def upReq(chip,cmd,args):
 		pass
 	def upFile(chip,cmd,args):
@@ -313,75 +368,6 @@ class Command():
 		sendBytesToCCDR(chip,b'SP') # SP = Shutdown Proceeding
 		Popen(["sudo", "reboot"],shell=True) #os.system('sudo reboot')
 		raise SystemExit # Close the interpreter and clean up the buffers before reboot happens.
-
-	#TODO Might need to be changed.
-	def sendFile(chip,cmd,args):
-		"""
-		Encode a file with the QUIP protocol and then send the raw data to the WTC to send to ground.
-
-		Returns
-		-------
-		True if succesful
-		False if there was an exception.
-
-		Parameters
-		----------
-		chip - SC16IS750 - an SC16IS750 object which handles the WTC Connection
-		cmd,args - string, array of args (seperated by ' ') - the actual command, the args for the command
-		"""
-		#from qpaceInterpreter import INTERP_PACKETS_PATH
-
-		logger.logSystem([['CMD: Running the QUIP Encoder...'+args]])
-		successfulEncode = quip.Encoder(args[0],INTERP_PACKETS_PATH,suppress=False).run()
-		if successfulEncode:
-			logger.logSystem([['The encoding was successful. Beginning the transfer sequences.']])
-			try:
-				for filepath in os.listdir(INTERP_PACKETS_PATH):
-					try:
-						with open(INTERP_PACKETS_PATH+filepath,'rb') as f:
-							data = f.read()
-							if len(data) is 256: #256 bytes
-								#TODO Figure out a protocol if we can't just bulk send 256 bytes.
-								sendBytesToCCDR(chip,data)
-					except OSError as err:
-						logger.logError('Could not read packet for sending: ' + filepath, err)
-			except OSError:
-				logger.logError('Could not read directory for sending packets.')
-				if chip:
-					sendBytesToCCDR(chip,b'NO')
-				return False
-		else:
-			logger.logSystem([['There was a problem fully encoding the file.']])
-			if chip:
-				sendBytesToCCDR(chip,b'NO')
-			return False
-		return True # If successful.
-
-	#TODO Might need to be changed
-	def asynchronousSendPackets(chip,cmd,args):
-		"""
-		Aggregate and then pass along individual, specific packets to the WTC to send to ground.
-
-		Parameters
-		----------
-		chip - SC16IS750 - an SC16IS750 object which handles the WTC Connection
-		cmd,args - string, array of args (seperated by ' ') - the actual command, the args for the command
-		"""
-		from simInterpreter import INTERP_PACKETS_PATH
-		if args and isinstance(args[0],bytes):
-			args = [entry.decode('utf-8') for entry in args]
-		readIssue = False
-		for pak in args:
-			try:
-				with open(INTERP_PACKETS_PATH+pak+'.qp','rb') as f:
-					data = f.read()
-					if len(data) is 256:
-						#TODO Figure out a protocol if we can't just bulk send 256 bytes.
-						sendBytesToCCDR(chip,data)
-			except OSError as err:
-				readIssue = True
-		if readIssue:
-			logger.logError('Could not read some packets for sending.', err)
 
 	def pingPi(chip,cmd,args):
 		"""

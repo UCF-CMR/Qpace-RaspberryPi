@@ -10,7 +10,11 @@
 
 import qpaceLogger as logger
 from qpacePiCommands import CMDPacket
+import qpaceInterpreter as interp
+import tstSC16IS750 as SC16IS750
+#import SC16IS750
 from math import ceil
+import os
 
 class Corrupted(Exception):
 	def __init__(self, message):
@@ -25,11 +29,10 @@ class DataPacket():
 	|					  |						|					|
 	----------------------------------------------------------------------
 	"""
-	padding_byte = b' '
+	padding_byte = b'\x04'
 	header_size = 5		 # in bytes
 	max_size = 128		  # in bytes
 	xtea_header_size = 10	# in bytes
-	data_size = None		# in bytes. Initial state is None. Gets calculated later
 	max_id = 0xFFFFFFFF	 # 4 bytes. Stored as an int.
 	last_id = 0			# -1 if there are no packets yet.
 
@@ -70,15 +73,15 @@ class DataPacket():
 
 		headerSize = DataPacket.xtea_header_size if xtea else DataPacket.header_size
 		if useFEC:
-			DataPacket.data_size = (DataPacket.max_size - headerSize) // 3
+			self.data_size = (DataPacket.max_size - headerSize) // 3
 		else:
-			DataPacket.data_size = DataPacket.max_size - headerSize
+			self.data_size = DataPacket.max_size - headerSize
 		# Is the data size set yet or is it valid?
-		if DataPacket.data_size is None:
+		if self.data_size is None:
 			raise ValueError('data_size is not set.')
 
 		data_in_bytes = len(data)
-		if data_in_bytes <= DataPacket.data_size: # Make sure the data is below the max bytes
+		if data_in_bytes <= self.data_size: # Make sure the data is below the max bytes
 			if (DataPacket.last_id + 1) == pid:
 				if pid < 0 or pid > DataPacket.max_id:
 					raise ValueError("Packet pid is invalid.")
@@ -93,10 +96,9 @@ class DataPacket():
 			self.bytes = data_in_bytes
 			self.useFEC = useFEC
 			self.rid = rid
-			self.lastPacket = lastPacket
 			self.xtea = xtea
 		else:
-			raise ValueError("Packet size is too large for the current header information ("+str(len(data))+"). Data input restricted to " + str(DataPacket.data_size) + " Bytes.")
+			raise ValueError("Packet size is too large for the current header information ("+str(len(data))+"). Data input restricted to " + str(self.data_size) + " Bytes.")
 
 
 	def build(self):
@@ -133,7 +135,7 @@ class DataPacket():
 		return parity
 
 	def send(self,chip):
-		chip.block_write(chip.REG_THR, self.build())
+		chip.block_write(SC16IS750.REG_THR, self.build())
 
 class XTEAPacket():
 	pass
@@ -149,91 +151,110 @@ class ChunkPacket():
 		if not self.complete:
 			self.chunks.append(data)
 			#Acknowledge WTC with chunk number
-			sendBytesToCCDR(self.chip,0x60 + len(self.chunks)) # Defined by WTC state machine
+			self.chip.byte_write(SC16IS750.REG_THR,bytes([0x60 + len(self.chunks)])) # Defined by WTC state machine
 			print('Chunk:' ,len(self.chunks))
 			if len(self.chunks) == 4: # We are doing 4 chunks!
 				self.complete = True
 		else:
-			print('Chunk is complete')
+			print('Chunk is complete...')
 			self.complete = True
 
 	def build(self):
 		print('Building a packet!')
 		packet = b''
 		for chunk in self.chunks:
+			#print('<',len(chunk),'>',chunk)
 			packet += chunk
-		if len(packet) != 128: print("Packet is not 128 bytes!") #TODO what should we actually do here.
+		if len(packet) != 128: print("Packet is not 128 bytes! It  is ",len(packet),'bytes!\n',packet) #TODO what should we actually do here.
 		self.chunks[:] = []
 		self.complete = False
 		return packet
 
-class TransmitCompletePacket(DataPacket):
-	def __init__(self, pathname, checksum, pid,rid,useFEC = False):
-		data = b'\x04\x04' + checksum + b'\x00' + pathname
-		data += (116 - len(data)) * b'\x04' if len(data) < 116 else b''
-		data = data[:116] # only get the first 116 chars. Defined by the packet document
-		data += CMDPacket.generateChecksum(data)
-		super(DataPacket,self).__init__(data,pid,rid,useFEC)
-
 class DownloadRequest():
 	pass
 
+class TransmitCompletePacket(DataPacket):
+	def __init__(self, pathname, checksum, pid,rid,useFEC = False):
+		data = b'\x04\x04' + checksum + b' ' + pathname.encode('ascii')[pathname.rfind('/')+1:]
+		# if useFEC:
+		# 	data += (36 - len(data)) * b'\x04' if len(data) < 36 else b''
+		# 	data = data[:36] # only get the first 116 chars. Defined by the packet document
+		# else:
+		# 	data += (116 - len(data)) * b'\x04' if len(data) < 116 else b''
+		# 	data = data[:116] # only get the first 116 chars. Defined by the packet document
+
+		data += CMDPacket.generateChecksum(data)
+		super().__init__(data,pid,rid,useFEC)
 class Transmitter():
-	def __init__(self, chip, pathname, route, useFEC=False, packetsPerAck = 1, delayPerTransmit = 135, firstPacket = 1, lastPacket = None, xtea = False):
+
+	def __init__(self, chip, pathname, route, useFEC=False, packetsPerAck = 1, delayPerTransmit = 135, firstPacket = -1, lastPacket = -1, xtea = False):
 		self.chip = chip
 		self.pathname = pathname
 		self.useFEC = useFEC
 		self.packetsPerAck = packetsPerAck
-		self.delayPerTransmit = delayperTransmit
-		self.firstPacket = firstPacket if firstPacket > 1 else 1
-		self.lastPacket = lastPacket if lastPacket > lastPacket else None
+		self.delayPerTransmit = delayPerTransmit
+		self.firstPacket = firstPacket if firstPacket > 0 else 0
+		self.lastPacket = lastPacket if lastPacket > firstPacket else None
 		self.route = route
-		self.checksum = b' ' #TODO figure out the checksum stuff
+		self.filesize = os.path.getsize(pathname)
+		self.checksum = b'CHECKSUM' #TODO figure out the checksum stuff
 
 		headerSize = DataPacket.xtea_header_size if xtea else DataPacket.header_size
 		if useFEC:
 			self.data_size = (DataPacket.max_size - headerSize) // 3
 		else:
 			self.data_size = DataPacket.max_size - headerSize
-		self.expected_packets = ceil(self.filesize / DataPacket.data_size)
+		self.expected_packets = ceil(self.filesize / self.data_size)
 
 	def run(self):
-		packetData = getPacketData()
+		from time import sleep
+
+		packetData = self.getPacketData()
 		# Get the length of all the packets if NONE was supplied as the last packet.
 		if self.lastPacket == None:
 			self.lastPacket = len(packetData)
 		totalAcks = ceil((self.lastPacket - self.firstPacket + 1)/self.packetsPerAck)
-		for ackCount in range(totalAcks):
-			sessionPackets = []
-			for i in range(packetsPerAck):
-				pid = (ackCount * self.packetsPerAck + i) + self.firstPacket
-				packet = DataPacket(packetData[pid], pid, self.route ,useFEC = self.useFEC)
-				packet.send()
-			#TODO work out handshake with packets
-			#TODO this is where the handshake will go.
-			#TODO we will WAIT here for the acknowledgement. Once we get it, continue on.
+		try:
+			for ackCount in range(totalAcks):
+				sessionPackets = []
+				for i in range(self.packetsPerAck):
+					try:
+						pid = (ackCount * self.packetsPerAck + i) + self.firstPacket
+						packet = DataPacket(packetData[pid], pid, self.route ,useFEC = self.useFEC)
+						packet.send(self.chip)
+					except IndexError:
+						# IndexError when we don't have enough packets for the current set of acknoledgements
+						# This is fine though, raise a StopIteration up one level to exit
+						raise StopIteration("All done!")
+				sleep(self.delayPerTransmit/1000)
+				print('HANDSHAKE')
+				#TODO work out handshake with packets
+				#TODO this is where the handshake will go.
+				#TODO we will WAIT here for the acknowledgement. Once we get it, continue on.
+		except StopIteration:
+			pass #StopIteration to stop iterating :) we are done here.
 
 		#When it's done it needs to send a DONE packet
 		allDone = TransmitCompletePacket(self.pathname,self.checksum,self.expected_packets,self.route,useFEC=self.useFEC)
 		allDone.send(self.chip)
 
-	def getPacketData():
+	def getPacketData(self):
 		packetData = []
-		with open(pathname,'rb') as f:
+		with open(self.pathname,'rb') as f:
 			while(True):
-				data = f.read(DataPacket.max_size - self.data_size)
+				data = f.read(self.data_size)
 				if data:
 					packetData.append(data)
 				else:
 					break
 		return packetData
 
+class ReceivedPacket():
+	def __init__(self, rid, pid, data):
+		self.rid = rid
+		self.pid = pid
+		self.data = data
 class Receiver():
-	class ReceivedPacket():
-		def __init__(self, rid, pid, data):
-			self.rid = rid
-			self.pid = pid
-			self.data = data
 
 	def __init__(self, chip, pathname, prepend='',route=None, useFEC=False, packetsPerAck = 1, delayPerTransmit = 135, firstPacket = 1, lastPacket = None, xtea = False):
 		self.chip = chip
@@ -245,6 +266,7 @@ class Receiver():
 		self.firstPacket = firstPacket if firstPacket > 1 else 1
 		self.lastPacket = lastPacket if lastPacket > firstPacket else None
 		self.route = route
+		self.filesize = os.path.getsize(pathname)
 		self.checksum = b' ' #TODO figure out the checksum stuff
 
 		headerSize = DataPacket.xtea_header_size if xtea else DataPacket.header_size
@@ -252,7 +274,7 @@ class Receiver():
 			self.data_size = (DataPacket.max_size - headerSize) // 3
 		else:
 			self.data_size = Packet.max_size - headerSize
-		self.expected_packets = ceil(self.filesize / DataPacket.data_size)
+		self.expected_packets = ceil(self.filesize / self.data_size)
 
 	def run(self):
 

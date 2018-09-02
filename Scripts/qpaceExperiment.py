@@ -39,11 +39,11 @@ def put(pin,state):
 	GPIO.output(pin,state)
 
 def on(pin):
-	print("\nThis method is depreciated. Please use high() next time.\n")
+	print("\nThe on() method is depreciated. Please use high() next time.\n")
 	high(pin)
 
 def off(pin):
-	print("\nThis method is depreciated. Please use low() next time.\n")
+	print("\nThe off() method is depreciated. Please use low() next time.\n")
 
 def low(pin):
 	# Clear a pin
@@ -122,7 +122,7 @@ def transOn():
 	high(PIN.GOPDEN)
 
 def transOff():
-	off(PIN.GOPDEN)
+	low(PIN.GOPDEN)
 
 def goProTransfer():
     time.sleep(1)

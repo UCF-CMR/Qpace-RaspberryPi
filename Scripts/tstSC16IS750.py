@@ -1,5 +1,6 @@
 #This file is a driver for testing purposes if a WTC or SC16IS750 chip is unavailable.
-
+use_sockets = False
+use_files = True
 #Internal driver that is made to facilitate the WTC tests.
 import socket
 import time
@@ -204,7 +205,8 @@ I2C_WRITE   = 0x07 # Write P bytes of data
 
 register_file = {
     REG_LSR:1,
-    REG_RHR:b'AAAAAAA\x00\x00\x00\x00\x00TESTING'
+    REG_RHR:b'',
+    REG_THR:b''
 }
 
 class SC16IS750:
@@ -217,7 +219,84 @@ class SC16IS750:
         self.stop = stop
         self.parity = parity
         self.delay = 0
-        register_file[REG_RXLVL] = len(register_file[REG_RHR])
+        self.packetBuffer = []
+        #register_file[REG_RXLVL] = len(register_file[REG_RHR])
+
+        if use_files or use_sockets:
+            self.bufferHandler = None
+            self.readHandler = None
+        if use_files:
+            import threading
+            import os
+            self.shutdownEvent = threading.Event()
+            self.shutdownEvent.clear()
+            def readHandler():
+
+                print('ReadHandler running.')
+                fileDescriptor = open('inputSC16IS750.txt','wb+')
+                while not self.shutdownEvent.is_set():
+                    time.sleep(.15)
+                    length = os.path.getsize('inputSC16IS750.txt')
+                    if length > 1:
+                        buf = fileDescriptor.read()#[:-1]
+                        fileDescriptor.seek(0)
+                        fileDescriptor.truncate()
+                        if buf != b'':
+                            print('READ:', buf)
+                            #register_file[REG_RHR] += buf
+                            self.packetBuffer.append(buf)
+                fileDescriptor.close()
+                print('readHandler shutting down...')
+
+            def bufferHandler():
+
+                print('BufferHandler running')
+                attempts = 0
+                while not self.shutdownEvent.is_set():
+                    time.sleep(.15)
+                    if isinstance(register_file[REG_THR],int):
+                        register_file[REG_THR] = bytes([register_file[REG_THR]])
+                    length = len(register_file[REG_THR])
+                    if length > 0:
+                        fileDescriptor = open('outputSC16IS750.txt','ab')
+                        fileDescriptor.write(register_file[REG_THR][:length]+b'\x0a')
+                        register_file[REG_THR] = register_file[REG_THR][length:]
+                        fileDescriptor.close()
+                print('BufferHandler shutting down...')
+            self.bufferHandler = threading.Thread(target=bufferHandler,args=())
+            self.bufferHandler.start()
+            self.readHandler = threading.Thread(target=readHandler,args=())
+            self.readHandler.start()
+
+
+        elif use_sockets:
+            self.s = socket.socket()         # Create a socket object
+            host = socket.gethostname() # Get local machine name
+            port = 12345             # Reserve a port for your service.
+            self.s.bind((host, port))        # Bind to the port
+
+            print('Waiting for connections on port', port)
+            self.s.listen(5)                 # Now wait for client connection.
+            self.c, addr = self.s.accept()     # Establish connection with client.
+            print('Connected: ',addr)
+            self.c.settimeout(.5)
+
+            self.shutdownEvent = threading.Event()
+            self.shutdownEvent.clear()
+            def bufferHandler(shutdownEvent):
+                print('BufferHandler running.')
+                attempts = 0
+                while not self.shutdownEvent.is_set():
+                    length = len(register_file[REG_THR])
+                    if length > 0:
+                        buf = b''
+                        for i in range(length):
+                            buf += register_file[REG_THR][i]
+                        register_file[REG_THR] = register_file[REG_THR][length:]
+                        self.c.send(buf)
+                print('BufferHandler shutting down...')
+            self.bufferHandler = threading.Thread(target=bufferHandler,args=(shutdownEvent))
+            self.bufferHandler.start()
 
     def byte_write_verify(self,reg,byte):
         self.byte_write(reg,byte)
@@ -225,10 +304,20 @@ class SC16IS750:
         return (value == byte,value)
 
     def byte_write(self,reg,data):
-        register_file[reg] = data
+        if reg in register_file:
+            register_file[reg] += data
+        else:
+            register_file[reg] = data
         if reg == 0:
-            print("DATA: ", data)
+            print("Writing: ", data)
 
+    def block_write(self,reg,data):
+        if reg in register_file:
+            register_file[reg] += data
+        else:
+            register_file[reg] = data
+        if reg == 0:
+            print('Writing: ', data)
 
     def byte_read(self, reg):
         register_file[REG_RXLVL] = len(register_file[REG_RHR])
@@ -290,4 +379,13 @@ class SC16IS750:
         return (dlhb and dllb, (dlhv<<8)|dllv)
 
     def close(self, *args, **kwargs):
-        print('CHIP HAS BEEN CLOSED')
+        if use_files:
+            self.shutdownEvent.set()
+            self.bufferHandler.join()
+            self.readHandler.join()
+        elif use_sockets:
+            self.socket.close                   # Close the socket when done
+            self.shutdownEvent.set()
+            self.bufferHandler.join()
+            print('Sockets properly handled.')
+        print('---CHIP HAS BEEN CLOSED---')

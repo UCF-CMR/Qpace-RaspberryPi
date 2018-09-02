@@ -8,18 +8,20 @@
 #TODO: Re-do comments/documentation
 
 import qpaceLogger as logger
+
 import qpaceExperiment as exp
 import qpaceInterpreter as qpi
 import qpaceTODOParser as todo
 import os
 import threading
-#import tstSC16IS750 as SC16IS750
-import SC16IS750
+import tstSC16IS750 as SC16IS750
+#import SC16IS750
 import pigpio
 import time
-
+#TODO: Remove from final version.
+shutdownPrompt = input("Do you want to shutdown? Y/n:")
 time.sleep(2)
-SHUTDOWN_ACTIVE = False #Change to true if we actually want to shutdown on exit
+SHUTDOWN_ACTIVE = (shutdownPrompt == 'Y') #Change to true if we actually want to shutdown on exit
 gpio = pigpio.pi()
 WHO_FILEPATH = '/home/pi/WHO'
 CCDR_IRQ = 16 #BCM 16, board 36
@@ -51,6 +53,7 @@ def initWTCConnection():
 
 	# init the chip
 	chip = SC16IS750.SC16IS750(gpio,I2C_BUS,I2C_ADDR_WTC, XTAL_FREQ, I2C_BAUD_WTC, DATA_BITS, STOP_BITS, PARITY_BITS)
+	chip.packetBuffer = []
 
 	# Reset TX and RX FIFOs
 	fcr = SC16IS750.FCR_TX_FIFO_RESET | SC16IS750.FCR_RX_FIFO_RESET
@@ -79,15 +82,16 @@ def run():
 	import sys
 	import datetime
 	import time
-	exp.pinInit()
-	# gpio.set_mode(CCDR_IRQ, pigpio.INPUT)
-	try:
-		# Read in only the first character from the WHO file to get the current identity.
-		with open(WHO_FILEPATH,'r') as f:
-			identity = f.read(1)
-	except OSError:
-		identity = '0'
-	logger.logSystem([["Main: Identity determined as Pi: " + str(identity)]])
+	logger.logSystem([["Main: Initializing GPIO pins to default states"]])
+	exp.reset()
+	# No need for determining identity. There's only one pi now.
+	# try:
+	# 	# Read in only the first character from the WHO file to get the current identity.
+	# 	with open(WHO_FILEPATH,'r') as f:
+	# 		identity = f.read(1)
+	# except OSError:
+	# 	identity = '0'
+	# logger.logSystem([["Main: Identity determined as Pi: " + str(identity)]])
 	chip = initWTCConnection()
 	if chip:
 		#chip.byte_write(SC16IS750.REG_THR, ord(identity)) # Send the identity to the WTC
@@ -100,10 +104,12 @@ def run():
 			experimentRunningEvent = threading.Event()
 			runEvent = threading.Event()
 			shutdownEvent = threading.Event()
+			rebootEvent = threading.Event()
 			# Ensure these are in the state we want them in.
 			runEvent.set()
 			experimentRunningEvent.clear()
 			shutdownEvent.clear()
+			rebootEvent.clear()
 
 			interpreter = threading.Thread(target=qpi.run,args=(chip,experimentRunningEvent,runEvent,shutdownEvent))
 			todoParser = threading.Thread(target=todo.run,args=(chip,experimentRunningEvent,runEvent,shutdownEvent))
@@ -122,6 +128,7 @@ def run():
 						if shutdownEvent.is_set():
 							break
 						else: # Otherwise, something must have happened....restart the Interpreter and TodoParser
+							logger.logSystem([['Main: TodoParser and Interpreter are shutdown when they should not be. Restarting...']])
 							interpreter = threading.Thread(target=qpi.run,args=(chip,experimentRunningEvent,runEvent,shutdownEvent))
 							todoParser = threading.Thread(target=todo.run,args=(chip,experimentRunningEvent,runEvent,shutdownEvent))
 							interpreter.start()
@@ -141,13 +148,18 @@ def run():
 			logger.logError("Main: There is a problem with the connection to the WTC", err)
 
 		# If we've reached this point, just shutdown.
-		logger.logSystem([["Main: Cleaning up."]])
+		logger.logSystem([["Main: Cleaning up and closing out..."]])
 		gpio.stop()
 		shutdownEvent.set()
 		interpreter.join()
 		todoParser.join()
-		logger.logSystem([['Main: Shutting down RaspberryPi...']])
-		if SHUTDOWN_ACTIVE: os.system('sudo halt') # Shutdown.
+		if SHUTDOWN_ACTIVE:
+			if rebootEvent.is_set():
+				logger.logSystem([['Main: Rebooting RaspberryPi...']])
+				os.system('sudo reboot') # reboot
+			else:
+				logger.logSystem([['Main: Shutting down RaspberryPi...']])
+				os.system('sudo halt') # Shutdown.
 
 if __name__ == '__main__':
 	run()
