@@ -16,6 +16,7 @@ MountPoint = '/home/pi/gopro'
 SavePoint = '/home/pi/data/vid/'
 
 class PIN():
+	# Pin handler class. Each class variable is an alias for the pin assignment.
 	GOPPWR = 19
 	GOPBUT = 13
 	GOPCAP = 15
@@ -29,6 +30,7 @@ class PIN():
 	SOL3   = 37
 
 class PINGROUP():
+	# Tuples that represent functional groups of the pins.
 	gopro = (PIN.GOPPWR,PIN.GOPBUT,PIN.GOPCAP,PIN.GOPDEN)
 	solenoid = (PIN.SOL1,PIN.SOL2,PIN.SOL3)
 	stepper = (PIN.STPEN,PIN.STPENA,PIN.STPENB)
@@ -39,10 +41,12 @@ def put(pin,state):
 	GPIO.output(pin,state)
 
 def on(pin):
+	# Set a pin to high. Depreciated.
 	print("\nThe on() method is depreciated. Please use high() next time.\n")
 	high(pin)
 
 def off(pin):
+	# Set a pin to low. Depreciated.
 	print("\nThe off() method is depreciated. Please use low() next time.\n")
 
 def low(pin):
@@ -64,7 +68,8 @@ def flip(pin,delay=.1):
 	put(pin,GPIO.input(pin)^1) # Put it back
 
 def reset(pingroup=None):
-	# Initialize the pins.
+	# Initialize the pins to their default states.
+	# If a pingroup is supplied, then only reset that pin group.
 
 	if pingroup is None: # If None, reset all pins
 		reset(PINGROUP.gopro)
@@ -119,12 +124,15 @@ def gopro_start():
 	press_capture() # Begin Recording
 
 def transOn():
+	# Turn on the data enable circuit for the gopro
 	high(PIN.GOPDEN)
 
 def transOff():
+	# Turn off the data enable circuit for the gopro
 	low(PIN.GOPDEN)
 
 def goProTransfer():
+	# Transfer data from the gopro to the pi. 
     time.sleep(1)
     if True:
         #TURN USB ENABLE

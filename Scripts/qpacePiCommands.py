@@ -23,7 +23,6 @@ import surfsatStates as ss
 CMD_DEFAULT_TIMEOUT = 5 #seconds
 CMD_POLL_DELAY = .35 #seconds
 STATUSPATH = ''
-WHO_FILEPATH = ''
 
 UNAUTHORIZED = b'OKAY'
 
@@ -424,13 +423,6 @@ class Command():
 			disk_free = statvfs.f_frsize * statvfs.f_bfree      # Actual number of free bytes
 		except Exception as err:
 			logger.logError("There was a problem accessing the Disk stats", err)
-		try:
-			# Read in only the first character from the WHO file to get the current identity.
-			with open(WHO_FILEPATH,'r') as f:
-				identity = f.read(1)
-			chip = initWTCConnection()
-		except Exception as err:
-			logger.logError("There was a problem determining the Pi's identity", err)
 
 		text_to_write = "Identity: Pi {}\n"     +\
 						"Last Command Executed was \"{}\" at {} invoked by \"{}\"\n" +\

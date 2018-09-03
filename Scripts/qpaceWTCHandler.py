@@ -18,12 +18,8 @@ import tstSC16IS750 as SC16IS750
 #import SC16IS750
 import pigpio
 import time
-#TODO: Remove from final version.
-shutdownPrompt = input("Do you want to shutdown? Y/n:")
-time.sleep(2)
-SHUTDOWN_ACTIVE = (shutdownPrompt == 'Y') #Change to true if we actually want to shutdown on exit
+
 gpio = pigpio.pi()
-WHO_FILEPATH = '/home/pi/WHO'
 CCDR_IRQ = 16 #BCM 16, board 36
 def initWTCConnection():
 	"""
@@ -84,14 +80,7 @@ def run():
 	import time
 	logger.logSystem([["Main: Initializing GPIO pins to default states"]])
 	exp.reset()
-	# No need for determining identity. There's only one pi now.
-	# try:
-	# 	# Read in only the first character from the WHO file to get the current identity.
-	# 	with open(WHO_FILEPATH,'r') as f:
-	# 		identity = f.read(1)
-	# except OSError:
-	# 	identity = '0'
-	# logger.logSystem([["Main: Identity determined as Pi: " + str(identity)]])
+
 	chip = initWTCConnection()
 	if chip:
 		#chip.byte_write(SC16IS750.REG_THR, ord(identity)) # Send the identity to the WTC
@@ -111,7 +100,7 @@ def run():
 			shutdownEvent.clear()
 			rebootEvent.clear()
 
-			interpreter = threading.Thread(target=qpi.run,args=(chip,experimentRunningEvent,runEvent,shutdownEvent))
+			interpreter = threading.Thread(target=qpi.run,args=(chip,experimentRunningEvent,runEvent,shutdownEvent,rebootEvent))
 			todoParser = threading.Thread(target=todo.run,args=(chip,experimentRunningEvent,runEvent,shutdownEvent))
 
 			logger.logSystem([["Main: Starting up the Interpreter and TodoParser."]])
@@ -129,7 +118,7 @@ def run():
 							break
 						else: # Otherwise, something must have happened....restart the Interpreter and TodoParser
 							logger.logSystem([['Main: TodoParser and Interpreter are shutdown when they should not be. Restarting...']])
-							interpreter = threading.Thread(target=qpi.run,args=(chip,experimentRunningEvent,runEvent,shutdownEvent))
+							interpreter = threading.Thread(target=qpi.run,args=(chip,experimentRunningEvent,runEvent,shutdownEvent,rebootEvent))
 							todoParser = threading.Thread(target=todo.run,args=(chip,experimentRunningEvent,runEvent,shutdownEvent))
 							interpreter.start()
 							todoParser.start()
@@ -153,7 +142,11 @@ def run():
 		shutdownEvent.set()
 		interpreter.join()
 		todoParser.join()
-		if SHUTDOWN_ACTIVE:
+
+		#TODO: Remove for final version.
+		shutdownPrompt = input("Do you want to shutdown? Y/n:")
+		#if True:
+		if (shutdownPrompt == 'Y'):
 			if rebootEvent.is_set():
 				logger.logSystem([['Main: Rebooting RaspberryPi...']])
 				os.system('sudo reboot') # reboot
@@ -162,4 +155,5 @@ def run():
 				os.system('sudo halt') # Shutdown.
 
 if __name__ == '__main__':
+	time.sleep(.5)
 	run()

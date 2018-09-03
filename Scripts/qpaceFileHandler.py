@@ -16,10 +16,6 @@ import tstSC16IS750 as SC16IS750
 from math import ceil
 import os
 
-class Corrupted(Exception):
-	def __init__(self, message):
-		super(Exception, self).__init__(message)
-
 class DataPacket():
 	"""
 	Packet structure for QPACE:

@@ -23,7 +23,6 @@ import qpaceFileHandler as fh
 
 upNext = 'IDLE'
 qpStates = states.QPCOMMAND
-qpErrors = states.QPERRORS
 # Routing ID defined in packet structure document
 class ROUTES():
 	PI1ROUTE= 0x01
@@ -185,7 +184,7 @@ def run(chip,experimentEvent, runEvent, shutdownEvent,rebootEvent):
 				os.system("sudo date -s '@" + str(byte) +"'")
 				chip.block_write(SC16IS750.REG_THR,packetData)
 				configureTimestamp = False
-			if byte in qpStates.values() or byte in qpErrors.values():
+			if byte in qpStates.values():
 				# The byte was found in the list of SSCOMMANDs
 				if byte == qpStates['SHUTDOWN']:
 					logger.logSystem([['PseudoSM: Shutdown was set!']])
@@ -208,10 +207,10 @@ def run(chip,experimentEvent, runEvent, shutdownEvent,rebootEvent):
 				elif byte == qpStates['WHATISNEXT']:
 					print('WHATISNEXT? Sending back:',upNext)
 					wtc_respond(upNext)	# Respond with what the Pi would like the WTC to know.
-				elif byte == qpErrors['ERRNONE']:
+				elif byte == qpStates['ERRNONE']:
 					print('ERRNONE recv')
 					pass
-				elif byte == qpErrors['ERRMISMATCH']:
+				elif byte == qpStates['ERRMISMATCH']:
 					print('ERRMISMATCH recv')
 					pass
 				else:
