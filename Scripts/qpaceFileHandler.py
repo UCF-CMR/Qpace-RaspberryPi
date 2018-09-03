@@ -13,6 +13,7 @@ from qpacePiCommands import CMDPacket
 import qpaceInterpreter as interp
 import tstSC16IS750 as SC16IS750
 #import SC16IS750
+from datetime import datetime,timedelta
 from math import ceil
 import os
 
@@ -137,33 +138,45 @@ class XTEAPacket():
 	pass
 
 class ChunkPacket():
+
+	TIMEDELAYDELTA = 5 # in seconds
 	chunks = []
 	complete = False
+	lastInputTime = None
 
 	def __init__(self, chip):
 		self.chip = chip
 
 	def push(self,data):
-		if not self.complete:
-			self.chunks.append(data)
+		if not ChunkPacket.complete:
+			if ChunkPacket.lastInputTime is not None and (datetime.now() - ChunkPacket.lastInputTime) > timedelta(seconds = ChunkPacket.TIMEDELAYDELTA):
+				ChunkPacket.chunks[:] = [] # reset the chunks.
+				ChunkPacket.lastInputTime = None # reset the timer.
+			else:
+				# Set when this chunk was received for testing later.
+				ChunkPacket.lastInputTime = datetime.now()
+			ChunkPacket.chunks.append(data)
 			#Acknowledge WTC with chunk number
-			self.chip.byte_write(SC16IS750.REG_THR,bytes([0x60 + len(self.chunks)])) # Defined by WTC state machine
-			print('Chunk:' ,len(self.chunks))
-			if len(self.chunks) == 4: # We are doing 4 chunks!
-				self.complete = True
+			self.chip.byte_write(SC16IS750.REG_THR,bytes([0x60 + len(ChunkPacket.chunks)])) # Defined by WTC state machine
+			print('Chunk:' ,len(ChunkPacket.chunks))
+			if len(ChunkPacket.chunks) == 4: # We are doing 4 chunks!
+				ChunkPacket.complete = True
+
 		else:
-			print('Chunk is complete...')
-			self.complete = True
+			logger.logSytem([["ChunkPacket: Attempted to push when complete..."]])
+			ChunkPacket.complete = True
+
 
 	def build(self):
 		print('Building a packet!')
 		packet = b''
-		for chunk in self.chunks:
+		for chunk in ChunkPacket.chunks:
 			#print('<',len(chunk),'>',chunk)
 			packet += chunk
 		if len(packet) != 128: print("Packet is not 128 bytes! It  is ",len(packet),'bytes!\n',packet) #TODO what should we actually do here.
-		self.chunks[:] = []
-		self.complete = False
+		ChunkPacket.chunks[:] = [] #reset chunks to empty
+		ChunkPacket.complete = False #reset copmlete to False
+		ChunkPacket.lastInputTime = None # reset the timer.
 		return packet
 
 class DownloadRequest():

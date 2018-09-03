@@ -16,6 +16,7 @@ import pigpio
 import datetime
 from qpaceWTCHandler import initWTCConnection
 from  qpacePiCommands import *
+import tstSC16IS750 as SC16IS750
 import SC16IS750
 import qpaceLogger as logger
 import qpaceStates as states
@@ -172,7 +173,7 @@ def run(chip,experimentEvent, runEvent, shutdownEvent,rebootEvent):
 		#packetData = testData + CMDPacket.generateChecksum(testData)
 
 	def wtc_respond(response):
-		chip.byte_write(SC16IS750.REG_THR,ss.SSCOMMAND[response])
+		chip.byte_write(SC16IS750.REG_THR,bytes([ss.SSCOMMAND[response]]))
 
 	def surfSatPseudoStateMachine(packetData,configureTimestamp):
 		# Start looking at a pseduo state machine so WTC code doesn't need to change
@@ -214,7 +215,7 @@ def run(chip,experimentEvent, runEvent, shutdownEvent,rebootEvent):
 					print('ERRMISMATCH recv')
 					pass
 				else:
-					logger.logSystem([['PseudoSM: Could not determine what to do. State existed but a method is not written for it.']])
+					logger.logSystem([['PseudoSM: State existed for '+ str(byte) +' but a method is not written for it.']])
 		else:
 			print('Input is not a valid WTC state.')
 			return packetData, configureTimestamp

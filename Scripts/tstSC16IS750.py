@@ -238,7 +238,7 @@ class SC16IS750:
                     time.sleep(.15)
                     length = os.path.getsize('inputSC16IS750.txt')
                     if length > 1:
-                        buf = fileDescriptor.read()#[:-1]
+                        buf = fileDescriptor.read()[:-1]#Remove the "\n" at the end
                         fileDescriptor.seek(0)
                         fileDescriptor.truncate()
                         if buf != b'':

@@ -143,10 +143,8 @@ def run():
 		interpreter.join()
 		todoParser.join()
 
-		#TODO: Remove for final version.
-		shutdownPrompt = input("Do you want to shutdown? Y/n:")
-		#if True:
-		if (shutdownPrompt == 'Y'):
+
+		if False: #TODO: Change to True for release
 			if rebootEvent.is_set():
 				logger.logSystem([['Main: Rebooting RaspberryPi...']])
 				os.system('sudo reboot') # reboot

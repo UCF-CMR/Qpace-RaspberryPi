@@ -21,7 +21,7 @@ QPCOMMAND = {
 	# "DUMPDATA":       0x48, # WTC Send me the data
 	# "VALIDATE":       0x47, # WTC Validate my data
 	# "DUMPDONE":       0x4B, # PI  Data dump completed
-	# "SHUTDOWN":       0x46, # WTC Shutdown now!
+	"SHUTDOWN":       0x46, # WTC Shutdown now!
 
 	#Specific QPACE States. Some of these may be the same as above states.
 	"IDLE":			  0x48, # WTC may send the Pi packets. The pi has no intentions. Could be running an experiment.
