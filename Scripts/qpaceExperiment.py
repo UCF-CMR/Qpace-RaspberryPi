@@ -81,9 +81,9 @@ def reset(pingroup=None):
 		GPIO.setup(PIN.LEDPWR, GPIO.OUT, initial=0)				#Controls the LEDs
 	elif pingroup == PINGROUP.solenoid:
 		#Solenoid setup
-		GPIO.setup(PIN.SOL1, GPIO.OUT, initial=1)				#Solenoid 1
-		GPIO.setup(PIN.SOL2, GPIO.OUT, initial=1)				#Solenoid 2
-		GPIO.setup(PIN.SOL3, GPIO.OUT, initial=1)				#Solenoid 3
+		GPIO.setup(PIN.SOL1, GPIO.OUT, initial=0)				#Solenoid 1
+		GPIO.setup(PIN.SOL2, GPIO.OUT, initial=0)				#Solenoid 2
+		GPIO.setup(PIN.SOL3, GPIO.OUT, initial=0)				#Solenoid 3
 	elif pingroup == PINGROUP.stepper:
 		#Stepper pin setup
 		GPIO.setup(PIN.STPEN, GPIO.OUT, initial=1)				#Step Enable
@@ -132,7 +132,7 @@ def transOff():
 	low(PIN.GOPDEN)
 
 def goProTransfer():
-	# Transfer data from the gopro to the pi. 
+	# Transfer data from the gopro to the pi.
     time.sleep(1)
     if True:
         #TURN USB ENABLE
