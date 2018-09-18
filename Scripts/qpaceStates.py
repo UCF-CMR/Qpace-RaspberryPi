@@ -8,6 +8,16 @@
 # been changed slightly.
 
 QPCOMMAND = {
+	"True":			  0x00,
+	"False":		  0x02,
+	"NOOP":			  0x0F,
+	"STEPON":		  0x10,
+	"STEPOFF":		  0x11,
+	"SOLON":		  0x12,
+	"SOLOFF":		  0x13,
+	"ALLON":		  0x14,
+	"ALLOFF":		  0x15,
+
 	"PIALIVE":        0x41, # WTC Is the Pi alive?
 	"TIMESTAMP":      0x42, # WTC Send the timestamp
 	"CONFIGURATION":  0x43, # WTC Send the configuration packet

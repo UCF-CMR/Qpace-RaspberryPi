@@ -317,3 +317,51 @@ def solenoid(solPins,iterations):
 			fire(solPins[-1])
 			for j in range(0, len(solPins) - 1):
 				fire(solPins[j])
+
+def wtc_enableStepper():
+	# Add the stepper enable request to the queue and then wait for a response
+	# Will return true if the stepper was enabled, will return false if the stepper was not enbaled
+	try:
+		from qpaceWTCHandler import NextQueue
+	except ImportError:
+		return False
+
+	NextQueue.enqueue('STEPON')
+	response = NextQueue.waitAndReturn(1)
+	if response:
+		# Get the item in the list. This will be the return of our request.
+		return response[0]
+	else:
+		return False
+
+def wtc_enableSolenoid():
+	# Add the stepper enable request to the queue and then wait for a response
+	# Will return true if the stepper was enabled, will return false if the stepper was not enbaled
+	try:
+		from qpaceWTCHandler import NextQueue
+	except ImportError:
+		return False
+
+	NextQueue.enqueue('SOLON')
+	response = NextQueue.waitAndReturn(1)
+	if response:
+		# Get the item in the list. This will be the return of our request.
+		return response[0]
+	else:
+		return False
+
+def disableAll():
+	# Add the stepper enable request to the queue and then wait for a response
+	# Will return true if the stepper was enabled, will return false if the stepper was not enbaled
+	try:
+		from qpaceWTCHandler import NextQueue
+	except ImportError:
+		return False
+
+	NextQueue.enqueue('ALLOFF')
+	response = NextQueue.waitAndReturn(1)
+	if response:
+		# Get the item in the list. This will be the return of our request.
+		return response[0]
+	else:
+		return False

@@ -7,6 +7,8 @@
 import qpaceExperiment
 import qpaceLogger
 
+#TODO need the calls and waits here to enable the stepper and solenoids
+
 def experimentparser(filepath, isRunningEvent):
 	"""
 	This function handles the parsing and execution of the raw text experiment files.

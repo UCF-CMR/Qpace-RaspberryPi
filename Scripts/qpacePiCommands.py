@@ -15,7 +15,7 @@ import datetime
 import random
 #from qpaceInterpreter import *
 import qpaceLogger as logger
-import surfsatStates as ss
+import qpaceStates as qps
 
 
 CMD_DEFAULT_TIMEOUT = 5 #seconds
@@ -366,7 +366,7 @@ class Command():
 		pass
 	def manual(chip,cmd,args):
 		import qpaceExperiment as exp
-		import surfsatStates as ss
+		import qpaceStates as qps
 		import SC16IS750
 		print("running experiment")
 		exp.pinInit()
@@ -380,7 +380,7 @@ class Command():
 		exp.led(False)
 		# StatusPacket(chip).respond()
 
-		chip.byte_write(SC16IS750.REG_THR,ss.SSCOMMAND['SCIENCESTOP'])
+		chip.byte_write(SC16IS750.REG_THR,qps.QPCOMMAND['SCIENCESTOP'])
 		#waitForBytesFromCCDR(chip,1,timeout=None)
 		#chip.read_byte(SC16IS750.REG_RHR) # Clear buffer, WTC will send ERRNONE
 		print("DONE :D :D :D")

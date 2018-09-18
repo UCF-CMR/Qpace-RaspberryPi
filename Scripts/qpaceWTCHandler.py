@@ -18,6 +18,7 @@ import tstSC16IS750 as SC16IS750
 #import SC16IS750
 import pigpio
 import time
+import qpaceStates as states
 
 gpio = pigpio.pi()
 CCDR_IRQ = 16 #BCM 16, board 36
@@ -87,6 +88,10 @@ class NextQueue():
 		if NextQueue.isEmpty():
 			NextQueue.cv.acquire() # If we are putting something in for the first time, set up the Lock
 		logger.logSystem([["NextQueue: Adding '{}' to the queue.".format(item)]])
+		try:
+			item = states.QPCOMMAND[item]
+		except KeyError:
+			item = states.QPCOMMAND['NOOP']
 		NextQueue.requestQueue.append(item)
 
 	@staticmethod
@@ -114,36 +119,36 @@ class NextQueue():
 	def addResponse(response):
 		NextQueue.responseQueue.append(response)
 
-	def clearResponse():
-		NextQueue.responseQueue.clear()
+	@staticmethod
+	def clearResponse(n=None):
+		if n:
+			for i in range(n):
+				NextQueue.responseQueue.pop()
+		else:
+			NextQueue.responseQueue.clear()
 
 	@staticmethod
-	def waitAndReturn():
+	def waitAndReturn(popN=1,timeout=None):
 		# This method waits until the queue is empty, and returns the result values of the queue.
+		# Before returning, this method will pop the queue one time unless specified and return
+		# Those values. Those values will be removed from the responseQueue
+		#
 		# Do not use this method in interpreter.run() as that will get us stuck in an infinite loop
 		try:
 			# Wait until the queue is empty.
 			while not NextQueue.isEmpty():
-				if not cv.wait(NextQueue.WAIT_TIME):
+				if not cv.wait(timeout or NextQueue.WAIT_TIME):
 					# After the wait time, let's just continue going. Something held up.
 					return None
-			return NextQueue.responseQueue
+			# pop the number of resposes we want off the back and then return them.
+			response = NextQueue.responseQueue[-popN:]
+			NextQueue.responseQueue = NextQueue.responseQueue[:-popN]
+			return response
 		except RuntimeError:
 			return None # The lock was not aquired for some reason.
 
 
-
-
-
 def run():
-	try:
-		import specialTasks
-		from time import strftime,gmtime
-		os.rename('specialTasks.py','graveyard/specialTasks'+str(strftime("%Y%m%d-%H%M%S",gmtime()))+'.py')
-	except ImportError:
-		logger.logSystem([["SpecialTasks: No special tasks to run on boot..."]])
-	except OSError:
-		logger.logSystem([["SpecialTasks: Was not able to run special tasks or could not rename. (OSError)"]])
 	import sys
 	import datetime
 	import time
@@ -221,4 +226,15 @@ def run():
 
 if __name__ == '__main__':
 	time.sleep(1)
+	try:
+		import specialTasks
+		from time import strftime,gmtime
+		os.rename('specialTasks.py','graveyard/specialTasks'+str(strftime("%Y%m%d-%H%M%S",gmtime()))+'.py')
+	except ImportError:
+		logger.logSystem([["SpecialTasks: No special tasks to run on boot..."]])
+	except OSError:
+		logger.logSystem([["SpecialTasks: Was not able to run special tasks or could not rename. (OSError)"]])
+
+
+	# Main script.
 	run()

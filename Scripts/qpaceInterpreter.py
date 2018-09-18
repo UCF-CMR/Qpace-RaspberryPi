@@ -23,6 +23,7 @@ import qpaceStates as states
 import qpaceFileHandler as fh
 
 qpStates = states.QPCOMMAND
+WHATISNEXT_WAIT = 15 #in seconds
 # Routing ID defined in packet structure document
 class ROUTES():
 	PI1ROUTE= 0x01
@@ -208,8 +209,8 @@ def run(chip,experimentEvent, runEvent, shutdownEvent):
 		#packetData = testData + CMDPacket.generateChecksum(testData)
 
 	def wtc_respond(response):
-		if response in ss.SSCOMMAND:
-			chip.byte_write(SC16IS750.REG_THR,bytes([ss.SSCOMMAND[response]]))
+		if response in qps.QPCOMMAND:
+			chip.byte_write(SC16IS750.REG_THR,bytes([qps.QPCOMMAND[response]]))
 		else:
 			chip.write(response)
 
@@ -224,7 +225,7 @@ def run(chip,experimentEvent, runEvent, shutdownEvent):
 				chip.block_write(SC16IS750.REG_THR,packetData)
 				configureTimestamp = False
 			if byte in qpStates.values():
-				# The byte was found in the list of SSCOMMANDs
+				# The byte was found in the list of QPCOMMANDs
 				if byte == qpStates['NOOP']:
 					logger.logSystem([['PseudoSM: NOOP.']])
 					NextQueue.enqueue('NOOP')
@@ -245,10 +246,9 @@ def run(chip,experimentEvent, runEvent, shutdownEvent):
 					configureTimestamp = True
 				elif byte == qpStates['WHATISNEXT']:
 					wtc_respond(NextQueue.peek()) # Respond with what the Pi would like the WTC to know.
-					if waitForBytesFromCCDR(chip,1,timeout=15): # Wait for 15s for a response from the WTC
+					if waitForBytesFromCCDR(chip,1,timeout=WHATISNEXT_WAIT): # Wait for 15s for a response from the WTC
 						response = chip.read_byte(SC16IS750.REG_RHR) == qpStates['True']
-
-						NextQueue.addResponse()
+						NextQueue.addResponse(response)
 					else:
 						NextQueue.addResponse(False)
 				elif byte == qpStates['ERRNONE']:
@@ -262,7 +262,7 @@ def run(chip,experimentEvent, runEvent, shutdownEvent):
 		else:
 			print('Input is not a valid WTC state.')
 			return packetData, configureTimestamp
-			#TODO the SSCOMMAND was not found to be legitimate. What do I do?
+			#TODO the QPCOMMAND was not found to be legitimate. What do I do?
 
 		return b'',configureTimestamp # Return nothing if the packetData was handled as a WTC command
 
@@ -306,8 +306,6 @@ def run(chip,experimentEvent, runEvent, shutdownEvent):
 		except StopIteration:
 			break
 	logger.logSystem([["Interpreter: Starting cleanup for shutdown."]])
-	#decoder = Decoder(file_location,TEMP_PACKET_LOCATION,suppress=True,rush=True)
-	#decoder.run(True)
 
 	callback.cancel()
 	chip.close()
