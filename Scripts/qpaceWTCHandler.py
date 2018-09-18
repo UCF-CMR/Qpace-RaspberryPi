@@ -21,6 +21,7 @@ import time
 
 gpio = pigpio.pi()
 CCDR_IRQ = 16 #BCM 16, board 36
+REBOOT_ON_EXIT = False
 def initWTCConnection():
 	"""
 	This function Initializes and returns the SC16IS750 object to interact with the registers.
@@ -66,6 +67,74 @@ def initWTCConnection():
 
 	return chip
 
+class NextQueue():
+	# MAX = 10
+	WAIT_TIME = 60 #in seconds
+	requestQueue = []
+	responseQueue = []
+	cv = threading.Condition()
+
+	@staticmethod
+	def isEmpty():
+		return len(NextQueue.requestQueue) == 0
+
+	# @staticmethod
+	# def NextQueue.isFull():
+	# 	return len(queue) == NextQueue.MAX
+
+	@staticmethod
+	def enqueue(item):
+		if NextQueue.isEmpty():
+			NextQueue.cv.acquire() # If we are putting something in for the first time, set up the Lock
+		logger.logSystem([["NextQueue: Adding '{}' to the queue.".format(item)]])
+		NextQueue.requestQueue.append(item)
+
+	@staticmethod
+	def peek():
+		if NextQueue.isEmpty():
+			return 'IDLE'
+		else:
+			return NextQueue.requestQueue[0]
+
+	@staticmethod
+	def dequeue():
+		if NextQueue.isEmpty():
+			return 'IDLE'
+		else:
+			next =  NextQueue.requestQueue.pop(0)
+			logger.logSystem([["NextQueue: Removed item from queue: '{}'".format(next)]])
+			if NextQueue.isEmpty():
+				try:
+					NextQueue.cv.release() # If there is nothing in the queue, release the lock.
+				except RuntimeError:
+					pass # If it's already released for some reason, ignore it.
+			return next
+
+	@staticmethod
+	def addResponse(response):
+		NextQueue.responseQueue.append(response)
+
+	def clearResponse():
+		NextQueue.responseQueue.clear()
+
+	@staticmethod
+	def waitAndReturn():
+		# This method waits until the queue is empty, and returns the result values of the queue.
+		# Do not use this method in interpreter.run() as that will get us stuck in an infinite loop
+		try:
+			# Wait until the queue is empty.
+			while not NextQueue.isEmpty():
+				if not cv.wait(NextQueue.WAIT_TIME):
+					# After the wait time, let's just continue going. Something held up.
+					return None
+			return NextQueue.responseQueue
+		except RuntimeError:
+			return None # The lock was not aquired for some reason.
+
+
+
+
+
 def run():
 	try:
 		import specialTasks
@@ -93,14 +162,12 @@ def run():
 			experimentRunningEvent = threading.Event()
 			runEvent = threading.Event()
 			shutdownEvent = threading.Event()
-			rebootEvent = threading.Event()
 			# Ensure these are in the state we want them in.
 			runEvent.set()
 			experimentRunningEvent.clear()
 			shutdownEvent.clear()
-			rebootEvent.clear()
 
-			interpreter = threading.Thread(target=qpi.run,args=(chip,experimentRunningEvent,runEvent,shutdownEvent,rebootEvent))
+			interpreter = threading.Thread(target=qpi.run,args=(chip,experimentRunningEvent,runEvent,shutdownEvent))
 			todoParser = threading.Thread(target=todo.run,args=(chip,experimentRunningEvent,runEvent,shutdownEvent))
 
 			logger.logSystem([["Main: Starting up the Interpreter and TodoParser."]])
@@ -118,7 +185,7 @@ def run():
 							break
 						else: # Otherwise, something must have happened....restart the Interpreter and TodoParser
 							logger.logSystem([['Main: TodoParser and Interpreter are shutdown when they should not be. Restarting...']])
-							interpreter = threading.Thread(target=qpi.run,args=(chip,experimentRunningEvent,runEvent,shutdownEvent,rebootEvent))
+							interpreter = threading.Thread(target=qpi.run,args=(chip,experimentRunningEvent,runEvent,shutdownEvent))
 							todoParser = threading.Thread(target=todo.run,args=(chip,experimentRunningEvent,runEvent,shutdownEvent))
 							interpreter.start()
 							todoParser.start()
@@ -145,7 +212,7 @@ def run():
 
 
 		if False: #TODO: Change to True for release
-			if rebootEvent.is_set():
+			if REBOOT_ON_EXIT
 				logger.logSystem([['Main: Rebooting RaspberryPi...']])
 				os.system('sudo reboot') # reboot
 			else:
@@ -153,5 +220,5 @@ def run():
 				os.system('sudo halt') # Shutdown.
 
 if __name__ == '__main__':
-	time.sleep(.5)
+	time.sleep(1)
 	run()

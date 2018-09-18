@@ -13,10 +13,8 @@ from math import ceil
 from time import strftime,gmtime,sleep
 import datetime
 import random
-#import socket
 #from qpaceInterpreter import *
-#import qpaceLogger as logger
-#import qpaceQUIP as quip
+import qpaceLogger as logger
 import surfsatStates as ss
 
 
@@ -234,6 +232,44 @@ class DownloadFileHandler(): #In place for the request and the procedure
 		self.useFEC = useFEC
 
 class Command():
+	fromWTC = False # Change to True for real operation.
+	class UploadRequest():
+		received = False
+		useFEC = None
+		totalPackets = None
+		filename = None
+
+		fileList = []
+
+		@staticmethod
+		def reset():
+			logger.logSystem([['UploadRequest: Upload Request has been cleared.']])
+			Command.UploadRequest.received = False
+			Command.UploadRequest.useFEC = None
+			Command.UploadRequest.totalPackets =  None
+			Command.UploadRequest.filename = None
+
+		@staticmethod
+		def set(fec = False, pak = None, filename = None):
+			logger.logSystem([["UploadRequest: Upload Request has been received.",str(fec),str(pak),str(filename)]])
+			if Command.UploadRequest.isActive():
+				logger.logSystem([["UploadRequest: Redundant Request?",str(fec),str(pak),str(filename)]])
+			else:
+				try:
+					from pathlib import Path
+					Path(filename.decode('ascii')+'.scaffold').touch()
+				except:
+					#open(filename.decode('ascii') + '.scaffold','wb').close() #Fallback method to make sure it works
+					pass
+			Command.UploadRequest.received = True
+			Command.UploadRequest.useFEC = fec
+			Command.UploadRequest.totalPackets = pak
+			Command.UploadRequest.filename = filename
+
+		@staticmethod
+		def isActive():
+			return Command.UploadRequest.received
+
 	def sendBytesToCCDR(chip,sendData):
 		"""
 		Send a string or bytes to the WTC. This method, by default, is dumb. It will pass whatever
@@ -281,6 +317,7 @@ class Command():
 		pass
 	def dlFile(chip,cmd,args):
 		import qpaceFileHandler as qfh
+		qfh.DataPacket.last_id = 0
 		fec = args[:4]
 		ppa = int.from_bytes(args[4:8], byteorder='big')
 		msdelay = int.from_bytes(args[8:12], byteorder='big')
@@ -296,17 +333,35 @@ class Command():
 		transmitter = qfh.Transmitter(	chip,
 										filename.decode('ascii'),
 										0x01,
-										fec == b' FEC',
-										ppa,
-										msdelay,
-										start,
-										end,
-										False
+										useFEC = fec == b' FEC',
+										packetsPerAck = ppa,
+										delayPerTransmit = msdelay,
+										firstPacket = start,
+										lastPacket = end,
+										xtea = False
 									)
 		transmitter.run()
 
 	def upReq(chip,cmd,args):
-		pass
+		# Magic numbers based on Packet Specification Document.
+		import qpaceFileHandler as qfh
+
+		totPak = int.from_bytes(args[0:4], byteorder='big')
+		fec = args[4:8]
+		filename = args[8:96].replace(b'\x1f',b'')
+		print('FEC:',fec)
+		print('TPK:',totPak)
+		print('FNM:',filename)
+		Command.UploadRequest.set(fec,totPak,filename)
+
+		# receiver = qfh.Receiver(	chip,
+		# 							filename.decode('ascii'),
+		# 							route = 0x01,
+		# 							useFEC = fec == b' FEC',
+		# 							xtea = False,
+		# 							expected_packets = totPak
+		# 						)
+		# receiver.run(Command.fromWTC)
 	def upFile(chip,cmd,args):
 		pass
 	def manual(chip,cmd,args):

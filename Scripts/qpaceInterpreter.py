@@ -14,7 +14,7 @@
 import time
 import pigpio
 import datetime
-from qpaceWTCHandler import initWTCConnection
+from qpaceWTCHandler import initWTCConnection,NextQueue
 from  qpacePiCommands import *
 import tstSC16IS750 as SC16IS750
 import SC16IS750
@@ -22,7 +22,6 @@ import qpaceLogger as logger
 import qpaceStates as states
 import qpaceFileHandler as fh
 
-upNext = 'IDLE'
 qpStates = states.QPCOMMAND
 # Routing ID defined in packet structure document
 class ROUTES():
@@ -43,7 +42,7 @@ COMMANDS = {
 	b'DOWNR': 		Command.dlReq,
 	b'DWNLD': 		Command.dlFile,
 	b'up': 			Command.upReq,
-	b'Upload File': Command.upFile, #TODO ????
+	#b'Upload File': Command.upFile, #TODO ????
 	b'MANUL': 		Command.manual
 }
 
@@ -66,14 +65,23 @@ def waitForBytesFromCCDR(chip,n,timeout = 2.5,interval = 0.25):
 
 		if attempts >= total_attempts:
 			logger.logSystem([["WaitForBytesFromCCDR: Timeout occurred. Moving on."]])
+			return False
 	else:
 		while(chip.byte_read(SC16IS750.REG_RXLVL) < n):
 			time.sleep(interval)
+	return True
+
 
 def flushRxReg(chip):
 	while(chip.byte_read(SC16IS750.REG_RXLVL) > 0):
 		chip.byte_read(SC16IS750.REG_RHR)
 
+def processIncomingPacketData(chip, fieldData):
+	print("Interpreter is processing packet as Incoming Data.")
+	if fieldData['noop'] == b'NOOP!':
+		fh.Scaffold.finish(fieldData['information'])
+	else:
+		fh.Scaffold.construct(fieldData['pid'],fieldData['information'])
 def processCommand(chip, fieldData, fromWhom = 'CCDR'):
 	"""
 	Split the command from the arguments and then run the command as expected.
@@ -106,7 +114,7 @@ def processCommand(chip, fieldData, fromWhom = 'CCDR'):
 			LastCommand.fromWhom = fromWhom
 			COMMANDS[fieldData['opcode']](chip,command,arguments) # Run the command
 
-def run(chip,experimentEvent, runEvent, shutdownEvent,rebootEvent):
+def run(chip,experimentEvent, runEvent, shutdownEvent):
 	"""
 	This function is the "main" purpose of this module. Placed into a function so that it can be called in another module.
 
@@ -139,29 +147,56 @@ def run(chip,experimentEvent, runEvent, shutdownEvent,rebootEvent):
 
 	configureTimestamp = False
 
-
 	def splitPacket(packetData):
-		packet = {
-			"route":       packetData[0],
-			"opcode":      packetData[1:6],
-			"information": packetData[6:124],
-			"checksum":    packetData[124:]
-		}
+		# Magic numbers defined in Packet Specification Document
+		if packetData[1:6] == b'NOOP*':
+			packet = {
+				"TYPE":			"XTEA",
+				"route":       	packetData[0],
+				"noop":			packetData[1:6],
+				"xteaStartRand":packetData[6:10],
+				"opcode":      	packetData[10:12],
+				"information": 	packetData[12:102],
+				"tag":			packetData[102:104],
+				"xteaEndRand": 	packetData[104:110],
+				"xteaPadding":	packetData[110:124],
+				"checksum":    	packetData[124:]
+			}
+		elif packetData[1:6] == b'NOOP>' or packetData[1:6] == b'NOOP!':
+			packet = {
+				"TYPE":			"DATA",
+				"route":		packetData[0],
+				"noop":			packetData[1:6],
+				"opcode":		packetData[1:6],
+				"pid":			int.from_bytes(packetData[6:10],byteorder='big'),
+				"information":	packetData[10:124],
+				"checksum":		packetData[124:]
+			}
+		else:
+			packet = {
+				"TYPE":		   "NORM",
+				"route":       packetData[0],
+				"opcode":      packetData[1:6],
+				"information": packetData[6:124],
+				"checksum":    packetData[124:]
+			}
+
 		return packet #based on packet definition document
 
 	def checkCyclicTag(tag):
 		return True
 
 	def checkValidity(fieldData):
-		# return True,fieldData
-		packetString = bytes([fieldData['route']]) + fieldData['opcode'] + fieldData['information']
-		isValid = fieldData['route'] in (ROUTES.PI1ROUTE, ROUTES.PI2ROUTE,ROUTES.DEVELOPMENT) and fieldData['checksum'] == CMDPacket.generateChecksum(packetString)
-		if isValid and (fieldData['opcode'] == b'NOOP*' or fieldData['opcode'] == b'NOOP<'):
-			returnVal = PrivledgedPacket.decodeXTEA(fieldData['information'])
-			fieldData['opcode'] = returnVal[4:6] # 4:6 as defined in the packet structure document for XTEA packets
-			fieldData['information'] = returnVal[6:98] # 6:98 as defined in the packet structure document for XTEA packets
-			 # 98:100 and 106:118 as defined in the packet structure document for XTEA packets
-			isValid = True# (returnVal[106:118] == b'\x00'*12) and checkCyclicTag(retVal[98:100])
+		if fieldData['TYPE'] == 'XTEA':
+			isValid = True
+			#returnVal = PrivledgedPacket.decodeXTEA(fieldData['information'])
+			#TODO add in XTEA encryption and decryption.
+		elif fieldData['TYPE'] == 'DATA':
+			isValid = True
+		elif fieldData['TYPE'] == 'NORM':
+			# return True,fieldData
+			packetString = bytes([fieldData['route']]) + fieldData['opcode'] + fieldData['information']
+			isValid = fieldData['route'] in (ROUTES.PI1ROUTE, ROUTES.PI2ROUTE,ROUTES.DEVELOPMENT) and fieldData['checksum'] == CMDPacket.generateChecksum(packetString)
 		return isValid, fieldData
 
 	def WTCRXBufferHandler(gpio,level,tick):
@@ -173,7 +208,10 @@ def run(chip,experimentEvent, runEvent, shutdownEvent,rebootEvent):
 		#packetData = testData + CMDPacket.generateChecksum(testData)
 
 	def wtc_respond(response):
-		chip.byte_write(SC16IS750.REG_THR,bytes([ss.SSCOMMAND[response]]))
+		if response in ss.SSCOMMAND:
+			chip.byte_write(SC16IS750.REG_THR,bytes([ss.SSCOMMAND[response]]))
+		else:
+			chip.write(response)
 
 	def surfSatPseudoStateMachine(packetData,configureTimestamp):
 		# Start looking at a pseduo state machine so WTC code doesn't need to change
@@ -187,27 +225,32 @@ def run(chip,experimentEvent, runEvent, shutdownEvent,rebootEvent):
 				configureTimestamp = False
 			if byte in qpStates.values():
 				# The byte was found in the list of SSCOMMANDs
-				if byte == qpStates['SHUTDOWN']:
+				if byte == qpStates['NOOP']:
+					logger.logSystem([['PseudoSM: NOOP.']])
+					NextQueue.enqueue('NOOP')
+				elif byte == qpStates['SHUTDOWN']:
 					logger.logSystem([['PseudoSM: Shutdown was set!']])
-					upNext = 'SHUTDOWN' # Just in case the interrupt is fired before shutting down.
+					#NextQueue.enqueue('SHUTDOWN') # Just in case the interrupt is fired before shutting down.
 					shutdownEvent.set()	# Set for shutdown
-					rebootEvent.clear()	# Clear for full shutdown, no reboot.
 				elif byte == qpStates['REBOOT']:
 					logger.logSystem([['PseudoSM: Reboot was set!']])
-					upNext = 'REBOOT'	# Just in case the interrupt is fired before rebooting.
-					shutdownEvent.set()	# Set for shutdown
-					rebootEvent.set()	# Set for reboot instead of shutdown
+					#NextQueue.enqueue('SHUTDOWN')
+					shutdownEvent.set()
 				elif byte == qpStates['PIALIVE']:
 					logger.logSystem([['PseudoSM: PIALIVE from WTC.']])
 					wtc_respond('PIALIVE')
-					upNext = 'IDLE' # Forces upNext to be IDLE if this is sent.
 				elif byte == qpStates['TIMESTAMP']:
 					logger.logSystem([['PseudoSM: TIMESTAMP from WTC.']])
 					wtc_respond('TIMESTAMP')
 					configureTimestamp = True
 				elif byte == qpStates['WHATISNEXT']:
-					print('WHATISNEXT? Sending back:',upNext)
-					wtc_respond(upNext)	# Respond with what the Pi would like the WTC to know.
+					wtc_respond(NextQueue.peek()) # Respond with what the Pi would like the WTC to know.
+					if waitForBytesFromCCDR(chip,1,timeout=15): # Wait for 15s for a response from the WTC
+						response = chip.read_byte(SC16IS750.REG_RHR) == qpStates['True']
+
+						NextQueue.addResponse()
+					else:
+						NextQueue.addResponse(False)
 				elif byte == qpStates['ERRNONE']:
 					print('ERRNONE recv')
 					pass
@@ -215,7 +258,7 @@ def run(chip,experimentEvent, runEvent, shutdownEvent,rebootEvent):
 					print('ERRMISMATCH recv')
 					pass
 				else:
-					logger.logSystem([['PseudoSM: State existed for '+ str(byte) +' but a method is not written for it.']])
+					logger.logSystem([['PseudoSM: State existed for {} but a method is not written for it.'.format(str(byte))]])
 		else:
 			print('Input is not a valid WTC state.')
 			return packetData, configureTimestamp
@@ -242,19 +285,21 @@ def run(chip,experimentEvent, runEvent, shutdownEvent,rebootEvent):
 						# Check if the packet is valid. If it's XTEA, decode it.
 						isValid,fieldData = checkValidity(fieldData)
 						if isValid:
-							print('Input is valid')
+							print('Packet has passed Validation.')
 							print('OPCODE: ', fieldData['opcode'])
 							#TODO Let ground station know that there is a valid thing
-							if fieldData["opcode"] in COMMANDS: # Double check to see if it's a command
+							if fieldData['opcode'] == fh.DataPacket.opcode or fieldData['opcode'] == b'NOOP!':
+								processIncomingPacketData(chip,fieldData)
+							elif fieldData['opcode'] in COMMANDS: # Double check to see if it's a command
 								processCommand(chip,fieldData,fromWhom = 'CCDR')
 							else:
 								chip.packetBuffer.append(packetData)
 						else:
 							#TODO Alert the WTC? Send OKAY back to ground?
-							print('Input is NOT valid!')
+							print('Packet did NOT pass validation.')
 
-			runEvent.wait() #Mutex for the run
-			time.sleep(.5) # wait for a moment
+			runEvent.wait() # Mutex for the run
+			time.sleep(.5)  # wait for a moment
 
 		except KeyboardInterrupt:
 			continue
