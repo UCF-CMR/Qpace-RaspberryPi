@@ -247,8 +247,12 @@ def run(chip,experimentEvent, runEvent, shutdownEvent):
 					configureTimestamp = True
 				elif byte == qpStates['WHATISNEXT']:
 					wtc_respond(NextQueue.peek()) # Respond with what the Pi would like the WTC to know.
-					waitForBytesFromCCDR(chip,1,timeout=30)
-					NextQueue.addResponse(chip.read_byte(SC16IS750.REG_RHR))
+					if waitForBytesFromCCDR(chip,1,timeout=15): # Wait for 15s for a response from the WTC
+						response = chip.read_byte(SC16IS750.REG_RHR) == qpStates['True']
+
+						NextQueue.addResponse()
+					else:
+						NextQueue.addResponse(False)
 				elif byte == qpStates['ERRNONE']:
 					print('ERRNONE recv')
 					pass
