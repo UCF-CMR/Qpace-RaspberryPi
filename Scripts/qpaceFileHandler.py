@@ -6,36 +6,37 @@
 #
 # Handler for encoding and decoding packets for file transfer.
 
-# Still in work
-
 import qpaceLogger as logger
-from qpacePiCommands import CMDPacket
+from qpacePiCommands import *
 import qpaceInterpreter as interp
 import tstSC16IS750 as SC16IS750
 #import SC16IS750
+from time import sleep
 from datetime import datetime,timedelta
 from math import ceil
 import os
 
+
+
 class DataPacket():
 	"""
 	Packet structure for QPACE:
-	----------------------------------------------------------------------
-	|					  |						|					|
-	| Designator  (1 Byte) | Misc integer (4 Bytes) |  Data (123 Bytes)  |	  (128Bytes)
-	|					  |						|					|
-	----------------------------------------------------------------------
+	---------------------------------------------------------------------
+	|					  |						   |					|
+	| Designator  (1 Byte)| Misc integer (4 Bytes) |  Data (123 Bytes)  |	  (128Bytes)
+	|					  |						   |					|
+	---------------------------------------------------------------------
 	"""
 	padding_byte = b'\x04'
-	header_size = 5		 # in bytes
-	max_size = 128		  # in bytes
-	xtea_header_size = 10	# in bytes
-	max_id = 0xFFFFFFFF	 # 4 bytes. Stored as an int.
-	last_id = 0			# -1 if there are no packets yet.
+	max_size = 128		  		# in bytes
+	header_size = 14			# in bytes
+	max_id = 0xFFFFFFFF	 		# 4 bytes. Stored as an int.
+	last_id = 0					# -1 if there are no packets yet.
+	opcode = b'NOOP>'
 
-	validDesignators = [0]   # WTC, Pi 1, Pi 2, GS.
+	validDesignators = [0]   	# WTC, Pi 1, Pi 2, GS.
 
-	def __init__(self,data, pid,rid,useFEC = False, xtea = False):
+	def __init__(self,data, pid,rid,useFEC = False, xtea = False,opcode = None):
 		"""
 		Constructor for a packet.
 
@@ -67,12 +68,10 @@ class DataPacket():
 		else:
 			raise TypeError("Input data is of incorrect type. Must input str, bytes, or bytearray")
 
-
-		headerSize = DataPacket.xtea_header_size if xtea else DataPacket.header_size
 		if useFEC:
-			self.data_size = (DataPacket.max_size - headerSize) // 3
+			self.data_size = ((DataPacket.max_size - DataPacket.header_size) // 3)
 		else:
-			self.data_size = DataPacket.max_size - headerSize
+			self.data_size = DataPacket.max_size - DataPacket.header_size
 		# Is the data size set yet or is it valid?
 		if self.data_size is None:
 			raise ValueError('data_size is not set.')
@@ -89,11 +88,14 @@ class DataPacket():
 					DataPacket.pid = 0
 				else:
 					raise ValueError("Packet pid out of order.")
+
 			self.data = data
 			self.bytes = data_in_bytes
 			self.useFEC = useFEC
 			self.rid = rid
 			self.xtea = xtea
+			self.paddingSize = 0
+			self.opcode = opcode if opcode is not None else DataPacket.opcode
 		else:
 			raise ValueError("Packet size is too large for the current header information ("+str(len(data))+"). Data input restricted to " + str(self.data_size) + " Bytes.")
 
@@ -115,10 +117,13 @@ class DataPacket():
 		else:
 			data = self.data
 
-		packet = self.rid.to_bytes(1,byteorder='big') + self.pid.to_bytes(4,byteorder='big') + data
+		padding = self.data_size - len(data)
+		data += DataPacket.padding_byte * padding
+		self.paddingSize = padding
+		packet = self.rid.to_bytes(1,byteorder='big') + self.opcode + self.pid.to_bytes(4,byteorder='big') + data
+		packet += CMDPacket.generateChecksum(packet)
+		print('PACKET TO SEND LEN:', len(packet))
 		# After constructing the packet's contents, pad the end of the packet until we reach the max size.
-		padding = DataPacket.max_size - len(packet)
-		packet += DataPacket.padding_byte * padding
 		return packet
 
 	@staticmethod
@@ -138,7 +143,6 @@ class XTEAPacket():
 	pass
 
 class ChunkPacket():
-
 	TIMEDELAYDELTA = 5 # in seconds
 	chunks = []
 	complete = False
@@ -158,7 +162,6 @@ class ChunkPacket():
 			ChunkPacket.chunks.append(data)
 			#Acknowledge WTC with chunk number
 			self.chip.byte_write(SC16IS750.REG_THR,bytes([0x60 + len(ChunkPacket.chunks)])) # Defined by WTC state machine
-			print('Chunk:' ,len(ChunkPacket.chunks))
 			if len(ChunkPacket.chunks) == 4: # We are doing 4 chunks!
 				ChunkPacket.complete = True
 
@@ -173,7 +176,7 @@ class ChunkPacket():
 		for chunk in ChunkPacket.chunks:
 			#print('<',len(chunk),'>',chunk)
 			packet += chunk
-		if len(packet) != 128: print("Packet is not 128 bytes! It  is ",len(packet),'bytes!\n',packet) #TODO what should we actually do here.
+		if len(packet) != DataPacket.max_size: logger.logSystem([["Packet is not "+str(DataPacket.max_size)+" bytes! It  is " + str(len(packet)) + 'bytes!',str(packet)]])
 		ChunkPacket.chunks[:] = [] #reset chunks to empty
 		ChunkPacket.complete = False #reset copmlete to False
 		ChunkPacket.lastInputTime = None # reset the timer.
@@ -183,20 +186,38 @@ class DownloadRequest():
 	pass
 
 class TransmitCompletePacket(DataPacket):
-	def __init__(self, pathname, checksum, pid,rid,useFEC = False):
-		data = b'\x04\x04' + checksum + b' ' + pathname.encode('ascii')[pathname.rfind('/')+1:]
+	def __init__(self, pathname, checksum, pid,rid,paddingUsed = 0, useFEC = False):
+		data = b' '
+		temp = [checksum, paddingUsed.to_bytes(1,byteorder='big'), pathname.encode('ascii')[pathname.rfind('/')+1:]]
+		data = data.join(temp)
 		# if useFEC:
 		# 	data += (36 - len(data)) * b'\x04' if len(data) < 36 else b''
 		# 	data = data[:36] # only get the first 116 chars. Defined by the packet document
 		# else:
 		# 	data += (116 - len(data)) * b'\x04' if len(data) < 116 else b''
 		# 	data = data[:116] # only get the first 116 chars. Defined by the packet document
-
-		data += CMDPacket.generateChecksum(data)
-		super().__init__(data,pid,rid,useFEC)
+		padding = len(data)
+		data += DataPacket.padding_byte * padding
+		super().__init__(data,pid,rid,useFEC,opcode=b'NOOP!')
+class Relay():
+	packetsPerAck_DEFAULT = 1
+	delayPerTransmit_DEFAULT = 135 #in milliseconds
+	firstPacket_DEFAULT = -1
+	lastPacket_DEFAULT = -1
+	xtea_DEFAULT = False
+	useFEC_DEFAULT = False
+	prepend_DEFAULT = ''
+	route_DEFAULT = None
+	totalPackets_DEFAULT = None
 class Transmitter():
 
-	def __init__(self, chip, pathname, route, useFEC=False, packetsPerAck = 1, delayPerTransmit = 135, firstPacket = -1, lastPacket = -1, xtea = False):
+	def __init__(self, chip, pathname, route,
+				useFEC =			Relay.useFEC_DEFAULT,
+				packetsPerAck = 	Relay.packetsPerAck_DEFAULT,
+				delayPerTransmit = 	Relay.delayPerTransmit_DEFAULT,
+				firstPacket = 		Relay.firstPacket_DEFAULT,
+				lastPacket = 		Relay.lastPacket_DEFAULT,
+				xtea = 				Relay.xtea_DEFAULT):
 		self.chip = chip
 		self.pathname = pathname
 		self.useFEC = useFEC
@@ -206,19 +227,17 @@ class Transmitter():
 		self.lastPacket = lastPacket if lastPacket > firstPacket else None
 		self.route = route
 		self.filesize = os.path.getsize(pathname)
-		self.checksum = b'CHECKSUM' #TODO figure out the checksum stuff
+		self.checksum = b'CKSM' #TODO figure out the checksum stuff
 
-		headerSize = DataPacket.xtea_header_size if xtea else DataPacket.header_size
 		if useFEC:
-			self.data_size = (DataPacket.max_size - headerSize) // 3
+			self.data_size = (DataPacket.max_size - DataPacket.header_size) // 3
 		else:
-			self.data_size = DataPacket.max_size - headerSize
+			self.data_size = DataPacket.max_size - DataPacket.header_size
 		self.expected_packets = ceil(self.filesize / self.data_size)
 
 	def run(self):
-		from time import sleep
-
 		packetData = self.getPacketData()
+		packet = None
 		# Get the length of all the packets if NONE was supplied as the last packet.
 		if self.lastPacket == None:
 			self.lastPacket = len(packetData)
@@ -240,12 +259,14 @@ class Transmitter():
 				#TODO work out handshake with packets
 				#TODO this is where the handshake will go.
 				#TODO we will WAIT here for the acknowledgement. Once we get it, continue on.
-		except StopIteration:
-			pass #StopIteration to stop iterating :) we are done here.
-
+		except StopIteration as e:
+			#StopIteration to stop iterating :) we are done here.
+			print(e)
+		lastPacketPaddingSize = packet.paddingSize
 		#When it's done it needs to send a DONE packet
-		allDone = TransmitCompletePacket(self.pathname,self.checksum,self.expected_packets,self.route,useFEC=self.useFEC)
+		allDone = TransmitCompletePacket(self.pathname,self.checksum,self.expected_packets,self.route,paddingUsed=lastPacketPaddingSize,useFEC=self.useFEC)
 		allDone.send(self.chip)
+		DataPacket.last_id = 0
 
 	def getPacketData(self):
 		packetData = []
@@ -265,35 +286,41 @@ class ReceivedPacket():
 		self.data = data
 class Receiver():
 
-	def __init__(self, chip, pathname, prepend='',route=None, useFEC=False, packetsPerAck = 1, delayPerTransmit = 135, firstPacket = 1, lastPacket = None, xtea = False):
+	def __init__(self, chip, pathname,
+				prepend =			Relay.prepend_DEFAULT,
+				route =				Relay.route_DEFAULT,
+				useFEC =			Relay.useFEC_DEFAULT,
+				packetsPerAck = 	Relay.packetsPerAck_DEFAULT,
+				delayPerTransmit = 	Relay.delayPerTransmit_DEFAULT,
+				firstPacket = 		Relay.firstPacket_DEFAULT,
+				lastPacket = 		Relay.lastPacket_DEFAULT,
+				xtea = 				Relay.xtea_DEFAULT,
+				expected_packets = 	Relay.totalPackets_DEFAULT):
 		self.chip = chip
 		self.prepend = prepend
 		self.pathname = pathname
 		self.useFEC = useFEC
 		self.packetsPerAck = packetsPerAck
-		self.delayPerTransmit = delayperTransmit
+		self.delayPerTransmit = delayPerTransmit
 		self.firstPacket = firstPacket if firstPacket > 1 else 1
 		self.lastPacket = lastPacket if lastPacket > firstPacket else None
 		self.route = route
-		self.filesize = os.path.getsize(pathname)
-		self.checksum = b' ' #TODO figure out the checksum stuff
+		self.expected_packets = expected_packets
+		self.checksum = b'CKSM' #TODO figure out the checksum stuff
 
-		headerSize = DataPacket.xtea_header_size if xtea else DataPacket.header_size
 		if useFEC:
-			self.data_size = (DataPacket.max_size - headerSize) // 3
+			self.data_size = (DataPacket.max_size - DataPacket.header_size) // 3
 		else:
-			self.data_size = Packet.max_size - headerSize
-		self.expected_packets = ceil(self.filesize / self.data_size)
+			self.data_size = DataPacket.max_size - DataPacket.header_size
 
-	def run(self):
-
+	def run(self,fromWTC=True):
 		with open(self.prepend+self.pathname,'rb+') as scaffold:
 			packetCount = 0
 			while(True): # Continue to accept packets until we break and are done
 				packetsReceived = 0
 				acceptingPackets = True
 				while(acceptingPackets):
-					packet = getPacket()
+					packet = self.getPacketFromFile(packetCount)
 					packetsReceived += 1
 					packetCount += 1
 					if packet.rid == 1 or packet.rid == 2:
@@ -316,46 +343,65 @@ class Receiver():
 					break
 
 
+	def getPacketFromFile(self,NUM=0):
+		filename = str(NUM) + '.qp'
+		try:
+			logger.logSystem([["FileHandler: Reading in "+ str(DataPacket.max_size) +" bytes from file",filename]])
+			with open(filename,'rb') as f:
+				data = f.read()
+			return ReceivedPacket(buf[0],buf[1:4],buf[5:])
+		except Exception as err:
+			logger.logError("An exception was thrown.",err)
 
-
-
-
-
-	def getPacket(self):
-		buf = b''
-		time_to_wait = 5#s
-		time_to_sleep = .4#s
-		numOfAttempts = (time_to_wait//time_to_sleep) + 1
-
-		for i in range(0,4): #We will receive 4, 32 byte chunks to make a 128 packet
-			attempt = 0
-			while(True):
-				waiting = chip.byte_read(SC16IS750.REG_RXLVL)
-				if waiting >= 32: # wait until we have a full chunk
-					try:
-						logger.logSystem([["FileHandler: Reading in "+ str(waiting) +" bytes from the CCDR"]])
-						for i in range(32):
-							# Read from the chip and write to the buffer.
-							buf += bytes([chip.byte_read(SC16IS750.REG_RHR)])
-						if attempt == numOfAttempts:
-							raise BlockingIOError("Timeout has occurred...")
-
-					except BlockingIOError:
-						# TODO Write the start over methods.
-						# TODO Alert WTC?
-						# TODO log it!
-						pass
-					except BufferError as err:
-						logger.logError("A BufferError was thrown.",err)
-						raise BufferError("A BufferError was thrown.") from err
-				sleep(time_to_sleep)
-				attempt += 1
-			chip.byte_read(SC16IS750.REG_RHR)# Clear the buffer. WTC will send ERRNONE
 
 		return ReceivedPacket(buf[0],buf[1:4],buf[5:])
 
-
-
-
 	def writeFile(self):
 		pass
+
+class Scaffold():
+
+	@staticmethod
+	def determineDataSize(useFEC):
+		if useFEC:
+			return (DataPacket.max_size - DataPacket.header_size) // 3
+		else:
+			return DataPacket.max_size - DataPacket.header_size
+
+	@staticmethod
+	def construct(pid,newData):
+		if Command.UploadRequest.isActive():
+			filename = Command.UploadRequest.filename.decode('ascii')
+			useFEC = Command.UploadRequest.useFEC
+			with open(filename+".scaffold","rb+") as scaffold:
+				scaffoldData = scaffold.read()
+				scaffold.seek(0)
+				offset = pid * Scaffold.determineDataSize(useFEC)
+				scaffoldData = scaffoldData[:offset] + newData + scaffoldData[offset:]
+				scaffold.write(scaffoldData)
+		#TODO Remove for real!!!
+		if not Command.UploadRequest.isActive():
+			print('UPLOAD REQUEST NOT MADE ACTIVE')
+
+	@staticmethod
+	def finish(information):
+		if Command.UploadRequest.isActive():
+			information = information.split(b' ')
+			checksum = information[0]
+			paddingUsed = int.from_bytes(information[1],byteorder='big')
+			filename = information[2][:information[2].find(DataPacket.padding_byte)].decode('ascii')
+			filename += '.scaffold'
+
+			print('---FINISH UP---')
+			print('Checksum:', checksum)
+			print('paddingUsed:',paddingUsed)
+			print('filename:', filename)
+
+			with open(filename,'rb+') as f:
+				info = f.read()
+				f.seek(0)
+				f.truncate()
+				f.write(info[:-paddingUsed])
+
+			os.rename(filename,filename[:-9]) #-9 cuts off the '.scaffold'
+			Command.UploadRequest.reset()

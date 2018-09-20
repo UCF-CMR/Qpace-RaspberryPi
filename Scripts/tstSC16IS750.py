@@ -210,6 +210,7 @@ register_file = {
 }
 
 class SC16IS750:
+    total_packets = 0
     def __init__(self,chip = None, bus = 1, addr = 0x48, freq = 1843200, baudrate = 115200, data = LCR_DATABITS_8, stop = LCR_STOPBITS_1, parity = LCR_PARITY_NONE):
 		#self.bus = smbus.SMBus(bus)
         self.addr = addr
@@ -238,11 +239,13 @@ class SC16IS750:
                     time.sleep(.15)
                     length = os.path.getsize('inputSC16IS750.txt')
                     if length > 1:
-                        buf = fileDescriptor.read()[:-1]#Remove the "\n" at the end
+                        buf = fileDescriptor.read()
+                        if buf[-1] == b'\n':
+                            buf = buf[:-1]
                         fileDescriptor.seek(0)
                         fileDescriptor.truncate()
                         if buf != b'':
-                            print('READ:', buf)
+                            
                             #register_file[REG_RHR] += buf
                             self.packetBuffer.append(buf)
                 fileDescriptor.close()
@@ -259,7 +262,8 @@ class SC16IS750:
                     length = len(register_file[REG_THR])
                     if length > 0:
                         fileDescriptor = open('outputSC16IS750.txt','ab')
-                        fileDescriptor.write(register_file[REG_THR][:length]+b'\x0a')
+                        fileDescriptor.write(register_file[REG_THR][:length])#+b'\x0a')
+                        #if length == 128
                         register_file[REG_THR] = register_file[REG_THR][length:]
                         fileDescriptor.close()
                 print('BufferHandler shutting down...')
@@ -318,6 +322,12 @@ class SC16IS750:
             register_file[reg] = data
         if reg == 0:
             print('Writing: ', data)
+            if use_files:
+                with open(str(SC16IS750.total_packets)+'.qp','wb') as f:
+                    f.write(data)
+                SC16IS750.total_packets += 1
+
+
 
     def byte_read(self, reg):
         register_file[REG_RXLVL] = len(register_file[REG_RHR])

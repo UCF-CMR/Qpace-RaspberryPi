@@ -97,14 +97,16 @@ class NextQueue():
 	@staticmethod
 	def peek():
 		if NextQueue.isEmpty():
-			return 'IDLE'
+			return states.QPCOMMAND['IDLE']
+
 		else:
 			return NextQueue.requestQueue[0]
 
 	@staticmethod
 	def dequeue():
 		if NextQueue.isEmpty():
-			return 'IDLE'
+			return states.QPCOMMAND['IDLE']
+
 		else:
 			next =  NextQueue.requestQueue.pop(0)
 			logger.logSystem([["NextQueue: Removed item from queue: '{}'".format(next)]])
@@ -146,7 +148,6 @@ class NextQueue():
 			return response
 		except RuntimeError:
 			return None # The lock was not aquired for some reason.
-
 
 def run():
 	import sys

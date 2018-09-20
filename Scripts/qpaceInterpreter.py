@@ -57,9 +57,11 @@ class LastCommand():
 	fromWhom = "N/A"
 
 def waitForBytesFromCCDR(chip,n,timeout = 2.5,interval = 0.25):
+	# Returns true when the number of bytes in the buffer is equal to n
+	# Returns false when timeout occurs
+	total_attempts = timeout//interval
+	attempts = 0
 	if timeout:
-		total_attempts = timeout//interval
-		attempts = 0
 		while(attempts < total_attempts and chip.byte_read(SC16IS750.REG_RXLVL) is not n):
 			time.sleep(interval)
 			attempts += 1
@@ -83,6 +85,7 @@ def processIncomingPacketData(chip, fieldData):
 		fh.Scaffold.finish(fieldData['information'])
 	else:
 		fh.Scaffold.construct(fieldData['pid'],fieldData['information'])
+
 def processCommand(chip, fieldData, fromWhom = 'CCDR'):
 	"""
 	Split the command from the arguments and then run the command as expected.
