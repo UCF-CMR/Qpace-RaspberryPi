@@ -81,10 +81,15 @@ def flushRxReg(chip):
 
 def processIncomingPacketData(chip, fieldData):
 	print("Interpreter is processing packet as Incoming Data.")
-	if fieldData['noop'] == b'NOOP!':
-		fh.Scaffold.finish(fieldData['information'])
-	else:
-		fh.Scaffold.construct(fieldData['pid'],fieldData['information'])
+	if Command.UploadRequest.isActive():
+		if fieldData['noop'] == b'NOOP!':
+			fh.Scaffold.finish(fieldData['information'])
+		else:
+			fh.Scaffold.construct(fieldData['pid'],fieldData['information'])
+
+	#TODO Remove for real!!!
+	if not Command.UploadRequest.isActive():
+		print('UPLOAD REQUEST NOT MADE ACTIVE')
 
 def processCommand(chip, fieldData, fromWhom = 'CCDR'):
 	"""

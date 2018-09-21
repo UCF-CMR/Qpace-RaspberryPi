@@ -171,16 +171,20 @@ class ChunkPacket():
 
 
 	def build(self):
-		print('Building a packet!')
-		packet = b''
-		for chunk in ChunkPacket.chunks:
-			#print('<',len(chunk),'>',chunk)
-			packet += chunk
-		if len(packet) != DataPacket.max_size: logger.logSystem([["Packet is not "+str(DataPacket.max_size)+" bytes! It  is " + str(len(packet)) + 'bytes!',str(packet)]])
-		ChunkPacket.chunks[:] = [] #reset chunks to empty
-		ChunkPacket.complete = False #reset copmlete to False
-		ChunkPacket.lastInputTime = None # reset the timer.
-		return packet
+		if ChunkPacket.complete:
+			print('Building a packet!')
+			packet = b''
+			for chunk in ChunkPacket.chunks:
+				#print('<',len(chunk),'>',chunk)
+				packet += chunk
+			if len(packet) != DataPacket.max_size: logger.logSystem([["Packet is not "+str(DataPacket.max_size)+" bytes! It  is " + str(len(packet)) + 'bytes!',str(packet)]])
+			ChunkPacket.chunks[:] = [] #reset chunks to empty
+			ChunkPacket.complete = False #reset copmlete to False
+			ChunkPacket.lastInputTime = None # reset the timer.
+			return packet
+		else:
+			print('Packet is not complete yet.')
+			pass
 
 class DownloadRequest():
 	pass
@@ -370,18 +374,15 @@ class Scaffold():
 
 	@staticmethod
 	def construct(pid,newData):
-		if Command.UploadRequest.isActive():
-			filename = Command.UploadRequest.filename.decode('ascii')
-			useFEC = Command.UploadRequest.useFEC
-			with open(filename+".scaffold","rb+") as scaffold:
-				scaffoldData = scaffold.read()
-				scaffold.seek(0)
-				offset = pid * Scaffold.determineDataSize(useFEC)
-				scaffoldData = scaffoldData[:offset] + newData + scaffoldData[offset:]
-				scaffold.write(scaffoldData)
-		#TODO Remove for real!!!
-		if not Command.UploadRequest.isActive():
-			print('UPLOAD REQUEST NOT MADE ACTIVE')
+
+		filename = Command.UploadRequest.filename.decode('ascii')
+		useFEC = Command.UploadRequest.useFEC
+		with open(filename+".scaffold","rb+") as scaffold:
+			scaffoldData = scaffold.read()
+			scaffold.seek(0)
+			offset = pid * Scaffold.determineDataSize(useFEC)
+			scaffoldData = scaffoldData[:offset] + newData + scaffoldData[offset:]
+			scaffold.write(scaffoldData)
 
 	@staticmethod
 	def finish(information):

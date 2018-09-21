@@ -239,11 +239,9 @@ class Command():
 		totalPackets = None
 		filename = None
 
-		fileList = []
-
 		@staticmethod
 		def reset():
-			logger.logSystem([['UploadRequest: Upload Request has been cleared.']])
+			logger.logSystem([['UploadRequest: Upload Request has been cleared.',str(Command.UploadRequest.useFEC),str(Command.UploadRequest.totalPackets),str(Command.UploadRequest.filename)]])
 			Command.UploadRequest.received = False
 			Command.UploadRequest.useFEC = None
 			Command.UploadRequest.totalPackets =  None
@@ -253,7 +251,7 @@ class Command():
 		def set(fec = False, pak = None, filename = None):
 			logger.logSystem([["UploadRequest: Upload Request has been received.",str(fec),str(pak),str(filename)]])
 			if Command.UploadRequest.isActive():
-				logger.logSystem([["UploadRequest: Redundant Request?",str(fec),str(pak),str(filename)]])
+				logger.logSystem([["UploadRequest: Redundant Request?"]])
 			else:
 				try:
 					from pathlib import Path
