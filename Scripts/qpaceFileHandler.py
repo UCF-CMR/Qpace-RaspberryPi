@@ -36,7 +36,7 @@ class DataPacket():
 
 	validDesignators = [0]   	# WTC, Pi 1, Pi 2, GS.
 
-	def __init__(self,data, pid,rid,useFEC = False, xtea = False,opcode = None):
+	def __init__(self,data, pid,rid, xtea = False,opcode = None):
 		"""
 		Constructor for a packet.
 
@@ -68,10 +68,12 @@ class DataPacket():
 		else:
 			raise TypeError("Input data is of incorrect type. Must input str, bytes, or bytearray")
 
-		if useFEC:
-			self.data_size = ((DataPacket.max_size - DataPacket.header_size) // 3)
-		else:
-			self.data_size = DataPacket.max_size - DataPacket.header_size
+		# if useFEC:
+		# 	self.data_size = ((DataPacket.max_size - DataPacket.header_size) // 3)
+		# else:
+		# 	self.data_size = DataPacket.max_size - DataPacket.header_size
+		self.data_size = DataPacket.max_size - DataPacket.header_size
+
 		# Is the data size set yet or is it valid?
 		if self.data_size is None:
 			raise ValueError('data_size is not set.')
@@ -91,7 +93,7 @@ class DataPacket():
 
 			self.data = data
 			self.bytes = data_in_bytes
-			self.useFEC = useFEC
+			# self.useFEC = useFEC
 			self.rid = rid
 			self.xtea = xtea
 			self.paddingSize = 0
@@ -112,10 +114,11 @@ class DataPacket():
 
 		# Do a TMR expansion where the data is replicated 3 times but not next to each other
 		# to avoid burst errors.
-		if self.useFEC:
-			data = self.data * 3
-		else:
-			data = self.data
+		# if self.useFEC:
+		# 	data = self.data * 3
+		# else:
+		# 	data = self.data
+		data = self.data
 
 		padding = self.data_size - len(data)
 		data += DataPacket.padding_byte * padding
@@ -190,7 +193,7 @@ class DownloadRequest():
 	pass
 
 class TransmitCompletePacket(DataPacket):
-	def __init__(self, pathname, checksum, pid,rid,paddingUsed = 0, useFEC = False):
+	def __init__(self, pathname, checksum, pid,rid,paddingUsed = 0):
 		data = b' '
 		temp = [checksum, paddingUsed.to_bytes(1,byteorder='big'), pathname.encode('ascii')[pathname.rfind('/')+1:]]
 		data = data.join(temp)
@@ -202,21 +205,21 @@ class TransmitCompletePacket(DataPacket):
 		# 	data = data[:116] # only get the first 116 chars. Defined by the packet document
 		padding = len(data)
 		data += DataPacket.padding_byte * padding
-		super().__init__(data,pid,rid,useFEC,opcode=b'NOOP!')
+		super().__init__(data,pid,rid,opcode=b'NOOP!')
 class Relay():
 	packetsPerAck_DEFAULT = 1
 	delayPerTransmit_DEFAULT = 135 #in milliseconds
 	firstPacket_DEFAULT = -1
 	lastPacket_DEFAULT = -1
 	xtea_DEFAULT = False
-	useFEC_DEFAULT = False
+	# useFEC_DEFAULT = False
 	prepend_DEFAULT = ''
 	route_DEFAULT = None
 	totalPackets_DEFAULT = None
 class Transmitter():
 
 	def __init__(self, chip, pathname, route,
-				useFEC =			Relay.useFEC_DEFAULT,
+				# useFEC =			Relay.useFEC_DEFAULT,
 				packetsPerAck = 	Relay.packetsPerAck_DEFAULT,
 				delayPerTransmit = 	Relay.delayPerTransmit_DEFAULT,
 				firstPacket = 		Relay.firstPacket_DEFAULT,
@@ -224,7 +227,7 @@ class Transmitter():
 				xtea = 				Relay.xtea_DEFAULT):
 		self.chip = chip
 		self.pathname = pathname
-		self.useFEC = useFEC
+		# self.useFEC = useFEC
 		self.packetsPerAck = packetsPerAck
 		self.delayPerTransmit = delayPerTransmit
 		self.firstPacket = firstPacket if firstPacket > 0 else 0
@@ -233,10 +236,11 @@ class Transmitter():
 		self.filesize = os.path.getsize(pathname)
 		self.checksum = b'CKSM' #TODO figure out the checksum stuff
 
-		if useFEC:
-			self.data_size = (DataPacket.max_size - DataPacket.header_size) // 3
-		else:
-			self.data_size = DataPacket.max_size - DataPacket.header_size
+		# if useFEC:
+		# 	self.data_size = (DataPacket.max_size - DataPacket.header_size) // 3
+		# else:
+		# 	self.data_size = DataPacket.max_size - DataPacket.header_size
+		self.data_size = DataPacket.max_size - DataPacket.header_size
 		self.expected_packets = ceil(self.filesize / self.data_size)
 
 	def run(self):
@@ -252,7 +256,7 @@ class Transmitter():
 				for i in range(self.packetsPerAck):
 					try:
 						pid = (ackCount * self.packetsPerAck + i) + self.firstPacket
-						packet = DataPacket(packetData[pid], pid, self.route ,useFEC = self.useFEC)
+						packet = DataPacket(packetData[pid], pid, self.route)
 						packet.send(self.chip)
 					except IndexError:
 						# IndexError when we don't have enough packets for the current set of acknoledgements
@@ -268,7 +272,7 @@ class Transmitter():
 			print(e)
 		lastPacketPaddingSize = packet.paddingSize
 		#When it's done it needs to send a DONE packet
-		allDone = TransmitCompletePacket(self.pathname,self.checksum,self.expected_packets,self.route,paddingUsed=lastPacketPaddingSize,useFEC=self.useFEC)
+		allDone = TransmitCompletePacket(self.pathname,self.checksum,self.expected_packets,self.route,paddingUsed=lastPacketPaddingSize)
 		allDone.send(self.chip)
 		DataPacket.last_id = 0
 
@@ -293,7 +297,7 @@ class Receiver():
 	def __init__(self, chip, pathname,
 				prepend =			Relay.prepend_DEFAULT,
 				route =				Relay.route_DEFAULT,
-				useFEC =			Relay.useFEC_DEFAULT,
+				# useFEC =			Relay.useFEC_DEFAULT,
 				packetsPerAck = 	Relay.packetsPerAck_DEFAULT,
 				delayPerTransmit = 	Relay.delayPerTransmit_DEFAULT,
 				firstPacket = 		Relay.firstPacket_DEFAULT,
@@ -303,7 +307,7 @@ class Receiver():
 		self.chip = chip
 		self.prepend = prepend
 		self.pathname = pathname
-		self.useFEC = useFEC
+		# self.useFEC = useFEC
 		self.packetsPerAck = packetsPerAck
 		self.delayPerTransmit = delayPerTransmit
 		self.firstPacket = firstPacket if firstPacket > 1 else 1
@@ -312,10 +316,11 @@ class Receiver():
 		self.expected_packets = expected_packets
 		self.checksum = b'CKSM' #TODO figure out the checksum stuff
 
-		if useFEC:
-			self.data_size = (DataPacket.max_size - DataPacket.header_size) // 3
-		else:
-			self.data_size = DataPacket.max_size - DataPacket.header_size
+		# if useFEC:
+		# 	self.data_size = (DataPacket.max_size - DataPacket.header_size) // 3
+		# else:
+		# 	self.data_size = DataPacket.max_size - DataPacket.header_size
+		self.data_size = DataPacket.max_size - DataPacket.header_size
 
 	def run(self,fromWTC=True):
 		with open(self.prepend+self.pathname,'rb+') as scaffold:
@@ -366,21 +371,22 @@ class Receiver():
 class Scaffold():
 
 	@staticmethod
-	def determineDataSize(useFEC):
-		if useFEC:
-			return (DataPacket.max_size - DataPacket.header_size) // 3
-		else:
-			return DataPacket.max_size - DataPacket.header_size
+	def determineDataSize():
+		# if useFEC:
+		# 	return (DataPacket.max_size - DataPacket.header_size) // 3
+		# else:
+		# 	return DataPacket.max_size - DataPacket.header_size
+		return DataPacket.max_size - DataPacket.header_size
 
 	@staticmethod
 	def construct(pid,newData):
 
 		filename = Command.UploadRequest.filename.decode('ascii')
-		useFEC = Command.UploadRequest.useFEC
+		# useFEC = Command.UploadRequest.useFEC
 		with open(filename+".scaffold","rb+") as scaffold:
 			scaffoldData = scaffold.read()
 			scaffold.seek(0)
-			offset = pid * Scaffold.determineDataSize(useFEC)
+			offset = pid * Scaffold.determineDataSize()
 			scaffoldData = scaffoldData[:offset] + newData + scaffoldData[offset:]
 			scaffold.write(scaffoldData)
 

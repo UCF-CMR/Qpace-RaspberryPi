@@ -208,14 +208,14 @@ class MoveFilePacket(PrivledgedPacket):
 		#self.packetData = Minh's Method
 
 class DownloadFileInit(CMDPacket):
-	def __init__(self,pathname, delay, packetsPerAck, useFEC,start = 0,end = None):
+	def __init__(self,pathname, delay, packetsPerAck,start = 0,end = None):
 		CMDPacket.__init__('DWNLD')
 		self.pathname = pathname
 		self.firstPacket = start
 		self.lastPacket = end
 		self.delay = delay
 		self.packetsPerAck = packetsPerAck
-		self.useFEC = useFEC
+		# self.useFEC = useFEC
 
 class UploadFilePacket(PrivledgedPacket):
 	def __init__(self,pid, data):
@@ -227,29 +227,29 @@ class UploadFileHandler(): #In place for the request and the procedure
 		self.expectedPackets = expectedPackets
 
 class DownloadFileHandler(): #In place for the request and the procedure
-	def __init__(self,pathname, useFEC = False):
+	def __init__(self,pathname):
 		self.pathname = pathname
-		self.useFEC = useFEC
+		# self.useFEC = useFEC
 
 class Command():
 	fromWTC = False # Change to True for real operation.
 	class UploadRequest():
 		received = False
-		useFEC = None
+		# useFEC = None
 		totalPackets = None
 		filename = None
 
 		@staticmethod
 		def reset():
-			logger.logSystem([['UploadRequest: Upload Request has been cleared.',str(Command.UploadRequest.useFEC),str(Command.UploadRequest.totalPackets),str(Command.UploadRequest.filename)]])
+			logger.logSystem([['UploadRequest: Upload Request has been cleared.',str(Command.UploadRequest.totalPackets),str(Command.UploadRequest.filename)]])
 			Command.UploadRequest.received = False
-			Command.UploadRequest.useFEC = None
+			# Command.UploadRequest.useFEC = None
 			Command.UploadRequest.totalPackets =  None
 			Command.UploadRequest.filename = None
 
 		@staticmethod
-		def set(fec = False, pak = None, filename = None):
-			logger.logSystem([["UploadRequest: Upload Request has been received.",str(fec),str(pak),str(filename)]])
+		def set(pak = None, filename = None):
+			logger.logSystem([["UploadRequest: Upload Request has been received.",str(pak),str(filename)]])
 			if Command.UploadRequest.isActive():
 				logger.logSystem([["UploadRequest: Redundant Request?"]])
 			else:
@@ -260,7 +260,7 @@ class Command():
 					#open(filename.decode('ascii') + '.scaffold','wb').close() #Fallback method to make sure it works
 					pass
 			Command.UploadRequest.received = True
-			Command.UploadRequest.useFEC = fec
+			# Command.UploadRequest.useFEC = fec
 			Command.UploadRequest.totalPackets = pak
 			Command.UploadRequest.filename = filename
 
@@ -316,13 +316,13 @@ class Command():
 	def dlFile(chip,cmd,args):
 		import qpaceFileHandler as qfh
 		qfh.DataPacket.last_id = 0
-		fec = args[:4]
+		# fec = args[:4]
 		ppa = int.from_bytes(args[4:8], byteorder='big')
 		msdelay = int.from_bytes(args[8:12], byteorder='big')
 		start = int.from_bytes(args[12:16], byteorder='big')
 		end = int.from_bytes(args[16:20], byteorder='big')
 		filename = args[20:].replace(b'\x1f',b'')
-		print('FEC:',fec)
+		# print('FEC:',fec)
 		print('PPA:',ppa)
 		print('DEL:',msdelay)
 		print('STR:',start)
@@ -331,7 +331,7 @@ class Command():
 		transmitter = qfh.Transmitter(	chip,
 										filename.decode('ascii'),
 										0x01,
-										useFEC = fec == b' FEC',
+										# useFEC = fec == b' FEC',
 										packetsPerAck = ppa,
 										delayPerTransmit = msdelay,
 										firstPacket = start,
@@ -345,12 +345,12 @@ class Command():
 		import qpaceFileHandler as qfh
 
 		totPak = int.from_bytes(args[0:4], byteorder='big')
-		fec = args[4:8]
+		# fec = args[4:8]
 		filename = args[8:96].replace(b'\x1f',b'')
-		print('FEC:',fec)
+		# print('FEC:',fec)
 		print('TPK:',totPak)
 		print('FNM:',filename)
-		Command.UploadRequest.set(fec,totPak,filename)
+		Command.UploadRequest.set(pak=totPak,filename=filename)
 
 		# receiver = qfh.Receiver(	chip,
 		# 							filename.decode('ascii'),
