@@ -35,10 +35,6 @@ QPCOMMAND = {
 
 	#Specific QPACE States. Some of these may be the same as above states.
 	"IDLE":			  0x48, # WTC may send the Pi packets. The pi has no intentions. Could be running an experiment.
-	"STEPON":		  0x50, # Request to turn the steppers on.
-	"STEPOFF":		  0x51, # Request to turn the steppers off.
-	"SOLON":		  0x52, # Request to turn the solenoids on.
-	"SOLDOFF":		  0x53, # Request to turn the solenoids off.
 	"REBOOT":		  0x49, # Informing the WTC that the Pi is about to reboot.
 
 	# "SENDBACK":       0x60, # WTC Send data back

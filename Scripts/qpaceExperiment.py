@@ -4,12 +4,16 @@
 # Q-Pace project, Center for Microgravity Research
 # University of Central Florida
 
-import RPi.GPIO as GPIO
 import time
 import qpaceLogger as logger
 
-GPIO.setwarnings(False)
-GPIO.setmode(GPIO.BOARD)
+try:
+	import RPi.GPIO as GPIO
+	GPIO.setwarnings(False)
+	GPIO.setmode(GPIO.BOARD)
+except:
+	print("Unable to import RPi.GPIO")
+	pass
 
 GoProDirectory = '/home/pi/gopro/DCIM/100GOPRO'
 MountPoint = '/home/pi/gopro'
@@ -70,31 +74,35 @@ def flip(pin,delay=.1):
 def reset(pingroup=None):
 	# Initialize the pins to their default states.
 	# If a pingroup is supplied, then only reset that pin group.
-
-	if pingroup is None: # If None, reset all pins
-		reset(PINGROUP.gopro)
-		reset(PINGROUP.stepper)
-		reset(PINGROUP.led)
-		reset(PINGROUP.solenoid)
-	elif pingroup == PINGROUP.led:
-		#LED pin setup
-		GPIO.setup(PIN.LEDPWR, GPIO.OUT, initial=0)				#Controls the LEDs
-	elif pingroup == PINGROUP.solenoid:
-		#Solenoid setup
-		GPIO.setup(PIN.SOL1, GPIO.OUT, initial=0)				#Solenoid 1
-		GPIO.setup(PIN.SOL2, GPIO.OUT, initial=0)				#Solenoid 2
-		GPIO.setup(PIN.SOL3, GPIO.OUT, initial=0)				#Solenoid 3
-	elif pingroup == PINGROUP.stepper:
-		#Stepper pin setup
-		GPIO.setup(PIN.STPEN, GPIO.OUT, initial=1)				#Step Enable
-		GPIO.setup(PIN.STPENA, GPIO.OUT, initial=0)				#Step A Enable
-		GPIO.setup(PIN.STPENB, GPIO.OUT, initial=0)				#Step B Enable
-	elif pingroup == PINGROUP.gopro:
-		#GoPro pin setup
-		GPIO.setup(PIN.GOPPWR, GPIO.OUT, initial=0)				#Power
-		GPIO.setup(PIN.GOPBUT, GPIO.OUT, initial=1)				#On Button
-		GPIO.setup(PIN.GOPCAP, GPIO.OUT, initial=1)				#Capture Button
-		GPIO.setup(PIN.GOPDEN, GPIO.OUT, initial=0)
+	try:
+		GPIO
+	except NameError:
+		print("GPIO reset unable to happen, GPIO is not defined.")
+	else:
+		if pingroup is None: # If None, reset all pins
+			reset(PINGROUP.gopro)
+			reset(PINGROUP.stepper)
+			reset(PINGROUP.led)
+			reset(PINGROUP.solenoid)
+		elif pingroup == PINGROUP.led:
+			#LED pin setup
+			GPIO.setup(PIN.LEDPWR, GPIO.OUT, initial=0)				#Controls the LEDs
+		elif pingroup == PINGROUP.solenoid:
+			#Solenoid setup
+			GPIO.setup(PIN.SOL1, GPIO.OUT, initial=0)				#Solenoid 1
+			GPIO.setup(PIN.SOL2, GPIO.OUT, initial=0)				#Solenoid 2
+			GPIO.setup(PIN.SOL3, GPIO.OUT, initial=0)				#Solenoid 3
+		elif pingroup == PINGROUP.stepper:
+			#Stepper pin setup
+			GPIO.setup(PIN.STPEN, GPIO.OUT, initial=1)				#Step Enable
+			GPIO.setup(PIN.STPENA, GPIO.OUT, initial=0)				#Step A Enable
+			GPIO.setup(PIN.STPENB, GPIO.OUT, initial=0)				#Step B Enable
+		elif pingroup == PINGROUP.gopro:
+			#GoPro pin setup
+			GPIO.setup(PIN.GOPPWR, GPIO.OUT, initial=0)				#Power
+			GPIO.setup(PIN.GOPBUT, GPIO.OUT, initial=1)				#On Button
+			GPIO.setup(PIN.GOPCAP, GPIO.OUT, initial=1)				#Capture Button
+			GPIO.setup(PIN.GOPDEN, GPIO.OUT, initial=0)
 
 def pinInit():
 	# This method is depreciated

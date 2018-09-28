@@ -1,7 +1,8 @@
 import sys
 import time
-import pigpio
-
+try:
+	import pigpio
+except:pass
 # General Registers (Require LCR[7] = 0)
 REG_RHR       = 0x00 # Receive Holding Register (R)
 REG_THR       = 0x00 # Transmit Holding Register (W)

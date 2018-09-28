@@ -16,11 +16,15 @@ import os
 import threading
 import tstSC16IS750 as SC16IS750
 #import SC16IS750
-import pigpio
+
 import time
 import qpaceStates as states
 
-gpio = pigpio.pi()
+try:
+	import pigpio
+	gpio = pigpio.pi()
+except:
+	gpio = None
 CCDR_IRQ = 16 #BCM 16, board 36
 REBOOT_ON_EXIT = False
 def initWTCConnection():
@@ -70,9 +74,10 @@ def initWTCConnection():
 
 class NextQueue():
 	# MAX = 10
-	WAIT_TIME = 60 #in seconds
+	WAIT_TIME = 25 #in seconds
 	requestQueue = []
 	responseQueue = []
+	requestCount = 0
 	cv = threading.Condition()
 
 	@staticmethod
@@ -93,6 +98,7 @@ class NextQueue():
 		except KeyError:
 			item = states.QPCOMMAND['NOOP']
 		NextQueue.requestQueue.append(item)
+		NextQueue.requestCount += 1
 
 	@staticmethod
 	def peek():
@@ -106,7 +112,6 @@ class NextQueue():
 	def dequeue():
 		if NextQueue.isEmpty():
 			return states.QPCOMMAND['IDLE']
-
 		else:
 			next =  NextQueue.requestQueue.pop(0)
 			logger.logSystem([["NextQueue: Removed item from queue: '{}'".format(next)]])
@@ -211,14 +216,15 @@ def run():
 
 		# If we've reached this point, just shutdown.
 		logger.logSystem([["Main: Cleaning up and closing out..."]])
-		gpio.stop()
+		if gpio:
+			gpio.stop()
 		shutdownEvent.set()
 		interpreter.join()
 		todoParser.join()
 
 
 		if False: #TODO: Change to True for release
-			if REBOOT_ON_EXIT
+			if REBOOT_ON_EXIT:
 				logger.logSystem([['Main: Rebooting RaspberryPi...']])
 				os.system('sudo reboot') # reboot
 			else:

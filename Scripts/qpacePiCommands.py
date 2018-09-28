@@ -436,6 +436,7 @@ class Command():
 	# TODO Probably uneccessary now. Should make less information. Not sure what is and what isn't necessary here anymore
 	# TODO it will need to be looked at and determined what exactly needs to be done here.
 	def getStatus():
+
 		logger.logSystem([["Attempting to get the status of the Pi"]])
 		identity = 0
 		cpu = 'Unknown'
@@ -446,9 +447,30 @@ class Command():
 		ram_free = 'Unknown'
 		disk_free = 'Unknown'
 		disk_total = 'Unknown'
-		last_command = LastCommand.type
-		last_command_when = LastCommand.timestamp
-		last_command_from = LastCommand.fromWhom
+		requests_queued = "Unknown"
+		nextqueue_size = "Unknown"
+		last_command = "Unknown"
+		last_command_from = "Unknown"
+		last_command_when = "Unknown"
+		commands_executed = "Unknown"
+		boot = "Unknown"
+
+
+		try:
+			from qpaceWTCHandler import NextQueue
+			requests_queued = NextQueue.requestCount
+			nextqueue_size = len(NextQueue.requestQueue)
+		except Exception as err:
+			print(str(err))
+			logger.logError("Could not import NextQueue",err)
+		try:
+			from qpaceInterpreter import LastCommand
+			last_command = LastCommand.type
+			last_command_when = LastCommand.timestamp
+			last_command_from = LastCommand.fromWhom
+			commands_executed = LastCommand.commandCount
+		except Exception as err:
+			logger.logError("Could not import LastCommand",err)
 		try:
 			cpu = str(round(100 - float(check_output("top -b -n 2 |grep Cpu|tail -1|awk -v N=8 '{print $N}'", shell=True)),3))
 			cpu_temp = str(int(os.popen('cat /sys/class/thermal/thermal_zone0/temp').read()[:-1])/1000)
@@ -459,7 +481,8 @@ class Command():
 		except Exception as err:
 			logger.logError("There was a problem accessing the IP address", err)
 		try:
-			uptime =  os.popen("uptime | awk -v N=3 '{print $N}'").read()[:-2]
+			uptime =  os.popen("uptime").read().split(' ')
+			uptime = "{} {} {} {} {} {}".format(uptime[3],uptime[4],uptime[10],uptime[11],uptime[12],uptime[13])[:-1]
 		except Exception as err:
 			logger.logError("There was a problem accessing the uptime", err)
 		try:
@@ -478,16 +501,20 @@ class Command():
 			logger.logError("There was a problem accessing the Disk stats", err)
 
 		text_to_write = "Identity: Pi {}\n"     +\
+						"Boot: {}\n"			+\
 						"Last Command Executed was \"{}\" at {} invoked by \"{}\"\n" +\
+						"Commands Executed: {}\n" +\
+						"Requests queued: {}\n"   +\
+						"Size of NextQueue: {}\n" +\
 						"CPU Usage: {}%\n"      +\
-						"CPU Temp: {}C\n"       +\
-						"Uptime: {} (hh:mm)\n"  +\
+						"CPU Temp: {} deg C\n"  +\
+						"Uptime: {}\n"  		+\
 						"RAM Total: {} bytes\n" +\
 						"RAM Used: {} bytes\n"  +\
 						"RAM Free: {} bytes\n"  +\
 						"Disk total: {}\n"      +\
 						"Disk free: {}\n"
-		return text_to_write.format(identity,last_command,last_command_when,last_command_from,cpu,cpu_temp,
+		return text_to_write.format(identity,boot,last_command,last_command_when,last_command_from,commands_executed,requests_queued,nextqueue_size,cpu,cpu_temp,
 								uptime,ram_tot,ram_used,ram_free,disk_total,disk_free)
 
 	def saveStatus(chip,cmd,args):
@@ -505,8 +532,8 @@ class Command():
 		cmd,args - string, array of args (seperated by ' ') - the actual command, the args for the command
 		"""
 
-		text_to_write = getStatus()
-		logger.logSystem([["Status finished."] + text_to_write.split('\n')])
+		text_to_write = Command.getStatus()
+		logger.logSystem([["saveStatus: Attempting to save the status to a file."]])
 		timestamp = strftime("%Y%m%d-%H%M%S",gmtime())
 		try:
 			with open(STATUSPATH+'status_'+timestamp+'.txt','w') as statFile:
@@ -515,5 +542,5 @@ class Command():
 			logger.logError("There was a problem writing the status file.",err)
 			try:
 				with open(STATUSPATH+'status_'+timestamp+'.txt','w') as statFile:
-					statFile.write("Unable to write status file.")
+					statFile.write("Unable to write status file. {}".format(str(err)))
 			except:pass

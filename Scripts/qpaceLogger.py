@@ -77,9 +77,11 @@ def logError(description, exception = None):
             errorData.append(str(exception.args))
         # logData exepcts a 2d array for each row, so make it a 2d array.
         errorData = [errorData]
-        _logData([[strftime("%Y%m%d-%H%M%S",gmtime()),'An Error is being recorded to the error log.','Preview: ' + description[:30]]],'system_')
+        _logData([[strftime("%Y%m%d-%H%M%S",gmtime()),'An Error is being recorded to the error log.','Preview: ' + description[:45]]],'system_')
         return _logData(errorData, 'error_') # Actually log the data.
-    except Exception: pass
+    except Exception:
+        print(SYSTEMLOG_ERROR_DESCRIPTION)
+        pass
 
 def logSystem(data):
     """
@@ -106,4 +108,5 @@ def logSystem(data):
         return _logData(data, 'system_')
     except Exception as e:
         # Guess we had a problem, so we'll log the error as an error.
+        print(SYSTEMLOG_ERROR_DESCRIPTION)
         pass#logError(SYSTEMLOG_ERROR_DESCRIPTION,e) # Actually log the error.

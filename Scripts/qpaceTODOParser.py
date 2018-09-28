@@ -11,7 +11,6 @@ import re
 import os
 import signal
 import time
-import RPi.GPIO as gpio
 from datetime import datetime, date, timedelta
 from math import ceil
 from shutil import copy
@@ -19,6 +18,8 @@ import threading
 import qpaceLogger as logger
 import qpaceExperimentParser as exp
 import qpacePiCommands as cmd
+import qpaceWTCHandler as qph
+from qpaceStates import QPCOMMAND
 
 TODO_PATH = "/home/pi/data/text/"
 TODO_FILE = "todo.txt"
@@ -137,7 +138,7 @@ def _processTask(chip,task,experimentEvent = None):
 		---------
 		Rev. 1.1 - 4/10/2018 Minh Pham (Added code execution to tasks.)
 	"""
-	logger.logSystem([["TodoParser: Beginning execution of a task", str(task[1:])]])
+	logger.logSystem([["TodoParser: Beginning execution of a task.", str(task[1:])]])
 	currentTask = task[1].upper()
 	if currentTask == "EXPERIMENT":
 		# If experimentEvent exists and is not set, then let's run an experiment.
@@ -145,19 +146,24 @@ def _processTask(chip,task,experimentEvent = None):
 			#Run an experiment file from the experiment directory
 			logger.logSystem([["TodoParser: Running an experiment.", task[2]]]) # Placeholder
 			parserThread = threading.Thread(name='experimentParser',target=exp.experimentparser, args=(task[2],experimentEvent))
-			parserThread.start()
-			experimentEvent.set()
+
+
+			qph.NextQueue.enqueue('ALLON')
+			queueReturn = qph.NextQueue.waitAndReturn()
+			if queueReturn == QPCOMMAND['True']:
+				logger.logSystem([["TodoParser: Solenoids enabled. Beginning experiment."]])
+				experimentEvent.set()
+				parserThread.start()
+			else:
+				logger.logSystem([["TodoParser: Solenoids not enabled. Experiment is being purged from the list."]])
 		else: # If experimentEvent does not exist or is set, return True to know there is a failure.
 			return False
 	elif currentTask == "BACKUP":  #Back up a file
-		#copy(task[2],task[3]) #Copy the file from task[2] to task[3]
-		print("Attempting to create a backup of", task[2]) # Placeholder
-		#TODO write backup scripts
+		copy(task[2],task[3]) #Copy the file from task[2] to task[3]
+		logger.logSystem([["Attempting to create a backup.",task[2],task[3]]]) # Placeholder
 	elif currentTask == "REPORT":  #Get the status
-		status = cmd.getStatus()
-		status = status.split('\n')
-		cmd.saveStatus(None,None,None)
-		cmd.sendFile(chip,'REPORT','status_*.txt') #TODO test if this actually works
+		logger.logSystem([["TodoParser: Saving status to file."]])
+		cmd.Command.saveStatus(None,None,None)
 	else:
 		logger.logSystem([["TodoParser: Unknown task!", str(task[1:])]])
 
