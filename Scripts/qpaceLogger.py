@@ -12,8 +12,8 @@ import datetime
 from time import strftime,gmtime
 
 # Defined Paths.
-LOG_PATH = "/home/pi/logs/"
-BOOTTIME_PATH = "/home/pi/BOOTTIME"
+LOG_PATH = "../logs/"
+BOOTTIME_PATH = "../BOOTTIME"
 #Information for writing the CSV
 DELIMITER = ","
 # Default error if systemLog() doesn't work properly.
@@ -21,6 +21,21 @@ SYSTEMLOG_ERROR_DESCRIPTION = "Unable to write to a CSV to log data."
 
 LOG_ATTEMPTS = 0
 MAX_LOG_ATTEMPTS = 5
+
+class Errors():
+    error_count = 0
+
+    @staticmethod
+    def get():
+        return Errors.error_count
+
+    @staticmethod
+    def inc(n=1):
+        Errors.error_count += n
+
+    @staticmethod
+    def set(n):
+        Errors.error_count = n
 
 def _logData(data, csvName):
     print(data)
@@ -84,6 +99,7 @@ def logError(description, exception = None):
         # logData exepcts a 2d array for each row, so make it a 2d array.
         errorData = [errorData]
         _logData([[strftime("%Y%m%d-%H%M%S",gmtime()),'An Error is being recorded to the error log.','Preview: ' + description[:45]]],'system_')
+        Errors.inc()
         return _logData(errorData, 'error_') # Actually log the data.
     except Exception:
         global LOG_ATTEMPTS

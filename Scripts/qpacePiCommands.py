@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-# qpacePiCommands.py by Jonathan Kessluk
-# 4-24-2018, Rev. 1
+# qpacePiCommands.py by Jonathan Kessluk and Minh Pham
+# 9-3-2018, Rev. 2.5
 # Q-Pace project, Center for Microgravity Research
 # University of Central Florida
 #
@@ -13,6 +13,7 @@ from math import ceil
 from time import strftime,gmtime,sleep
 import datetime
 import random
+import tarfile
 #from qpaceInterpreter import *
 import qpaceLogger as logger
 import qpaceStates as qps
@@ -88,9 +89,9 @@ class CMDPacket():
 
 	def respond(self):
 		if self.packetData:
-			self.packetData = self.packetData + CMDPacket.generateChecksum(self.packetData)
-			print(self.packetData)
-			#return sendBytesToCCDR(self.chip,self.packetData)
+			sendData = self.build()
+			print(sendData)
+			return sendBytesToCCDR(self.chip,sendData)
 		else:
 			return sendBytesToCCDR(self.chip,UNAUTHORIZED)
 
@@ -106,25 +107,32 @@ class CMDPacket():
 		checksum &= 0xFFFFFFFF
 		return checksum.to_bytes(4,byteorder='big')
 
-class PrivledgedPacket(CMDPacket):
-	def __init__(self,tag,optype, encodedData = None):
+	def build(self):
+		return bytes([self.routing]) + self.opcode.encode('ascii') + self.packetData + CMDPacket.generateChecksum(self.packetData)
+
+
+class PrivilegedPacket(CMDPacket):
+	def __init__(self,chip,opcode,tag=None, encodedData = None):
 		self.tag = tag
-		CMDPacket.__init__(self,"NOOP"+optype)
+		CMDPacket.__init__(self,opcode=opcode,chip=chip)
 
 		if encodedData:
-			self.packetData = PrivledgedPacket.decodeXTEA(encodedData)
+			self.packetData = PrivilegedPacket.decodeXTEA(encodedData)
 		else:
 			self.packetData = None
 
-	@classmethod
-	def encodeXTEA(encodedData):
-		pass
+	@staticmethod
+	def encodeXTEA(plainText):
+		cipherText = plainText
+		return cipherText
 
-	@classmethod
-	def decodeXTEA(encodedData):
-		pass
+	@staticmethod
+	def decodeXTEA(cipherText):
+		plainText = cipherText
+		return plainText
 
-	@classmethod
+
+	@staticmethod
 	def returnRandom(n):
 		retval = []
 		for i in range(0,n):
@@ -137,99 +145,94 @@ class PrivledgedPacket(CMDPacket):
 
 class StatusPacket(CMDPacket):
 	def __init__(self,chip):
-		CMDPacket.__init__(self,'STATS',chip)
+		CMDPacket.__init__(self,chip=chip,opcode='STATS')
 		timestamp = datetime.datetime.now()
-		retval =  str(timestamp.month)
-		retval += str(timestamp.day)
-		retval += str(timestamp.year-2000)
-		retval += str(timestamp.weekday())
-		retval += str(timestamp.hour)
-		retval += str(timestamp.minute)
-		retval += str(timestamp.second)
+		retval =  bytes([timestamp.month, timestamp.day, timestamp.year - 2000, timestamp.weekday(), timestamp.hour,timestamp.minute,timestamp.second])
 		status = b"DIL is go."
-		#status += b'Errors since last boot: ' + number of errors TODO GET NUMBER OF ERRORS SINCE LAST STATUS PACKET
-		#status = b'status message' +status message TODO GET FIRST LINE OF 'STATUS'
-		status += b' '*(111-len(status)) # 111 due to defined packet Structure
-		retval += str(status[:111])
-		self.packetData = retval.encode('ascii')
+		status += b':E(' + str(logger.Errors.get()).encode('ascii') + b'):' #Number of errors logged since last boot
+		status += b'M('+ b'' +b')' # status message TODO GET FIRST LINE OF 'STATUS'
+		retval += status + b' '*(111-len(status)) # 111 due to defined packet Structure
+		self.packetData = retval
 
-class DirectoryListingPacket(PrivledgedPacket):
-	def __init__(self,pathname, tag):
+class DirectoryListingPacket(PrivilegedPacket):
+	def __init__(self,chip,pathname, tag="AA"):
 		self.pathname = pathname
-		PrivledgedPacket.__init__(tag,"*")
-
+		PrivilegedPacket.__init__(self,chip=chip,opcode="NOOP*",tag=tag)
 		lenstr = str(len(os.listdir(pathname))) # Get the number of files/directories in this directory.
-		padding = " "*(98-len(lenstr)) #98 due to specification of packet structure
-		endPadding = " "*12 # 12 due to specification of packet structure
-		retVal = PrivledgedPacket.returnRandom(4)
-		retVal += lenstr + padding + tag
-		retVal += PrivledgedPacket.returnRandom(2)
-		retVal = retVal.encode('ascii')
-		retVal += b'\x00'*12
+		padding = " "*(94-len(lenstr)) #98 due to specification of packet structure
+		endPadding = b"\x00"*12 # 12 due to specification of packet structure
+		retVal = PrivilegedPacket.returnRandom(4)
+		retVal += (lenstr + padding + tag).encode('ascii')
+		retVal += PrivilegedPacket.returnRandom(6)
+		retVal += endPadding
 		self.packetData = retVal
 
-class SendDirectoryList(PrivledgedPacket):
-	def __init__(self,pathname, nLines, delay,tag):
-		PrivledgedPacket.__init__(tag,"*")
+class SendDirectoryList(PrivilegedPacket):
+	def __init__(self, chip, pathname, tag='AA'):
+		PrivilegedPacket.__init__(self,chip=chip,opcode="NOOP*", tag=tag)
 		self.pathname = pathname
-		self.nLines = nLines
-		self.delay = delay
-		self.dataSize = 118 #118 due to packet specification
+		filepath = '../temp/DirList'
+		try:
+			pathList = os.listdir(pathname)
+		except:
+			pathList = ["No such file or directory:'{}'".format(pathname)]
+		with open(filepath, "w") as filestore:
+			filestore.write("Timestamp: {}\n".format(strftime("%Y%m%d-%H%M%S",gmtime())))
+			for line in pathList:
+				filestore.write(line + '\n')
+		padding = " " * (94 - len(filepath))
+		retVal = PrivilegedPacket.returnRandom(4)
+		retVal += PrivilegedPacket.encodeXTEA((filepath + padding + tag).encode('ascii'))
+		retVal += PrivilegedPacket.returnRandom(18)
+		self.packetData = retVal
 
-		from subprocess import run
-		pathList = run(['ls','-al',self.pathname],stdout=subprocess.PIPE).stdout.split(b'\n')
-		pathList = b"\n".join([PrivledgedPacket.encodeXTEA(line) for line in pathList])
-		self.packetData = pathList
+class MoveFilePacket(PrivilegedPacket):
+	def __init__(self, chip, originalFile, pathToNewFile, tag='AA'):
+		PrivilegedPacket.__init__(self,chip=chip,opcode="NOOP*",tag=tag)
+		try:
+			import shutil
+			shutil.move(originalFile, pathToNewFile)
+			exception = None
+			wasMoved = 'was'
+		except Exception as e:
+			exception = str(e)
+			wasMoved = 'was not'
 
-	def respond():
-		if self.packetData:
-			lines = self.packetData.split('\n')
-			if self.nLines:
-				if self.nLines > 0:
-					lines = lines[:nLines] # If positive, only give the first nLines lines
-				elif self.nLines < 0:
-					lines = lines[nLines:] # If negative, only give the last nLines lines
-			lines[-1] = lines[-1] + b'\x04' # \x03 is EOT
-			for line in lines:
-				#dataSize defined for packet Structure
-				line = line.encode('ascii')[:self.dataSize] + CMDPacket.generateChecksum(line[:self.dataSize])
-				sendBytesToCCDR(self.chip,line)
-				time.sleep(self.delay)
-		else:
-			return sendBytesToCCDR(self.chip,UNAUTHORIZED)
+		filepath = '../data/MoveFile.log'
+		with open(filepath, "a+") as filestore:
+			timestamp = strftime("%Y%m%d-%H%M%S",gmtime())
+			filestore.write('[{}] {}: {} {} moved to {}\n'.format(timestamp, wasMoved=='was',originalFile, wasMoved, pathToNewFile))
+			if exception: filestore.write('[{}] {}\n'.format(timestamp,exception))
+		wasMoved = "{} {} moved.".format(originalFile, wasMoved)
+		padding = " " * (94 - len(wasMoved))
+		retVal = PrivilegedPacket.returnRandom(4)
+		retVal += PrivilegedPacket.encodeXTEA((wasMoved + padding + tag).encode('ascii'))
+		retVal += PrivilegedPacket.returnRandom(18)
+		self.packetData = retVal
 
-class MoveFilePacket(PrivledgedPacket):
-	def __init__(self,fileToMove,pathToNewFile,tag):
-		PrivledgedPacket.__init__(tag,"*")
-		self.fileToMove = fileToMove
-		self.pathToNewFile = pathToNewFile
+# class DownloadFileInit(CMDPacket):
+# 	def __init__(self,pathname, delay, packetsPerAck,start = 0,end = None):
+# 		CMDPacket.__init__('DWNLD')
+# 		self.pathname = pathname
+# 		self.firstPacket = start
+# 		self.lastPacket = end
+# 		self.delay = delay
+# 		self.packetsPerAck = packetsPerAck
+# 		# self.useFEC = useFEC
 
-		#TODO put Minh's move method here.
-		#self.packetData = Minh's Method
+# class UploadFilePacket(PrivilegedPacket):
+# 	def __init__(self,pid, data):
+# 		PrivilegedPacket.__init__('','>')
 
-class DownloadFileInit(CMDPacket):
-	def __init__(self,pathname, delay, packetsPerAck,start = 0,end = None):
-		CMDPacket.__init__('DWNLD')
-		self.pathname = pathname
-		self.firstPacket = start
-		self.lastPacket = end
-		self.delay = delay
-		self.packetsPerAck = packetsPerAck
-		# self.useFEC = useFEC
-
-class UploadFilePacket(PrivledgedPacket):
-	def __init__(self,pid, data):
-		PrivledgedPacket.__init__('','>')
-
-class UploadFileHandler(): #In place for the request and the procedure
-	def __init__(self,filename,expectedPackets, tag):
-		self.filename = filename
-		self.expectedPackets = expectedPackets
-
-class DownloadFileHandler(): #In place for the request and the procedure
-	def __init__(self,pathname):
-		self.pathname = pathname
-		# self.useFEC = useFEC
+# class UploadFileHandler(): #In place for the request and the procedure
+# 	def __init__(self,filename,expectedPackets, tag):
+# 		self.filename = filename
+# 		self.expectedPackets = expectedPackets
+#
+# class DownloadFileHandler(): #In place for the request and the procedure
+# 	def __init__(self,pathname):
+# 		self.pathname = pathname
+# 		# self.useFEC = useFEC
 
 class Command():
 	fromWTC = False # Change to True for real operation.
@@ -299,7 +302,6 @@ class Command():
 		else:
 			return True
 		return False
-
 
 	def status(chip,cmd,args):
 		StatusPacket().respond()

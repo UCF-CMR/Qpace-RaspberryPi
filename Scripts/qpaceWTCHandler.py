@@ -236,7 +236,7 @@ if __name__ == '__main__':
 	try:
 		import specialTasks
 		from time import strftime,gmtime
-		os.rename('specialTasks.py','graveyard/specialTasks'+str(strftime("%Y%m%d-%H%M%S",gmtime()))+'.py')
+		os.rename('specialTasks.py','../graveyard/specialTasks'+str(strftime("%Y%m%d-%H%M%S",gmtime()))+'.py')
 	except ImportError:
 		logger.logSystem([["SpecialTasks: No special tasks to run on boot..."]])
 	except OSError:

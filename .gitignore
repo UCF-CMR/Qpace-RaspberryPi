@@ -1,5 +1,5 @@
 # Don't include compiled python.
-*/__pycache__
+**/__pycache__
 **/*.pyc
 
 # Don't include text editor .swp files.
@@ -7,13 +7,15 @@
 
 # Don't include temp files
 **/*.tmp
+temp/
 
 # Don't include qp packet files
 **/*.qp
 
 # Don't share logs with each other from the log directory. That could get tedious.
-logs/system_*.csv
-logs/error_*.csv
+logs/system_*.*
+logs/error_*.*
+**/*.log
 
 # Don't include specific testing files
 **/inputSC16IS750.txt
@@ -21,3 +23,4 @@ logs/error_*.csv
 
 # Don't include specific functional files
 **/BOOTTIME
+graveyard/
