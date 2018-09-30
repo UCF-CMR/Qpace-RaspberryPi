@@ -19,6 +19,9 @@ DELIMITER = ","
 # Default error if systemLog() doesn't work properly.
 SYSTEMLOG_ERROR_DESCRIPTION = "Unable to write to a CSV to log data."
 
+LOG_ATTEMPTS = 0
+MAX_LOG_ATTEMPTS = 5
+
 def _logData(data, csvName):
     print(data)
     """
@@ -40,6 +43,9 @@ def _logData(data, csvName):
     All exceptions raised by this function are passed up to the caller.
 
     """
+    global LOG_ATTEMPTS
+    if LOG_ATTEMPTS >= MAX_LOG_ATTEMPTS:
+        return None
     try:
         # Get a human readable datetime formated as %Y%m%d-%H%M%S from the BOOTTIME file.
         bootTime = datetime.datetime.utcfromtimestamp(os.path.getmtime(BOOTTIME_PATH)).strftime('%Y%m%d-%H%M%S')
@@ -80,7 +86,9 @@ def logError(description, exception = None):
         _logData([[strftime("%Y%m%d-%H%M%S",gmtime()),'An Error is being recorded to the error log.','Preview: ' + description[:45]]],'system_')
         return _logData(errorData, 'error_') # Actually log the data.
     except Exception:
-        print(SYSTEMLOG_ERROR_DESCRIPTION)
+        global LOG_ATTEMPTS
+        LOG_ATTEMPTS += 1
+        print(SYSTEMLOG_ERROR_DESCRIPTION, "Attempt:",LOG_ATTEMPTS,"/",MAX_LOG_ATTEMPTS)
         pass
 
 def logSystem(data):
@@ -107,6 +115,8 @@ def logSystem(data):
             row.insert(0,timestamp)
         return _logData(data, 'system_')
     except Exception as e:
+        global LOG_ATTEMPTS
+        LOG_ATTEMPTS += 1
         # Guess we had a problem, so we'll log the error as an error.
-        print(SYSTEMLOG_ERROR_DESCRIPTION)
+        print(SYSTEMLOG_ERROR_DESCRIPTION, "Attempt:",LOG_ATTEMPTS,"/",MAX_LOG_ATTEMPTS)
         pass#logError(SYSTEMLOG_ERROR_DESCRIPTION,e) # Actually log the error.

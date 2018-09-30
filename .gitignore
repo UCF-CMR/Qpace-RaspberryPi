@@ -14,3 +14,10 @@
 # Don't share logs with each other from the log directory. That could get tedious.
 logs/system_*.csv
 logs/error_*.csv
+
+# Don't include specific testing files
+**/inputSC16IS750.txt
+**/outputSC16IS70.txt
+
+# Don't include specific functional files
+**/BOOTTIME

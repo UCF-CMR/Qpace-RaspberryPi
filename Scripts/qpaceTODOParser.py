@@ -297,7 +297,7 @@ def run(chip,experimentEvent, runEvent, shutdownEvent):
 				logger.logSystem([["TodoParser: Finished execution", TODO_FILE_PATH]])
 				#os.remove(TODO_FILE_PATH) # Do we want to delete the file or just leave it alone
 		else:
-			logger.logSystem([["TodoParser: Todo list is empty."]])
+			logger.logSystem([["TodoParser: Todo list is not populated."]])
 	except InterruptedError as interrupt:
 		logger.logSystem([["TodoParser: Interrupted."]])
 
