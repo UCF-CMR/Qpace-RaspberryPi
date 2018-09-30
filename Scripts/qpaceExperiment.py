@@ -128,7 +128,7 @@ def press_capture():
 def gopro_start():
 	# Turn on the go pro and start recording.
 	init_gopro() # Turn on camera and set mode
-	logger.logSystem([["ExpCtrl: Beginning to record"]])
+	logger.logSystem("ExpCtrl: Beginning to record")
 	press_capture() # Begin Recording
 
 def transOn():
@@ -144,7 +144,7 @@ def goProTransfer():
     time.sleep(1)
     if True:
         #TURN USB ENABLE
-        logger.logSystem([["ExpCtrl: Enabling the USB and mounting the drive..."]])
+        logger.logSystem("ExpCtrl: Enabling the USB and mounting the drive...")
         transOn()
         time.sleep(5)
         import os
@@ -156,7 +156,7 @@ def goProTransfer():
             try:
                 from shutil import move
                 import re
-                logger.logSystem([["ExpCtrl: Moving video over to the Pi"]])
+                logger.logSystem("ExpCtrl: Moving video over to the Pi")
                 files = os.listdir(GoProDirectory)
                 for name in files:
                     if re.match('.+\.(MP4|JPG)',name):
@@ -165,13 +165,13 @@ def goProTransfer():
                 logger.logError("ExpCtrl: Could not move the video", e)
             else: #Moving the file is successful
                 try: # Delete all other uneccessary files
-                    logger.logSystem([["ExpCtrl: Removing misc files from GoPro"]])
+                    logger.logSystem("ExpCtrl: Removing misc files from GoPro")
                     for name in files:
                         if re.match('.+\..+',name):
                             os.system('sudo rm '+GoProDirectory+name)
                 except Exception as e: # Could not delete the files
                     logger.logError("ExpCtrl: Could not delete misc. files on the GoPro", e)
-            logger.logSystem([["ExpCtrl: Unmounting the USB"]])
+            logger.logSystem("ExpCtrl: Unmounting the USB")
             try: # Attempt to umount.
                 os.system('sudo umount /dev/sda1')
             except Exception as e: # Failed to call the shell
@@ -185,11 +185,11 @@ def gopro_stop_and_USB():
 	print('Please use individual methods next time to accomplish this.')
 	print('See documentation.\n')
 
-	logger.logSystem([["ExpCtrl: Stopping recording..."]])
+	logger.logSystem("ExpCtrl: Stopping recording...")
 	press_capture() #Stop Recording
 
 	#TURN USB ENABLE
-	logger.logSystem([["ExpCtrl: Enabling the USB and mounting the drive..."]])
+	logger.logSystem("ExpCtrl: Enabling the USB and mounting the drive...")
 	high(PIN.GOPDEN)
 
 	import os
@@ -201,7 +201,7 @@ def gopro_stop_and_USB():
 		try:
 			from shutil import move
 			import re
-			logger.logSystem([["ExpCtrl: Moving video over to the Pi"]])
+			logger.logSystem("ExpCtrl: Moving video over to the Pi")
 			files = os.listdir('/home/pi/gopro/DCIM/101GOPRO')
 			for name in files:
 				if re.match('.+\.(MP4|JPG)',name):
@@ -210,13 +210,13 @@ def gopro_stop_and_USB():
 			logger.logError("ExpCtrl: Could not move the video", e)
 		else: #Moving the file is successful
 			try: # Delete all other uneccessary files
-				logger.logSystem([["ExpCtrl: Removing misc files from GoPro"]])
+				logger.logSystem("ExpCtrl: Removing misc files from GoPro")
 				for name in files:
 					if re.match('.+\..+',name):
 						os.system('sudo rm /home/pi/gopro/DCIM/101GOPRO/'+name)
 			except Exception as e: # Could not delete the files
 				logger.logError("ExpCtrl: Could not delete misc files on the GoPro", e)
-		logger.logSystem([["ExpCtrl: Turning off the GoPro and unmounting the USB"]])
+		logger.logSystem("ExpCtrl: Turning off the GoPro and unmounting the USB")
 		try: # Attempt to umount.
 			os.system('sudo umount /dev/sda1')
 		except Exception as e: # Failed to call the shell

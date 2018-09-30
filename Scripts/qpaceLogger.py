@@ -6,7 +6,8 @@
 #
 # This program handles logging data to specific directories.
 
-import csv
+LOGGER_DEBUG = True
+
 import os.path
 import datetime
 from time import strftime,gmtime
@@ -14,10 +15,8 @@ from time import strftime,gmtime
 # Defined Paths.
 LOG_PATH = "../logs/"
 BOOTTIME_PATH = "../BOOTTIME"
-#Information for writing the CSV
-DELIMITER = ","
 # Default error if systemLog() doesn't work properly.
-SYSTEMLOG_ERROR_DESCRIPTION = "Unable to write to a CSV to log data."
+SYSTEMLOG_ERROR_DESCRIPTION = "Unable to write to the log."
 
 LOG_ATTEMPTS = 0
 MAX_LOG_ATTEMPTS = 5
@@ -37,21 +36,19 @@ class Errors():
     def set(n):
         Errors.error_count = n
 
-def _logData(data, csvName):
-    print(data)
+def _logData(fileName,timestamp = 'Unknown', *strings):
     """
     This function handles logging the actual data. It should not be called by a user.
 
     Parameters
     ----------
-    2D array of values - data - the data to actually be logged. Each nested array is a row, each index is a cell.
-
-    String - csvName - The actual name of the file. This should only be 'error_' or 'system_' depending on the file.
-
+    fileName - String - Name of the file to write to.
+    timestamp - datetime.datetime timestamp
+    *strings - Any number of strings to write. each string will be on a new line.
     Returns
     -------
     String - This will be the filename of the file it just wrote.
-    system_BOOTTIME.csv OR error_BOOTTIME.csv - The log which just got written to.
+    system_BOOTTIME.log OR error_BOOTTIME.log - The log which just got written to.
 
     Raises
     ------
@@ -64,11 +61,15 @@ def _logData(data, csvName):
     try:
         # Get a human readable datetime formated as %Y%m%d-%H%M%S from the BOOTTIME file.
         bootTime = datetime.datetime.utcfromtimestamp(os.path.getmtime(BOOTTIME_PATH)).strftime('%Y%m%d-%H%M%S')
-        filename = csvName + bootTime + ".csv"
-        with open(LOG_PATH + filename,'a') as csvFile:
-            fw = csv.writer(csvFile, delimiter = DELIMITER, quotechar = '|', quoting= csv.QUOTE_MINIMAL)
-            fw.writerows(data) # Write all the rows from the 2d array.
-            return filename
+        fileName = fileName + bootTime + ".log"
+        with open(LOG_PATH + fileName,'a') as f:
+            stringBuilder = []
+            for string in strings:
+                stringBuilder.append('[{}] {}'.format(timestamp,string))
+
+            f.write('\n'.join(stringBuilder))
+            if LOGGER_DEBUG: print('\n'.join(stringBuilder))
+        return filename
     except Exception: raise # Pass all and any exceptions back to the caller.
 
 def logError(description, exception = None):
@@ -80,7 +81,7 @@ def logError(description, exception = None):
     String - description - User defined description of the error that happened.
 
     Exception - exception - Default: None - optional exception to be passed. the arguments of
-        the exception will be written to the CSV too.
+        the exception will be written to the log too.
 
     Returns
     -------
@@ -93,27 +94,24 @@ def logError(description, exception = None):
     """
     try:
         timestamp = strftime("%Y%m%d-%H%M%S",gmtime())
-        errorData = [timestamp, description]
+        errorData = [description]
         if exception is not None:
             errorData.append(str(exception.args))
-        # logData exepcts a 2d array for each row, so make it a 2d array.
-        errorData = [errorData]
-        _logData([[strftime("%Y%m%d-%H%M%S",gmtime()),'An Error is being recorded to the error log.','Preview: ' + description[:45]]],'system_')
+        _logData('system_',timestamp,'An Error is being recorded to the error log.','Preview: ' + description[0][:45])
         Errors.inc()
-        return _logData(errorData, 'error_') # Actually log the data.
+        return _logData('error_',timestamp,*errorData) # Actually log the data.
     except Exception:
         global LOG_ATTEMPTS
         LOG_ATTEMPTS += 1
-        print(SYSTEMLOG_ERROR_DESCRIPTION, "Attempt:",LOG_ATTEMPTS,"/",MAX_LOG_ATTEMPTS)
         pass
 
-def logSystem(data):
+def logSystem(*data):
     """
     This function takes in a 2d array of data to log it to the system log.
 
     Parameters
     ----------
-    2D array of values - data - the data to actually be logged. Each nested array is a row, each index is a cell.
+    *data - Strings - multiple strings to be written to the system log. Each string will be written on a new line.
 
     Returns
     -------
@@ -127,12 +125,8 @@ def logSystem(data):
     """
     try:
         timestamp = strftime("%Y%m%d-%H%M%S",gmtime())
-        for row in data:
-            row.insert(0,timestamp)
-        return _logData(data, 'system_')
+        return _logData('system_',timestmp,*data)
     except Exception as e:
         global LOG_ATTEMPTS
         LOG_ATTEMPTS += 1
-        # Guess we had a problem, so we'll log the error as an error.
-        print(SYSTEMLOG_ERROR_DESCRIPTION, "Attempt:",LOG_ATTEMPTS,"/",MAX_LOG_ATTEMPTS)
-        pass#logError(SYSTEMLOG_ERROR_DESCRIPTION,e) # Actually log the error.
+        pass

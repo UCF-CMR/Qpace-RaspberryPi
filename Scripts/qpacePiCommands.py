@@ -244,7 +244,7 @@ class Command():
 
 		@staticmethod
 		def reset():
-			logger.logSystem([['UploadRequest: Upload Request has been cleared.',str(Command.UploadRequest.totalPackets),str(Command.UploadRequest.filename)]])
+			logger.logSystem('UploadRequest: Upload Request has been cleared.',str(Command.UploadRequest.totalPackets),str(Command.UploadRequest.filename))
 			Command.UploadRequest.received = False
 			# Command.UploadRequest.useFEC = None
 			Command.UploadRequest.totalPackets =  None
@@ -252,9 +252,9 @@ class Command():
 
 		@staticmethod
 		def set(pak = None, filename = None):
-			logger.logSystem([["UploadRequest: Upload Request has been received.",str(pak),str(filename)]])
+			logger.logSystem("UploadRequest: Upload Request has been received.",str(pak),str(filename))
 			if Command.UploadRequest.isActive():
-				logger.logSystem([["UploadRequest: Redundant Request?"]])
+				logger.logSystem("UploadRequest: Redundant Request?")
 			else:
 				try:
 					from pathlib import Path
@@ -290,7 +290,7 @@ class Command():
 		elif isinstance(sendData,int):
 			sendData = bytes([sendData])
 		elif not isinstance(sendData,bytes) and not isinstance(sendData,bytearray):
-			logger.logSystem([['SendBytesToCCDR: Data will not be sent to the WTC: not string or bytes.']])
+			logger.logSystem('SendBytesToCCDR: Data will not be sent to the WTC: not string or bytes.')
 			raise TypeError("Data to the WTC must be in the form of bytes or string")
 		try:
 			chip.block_write(SC16IS750.REG_THR, sendData)
@@ -399,7 +399,7 @@ class Command():
 		------
 		SystemExit - If the interpreter can even get to this point... Close the interpreter.
 		"""
-		logger.logSystem([['CMD: Shutting down...']])
+		logger.logSystem('CMD: Shutting down...')
 		sendBytesToCCDR(chip,b'SP') # SP = Shutdown Proceeding
 		Popen(["sudo", "halt"],shell=True) #os.system('sudo halt')
 		raise SystemExit # Close the interpreter and clean up the buffers before reboot happens.
@@ -418,7 +418,7 @@ class Command():
 		------
 		SystemExit - If the interpreter can even get to this point... Close the interpreter.
 		"""
-		logger.logSystem([['CMD: Rebooting...']])
+		logger.logSystem('CMD: Rebooting...')
 		sendBytesToCCDR(chip,b'SP') # SP = Shutdown Proceeding
 		Popen(["sudo", "reboot"],shell=True) #os.system('sudo reboot')
 		raise SystemExit # Close the interpreter and clean up the buffers before reboot happens.
@@ -432,14 +432,14 @@ class Command():
 		chip - SC16IS750 - an SC16IS750 object which handles the WTC Connection
 		cmd,args - string, array of args (seperated by ' ') - the actual command, the args for the command
 		"""
-		logger.logSystem([["Pong!"]])
+		logger.logSystem("Pong!")
 		sendBytesToCCDR(chip,b'OK')
 
 	# TODO Probably uneccessary now. Should make less information. Not sure what is and what isn't necessary here anymore
 	# TODO it will need to be looked at and determined what exactly needs to be done here.
 	def getStatus():
 
-		logger.logSystem([["Attempting to get the status of the Pi"]])
+		logger.logSystem("Attempting to get the status of the Pi")
 		identity = 0
 		cpu = 'Unknown'
 		cpu_temp = 'Unknown'
@@ -535,7 +535,7 @@ class Command():
 		"""
 
 		text_to_write = Command.getStatus()
-		logger.logSystem([["saveStatus: Attempting to save the status to a file."]])
+		logger.logSystem("saveStatus: Attempting to save the status to a file.")
 		timestamp = strftime("%Y%m%d-%H%M%S",gmtime())
 		try:
 			with open(STATUSPATH+'status_'+timestamp+'.txt','w') as statFile:

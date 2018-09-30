@@ -92,7 +92,7 @@ class NextQueue():
 	def enqueue(item):
 		if NextQueue.isEmpty():
 			NextQueue.cv.acquire() # If we are putting something in for the first time, set up the Lock
-		logger.logSystem([["NextQueue: Adding '{}' to the queue.".format(item)]])
+		logger.logSystem("NextQueue: Adding '{}' to the queue.".format(item))
 		try:
 			item = states.QPCOMMAND[item]
 		except KeyError:
@@ -114,7 +114,7 @@ class NextQueue():
 			return states.QPCOMMAND['IDLE']
 		else:
 			next =  NextQueue.requestQueue.pop(0)
-			logger.logSystem([["NextQueue: Removed item from queue: '{}'".format(next)]])
+			logger.logSystem("NextQueue: Removed item from queue: '{}'".format(next))
 			if NextQueue.isEmpty():
 				try:
 					NextQueue.cv.release() # If there is nothing in the queue, release the lock.
@@ -158,7 +158,7 @@ def run():
 	import sys
 	import datetime
 	import time
-	logger.logSystem([["Main: Initializing GPIO pins to default states"]])
+	logger.logSystem("Main: Initializing GPIO pins to default states")
 	exp.reset()
 
 	chip = initWTCConnection()
@@ -167,7 +167,7 @@ def run():
 		#TODO Implement identity on the WTC
 		try:
 			# Begin running the rest of the code for the Pi.
-			logger.logSystem([["Main: Starting..."]])
+			logger.logSystem("Main: Starting...")
 			# Create a threading.Event to determine if an experiment is running or not.
 			# Or if we are doing something and should wait until it's done.
 			experimentRunningEvent = threading.Event()
@@ -181,7 +181,7 @@ def run():
 			interpreter = threading.Thread(target=qpi.run,args=(chip,experimentRunningEvent,runEvent,shutdownEvent))
 			todoParser = threading.Thread(target=todo.run,args=(chip,experimentRunningEvent,runEvent,shutdownEvent))
 
-			logger.logSystem([["Main: Starting up the Interpreter and TodoParser."]])
+			logger.logSystem("Main: Starting up the Interpreter and TodoParser.")
 			interpreter.start() # Run the Interpreter
 			todoParser.start() # Run the TodoParser
 
@@ -195,7 +195,7 @@ def run():
 						if shutdownEvent.is_set():
 							break
 						else: # Otherwise, something must have happened....restart the Interpreter and TodoParser
-							logger.logSystem([['Main: TodoParser and Interpreter are shutdown when they should not be. Restarting...']])
+							logger.logSystem('Main: TodoParser and Interpreter are shutdown when they should not be. Restarting...')
 							interpreter = threading.Thread(target=qpi.run,args=(chip,experimentRunningEvent,runEvent,shutdownEvent))
 							todoParser = threading.Thread(target=todo.run,args=(chip,experimentRunningEvent,runEvent,shutdownEvent))
 							interpreter.start()
@@ -203,7 +203,7 @@ def run():
 				except KeyboardInterrupt:
 					shutdownEvent.set()
 
-			logger.logSystem([["Main: The Interpreter and TodoParser have exited."]])
+			logger.logSystem("Main: The Interpreter and TodoParser have exited.")
 		except BufferError as err:
 			#TODO Alert the WTC of the problem and/or log it and move on
 			#TODO figure out what we actually want to do.
@@ -215,7 +215,7 @@ def run():
 			logger.logError("Main: There is a problem with the connection to the WTC", err)
 
 		# If we've reached this point, just shutdown.
-		logger.logSystem([["Main: Cleaning up and closing out..."]])
+		logger.logSystem("Main: Cleaning up and closing out...")
 		if gpio:
 			gpio.stop()
 		shutdownEvent.set()
@@ -225,10 +225,10 @@ def run():
 
 		if False: #TODO: Change to True for release
 			if REBOOT_ON_EXIT:
-				logger.logSystem([['Main: Rebooting RaspberryPi...']])
+				logger.logSystem('Main: Rebooting RaspberryPi...')
 				os.system('sudo reboot') # reboot
 			else:
-				logger.logSystem([['Main: Shutting down RaspberryPi...']])
+				logger.logSystem('Main: Shutting down RaspberryPi...')
 				os.system('sudo halt') # Shutdown.
 
 if __name__ == '__main__':
@@ -238,9 +238,9 @@ if __name__ == '__main__':
 		from time import strftime,gmtime
 		os.rename('specialTasks.py','../graveyard/specialTasks'+str(strftime("%Y%m%d-%H%M%S",gmtime()))+'.py')
 	except ImportError:
-		logger.logSystem([["SpecialTasks: No special tasks to run on boot..."]])
+		logger.logSystem("SpecialTasks: No special tasks to run on boot...")
 	except OSError:
-		logger.logSystem([["SpecialTasks: Was not able to run special tasks or could not rename. (OSError)"]])
+		logger.logSystem("SpecialTasks: Was not able to run special tasks or could not rename. (OSError)")
 
 
 	# Main script.

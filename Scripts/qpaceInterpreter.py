@@ -78,7 +78,7 @@ def waitForBytesFromCCDR(chip,n,timeout = 2.5,interval = 0.25):
 			attempts += 1
 
 		if attempts >= total_attempts:
-			logger.logSystem([["WaitForBytesFromCCDR: Timeout occurred. Moving on."]])
+			logger.logSystem("WaitForBytesFromCCDR: Timeout occurred. Moving on.")
 			return False
 	else:
 		while(chip.byte_read(SC16IS750.REG_RXLVL) < n):
@@ -128,7 +128,7 @@ def processCommand(chip, fieldData, fromWhom = 'CCDR'):
 			#TODO Alert ground of problem decoding command!
 			raise BufferError("Could not decode ASCII bytes to string for command query.")
 		else:
-			logger.logSystem([["Interpreter: Command Received!",command,str(arguments)]])
+			logger.logSystem("Interpreter: Command Received!",command,str(arguments))
 			LastCommand.set(command, str(datetime.datetime.now()), fromWhom)
 			COMMANDS[fieldData['opcode']](chip,command,arguments) # Run the command
 
@@ -153,7 +153,7 @@ def run(chip,experimentEvent, runEvent, shutdownEvent):
 	"""
 	CCDR_IRQ = 16
 	TEMP_PACKET_LOCATION = 'temp/packets/'
-	logger.logSystem([["Interpreter: Starting..."]])
+	logger.logSystem("Interpreter: Starting...")
 	if chip is None:
 		chip = qph.initWTCConnection()
 		if chip is None:
@@ -241,28 +241,28 @@ def run(chip,experimentEvent, runEvent, shutdownEvent):
 			byte = int.from_bytes(packetData,byteorder='little')
 			print('byte: ', byte)
 			if len(packetData) == 4:
-				logger.logSystem([['PseudoSM: Configuring the timestamp.',str(byte)]])
+				logger.logSystem('PseudoSM: Configuring the timestamp.',str(byte))
 				os.system("sudo date -s '@" + str(byte) +"'")
 				chip.block_write(SC16IS750.REG_THR,packetData)
 				configureTimestamp = False
 			if byte in qpStates.values():
 				# The byte was found in the list of QPCOMMANDs
 				if byte == qpStates['NOOP']:
-					logger.logSystem([['PseudoSM: NOOP.']])
+					logger.logSystem('PseudoSM: NOOP.')
 					qph.NextQueue.enqueue('NOOP')
 				elif byte == qpStates['SHUTDOWN']:
-					logger.logSystem([['PseudoSM: Shutdown was set!']])
+					logger.logSystem('PseudoSM: Shutdown was set!')
 					#qph.NextQueue.enqueue('SHUTDOWN') # Just in case the interrupt is fired before shutting down.
 					shutdownEvent.set()	# Set for shutdown
 				elif byte == qpStates['REBOOT']:
-					logger.logSystem([['PseudoSM: Reboot was set!']])
+					logger.logSystem('PseudoSM: Reboot was set!')
 					#qph.NextQueue.enqueue('SHUTDOWN')
 					shutdownEvent.set()
 				elif byte == qpStates['PIALIVE']:
-					logger.logSystem([['PseudoSM: PIALIVE from WTC.']])
+					logger.logSystem('PseudoSM: PIALIVE from WTC.')
 					wtc_respond('PIALIVE')
 				elif byte == qpStates['TIMESTAMP']:
-					logger.logSystem([['PseudoSM: TIMESTAMP from WTC.']])
+					logger.logSystem('PseudoSM: TIMESTAMP from WTC.')
 					wtc_respond('TIMESTAMP')
 					configureTimestamp = True
 				elif byte == qpStates['WHATISNEXT']:
@@ -282,7 +282,7 @@ def run(chip,experimentEvent, runEvent, shutdownEvent):
 					print('ERRMISMATCH recv')
 					pass
 				else:
-					logger.logSystem([['PseudoSM: State existed for {} but a method is not written for it.'.format(str(byte))]])
+					logger.logSystem('PseudoSM: State existed for {} but a method is not written for it.'.format(str(byte)))
 		else:
 			print('Input is not a valid WTC state.')
 			return packetData, configureTimestamp
@@ -293,9 +293,9 @@ def run(chip,experimentEvent, runEvent, shutdownEvent):
 
 	if gpio:
 		callback = gpio.callback(CCDR_IRQ, pigpio.FALLING_EDGE, WTCRXBufferHandler)
-		logger.logSystem([['Interpreter: Callback active. Waiting for data from the SC16IS750.']])
+		logger.logSystem('Interpreter: Callback active. Waiting for data from the SC16IS750.')
 	else:
-		logger.logSystem([["Interpreter: Callback is not active. PIGPIO was not defined."]])
+		logger.logSystem("Interpreter: Callback is not active. PIGPIO was not defined.")
 	while not shutdownEvent.is_set():
 		try:
 			chunkPacket = fh.ChunkPacket(chip)
@@ -332,11 +332,11 @@ def run(chip,experimentEvent, runEvent, shutdownEvent):
 			continue
 		except StopIteration:
 			break
-	logger.logSystem([["Interpreter: Starting cleanup for shutdown."]])
+	logger.logSystem("Interpreter: Starting cleanup for shutdown.")
 
 
 	chip.close()
 	if gpio:
 		callback.cancel()
 		gpio.stop()
-	logger.logSystem([["Interpreter: Shutting down..."]])
+	logger.logSystem("Interpreter: Shutting down...")

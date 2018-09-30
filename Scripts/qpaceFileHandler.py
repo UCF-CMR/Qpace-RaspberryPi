@@ -180,7 +180,7 @@ class ChunkPacket():
 			for chunk in ChunkPacket.chunks:
 				#print('<',len(chunk),'>',chunk)
 				packet += chunk
-			if len(packet) != DataPacket.max_size: logger.logSystem([["Packet is not "+str(DataPacket.max_size)+" bytes! It  is " + str(len(packet)) + 'bytes!',str(packet)]])
+			if len(packet) != DataPacket.max_size: logger.logSystem("Packet is not {} bytes! It  is {} bytes!".format(str(DataPacket.max_size),str(len(packet))) ,str(packet))
 			ChunkPacket.chunks[:] = [] #reset chunks to empty
 			ChunkPacket.complete = False #reset copmlete to False
 			ChunkPacket.lastInputTime = None # reset the timer.
@@ -355,7 +355,7 @@ class Receiver():
 	def getPacketFromFile(self,NUM=0):
 		filename = str(NUM) + '.qp'
 		try:
-			logger.logSystem([["FileHandler: Reading in "+ str(DataPacket.max_size) +" bytes from file",filename]])
+			logger.logSystem("FileHandler: Reading in {} bytes from file".format(str(DataPacket.max_size)),filename)
 			with open(filename,'rb') as f:
 				data = f.read()
 			return ReceivedPacket(buf[0],buf[1:4],buf[5:])
