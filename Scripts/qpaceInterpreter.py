@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # qpaceInterpreter.py by Jonathan Kessluk
-# 4-19-2018, Rev. 1.5
+# 9-30-2018, Rev. 2
 # Q-Pace project, Center for Microgravity Research
 # University of Central Florida
 #
@@ -29,12 +29,18 @@ qpStates = states.QPCOMMAND
 WHATISNEXT_WAIT = 15 #in seconds
 # Routing ID defined in packet structure document
 class ROUTES():
+	"""
+	Reason for Implementation
+	-------------------------
+	Handler class that holds routes for the packets.
+
+	Note: May be uneccessary at this point. TODO: look into removing this class.
+	"""
 	PI1ROUTE= 0x01
 	PI2ROUTE= 0x02
 	GNDROUTE= 0x00
 	WTCROUTE= 0xFF
 	DEVELOPMENT = 0x54 #'T'
-
 
 # Add commands to the map. Format is "String to recognize for command" : function name
 COMMANDS = {
@@ -52,8 +58,11 @@ COMMANDS = {
 
 class LastCommand():
 	"""
-	Small handler class to help with figuring out which command was the last command sent.
+	Reason for Implementation
+	-------------------------
+	Small handler class to help with figuring out which command was the last command received.
 	Similar to just using a struct in C.
+
 	"""
 	type = "No commands received"
 	timestamp = "Never"
@@ -68,8 +77,29 @@ class LastCommand():
 		LastCommand.commandCount += 1
 
 def waitForBytesFromCCDR(chip,n,timeout = 2.5,interval = 0.25):
-	# Returns true when the number of bytes in the buffer is equal to n
-	# Returns false when timeout occurs
+	"""
+	Returns true when the number of bytes in the buffer is equal to n
+	Returns false when timeout occurs
+
+	Parameters
+	----------
+	chip - SC16IS750 Object
+	n - int - How many bytes to wait for.
+	timeout - int - How long in seconds to wait for those bytes. DEFAULT 2.5s
+					If timeout is None or 0, check without a timeout.
+	interval - int - How often to check if N bytes are in the buffer. DEFAULT .25s
+
+	Returns
+	-------
+	True if there are N bytes in the read buffer.
+	False if timeout.
+
+	Raises
+	------
+	Any exception gets poppuped up the stack.
+	"""
+	if interval > timeout:
+		interval = .25
 	total_attempts = timeout//interval
 	attempts = 0
 	if timeout:
@@ -84,23 +114,6 @@ def waitForBytesFromCCDR(chip,n,timeout = 2.5,interval = 0.25):
 		while(chip.byte_read(SC16IS750.REG_RXLVL) < n):
 			time.sleep(interval)
 	return True
-
-
-def flushRxReg(chip):
-	while(chip.byte_read(SC16IS750.REG_RXLVL) > 0):
-		chip.byte_read(SC16IS750.REG_RHR)
-
-def processIncomingPacketData(chip, fieldData):
-	print("Interpreter is processing packet as Incoming Data.")
-	if Command.UploadRequest.isActive():
-		if fieldData['noop'] == b'NOOP!':
-			fh.Scaffold.finish(fieldData['information'])
-		else:
-			fh.Scaffold.construct(fieldData['pid'],fieldData['information'])
-
-	#TODO Remove for real!!!
-	if not Command.UploadRequest.isActive():
-		print('UPLOAD REQUEST NOT MADE ACTIVE')
 
 def processCommand(chip, fieldData, fromWhom = 'CCDR'):
 	"""
@@ -117,6 +130,7 @@ def processCommand(chip, fieldData, fromWhom = 'CCDR'):
 	ConnectionError - If a connection to the WTC was not passed to the command
 	BufferError - Could not decode bytes to string for command query.
 	"""
+
 
 	if not chip:
 		raise ConnectionError("Connection to the CCDR not established.")
@@ -138,7 +152,11 @@ def run(chip,experimentEvent, runEvent, shutdownEvent):
 
 	Parameters
 	----------
-	Nothing
+	chip - an SC16IS750 object
+	experimentEvent - threading.Event - if set an Experiment is running.
+	runEvent - threading.Event - if set, do not wait. Otherwise, this acts like a wait-until-set flag
+								 used to pause execution.
+	shutdownEvent - threading.Event -  if set, begin shutdown procedures.
 
 	Returns
 	-------
@@ -170,6 +188,21 @@ def run(chip,experimentEvent, runEvent, shutdownEvent):
 	configureTimestamp = False
 
 	def splitPacket(packetData):
+		"""
+		Takes a string of packet data and splits it up into a dictionary of fields.
+
+		Parameters
+		----------
+		packetData - byte string - full 128 byte packet.
+
+		Returns
+		-------
+		dictionary
+
+		Raises
+		------
+		Any exception gets popped up the stack.
+		"""
 		# Magic numbers defined in Packet Specification Document
 		if packetData[1:6] == b'NOOP*':
 			packet = {
@@ -205,10 +238,74 @@ def run(chip,experimentEvent, runEvent, shutdownEvent):
 
 		return packet #based on packet definition document
 
-	def checkCyclicTag(tag):
+	def processIncomingPacketData(chip, fieldData):
+		"""
+		Route data that comes in that is determined to be a packet of data.
+		Valid data packets are packets with a 'NOOP>' or 'NOOP!' opcode.
+
+		Parameters
+		----------
+		chip - an SC16IS750 Object
+		fieldData - dictionary - dictionary created by calling splitPacket()
+
+		Returns
+		-------
+		Void
+
+		Raises
+		------
+		Any exception gets popped up the stack.
+
+		"""
+		print("Interpreter is processing packet as Incoming Data.")
+		if Command.UploadRequest.isActive():
+			if fieldData['noop'] == b'NOOP!':
+				fh.Scaffold.finish(fieldData['information'])
+			else:
+				fh.Scaffold.construct(fieldData['pid'],fieldData['information'])
+
+		#TODO Remove for real!!!
+		if not Command.UploadRequest.isActive():
+			print('UPLOAD REQUEST NOT MADE ACTIVE')
+
+	def isValidTag(tag):
+		"""
+		To be implemented.
+		Will check the tag to see if it is a valid tag coming in and if it hasn't been used in the recent past.
+
+		Parameters
+		----------
+		tag - bytes - a 2 byte tag.
+
+		Returns
+		-------
+		True if the tag is valid
+		False if the tag is invalid
+
+		Raises
+		------
+		Any exception gets popped up the stack.
+		"""
 		return True
 
 	def checkValidity(fieldData):
+		"""
+		Check to see if a packet coming in is valid.
+
+		Parameters
+		----------
+		fieldData - dictionary - must be data that has come from splitPacket()
+
+		Returns
+		-------
+		isValid - Boolean - True: The packet is valid
+							False: The packet is not valid
+		fieldData - dictionary - Allows the dictionary to be passed through and edited.
+
+		Raises
+		------
+		Any exception gets popped up the stack.
+		"""
 		if fieldData['TYPE'] == 'XTEA':
 			isValid = True
 			#returnVal = PrivledgedPacket.decodeXTEA(fieldData['information'])
@@ -222,6 +319,22 @@ def run(chip,experimentEvent, runEvent, shutdownEvent):
 		return isValid, fieldData
 
 	def WTCRXBufferHandler(gpio,level,tick):
+		"""
+		Callback method to handle data coming from the SC16IS750. When the interrupt is fired
+		this method gets called and will push data onto the buffer.
+
+		Parameters
+		----------
+		gpio, level, tick - required to be passed by the pigpio.callback
+
+		Returns
+		-------
+		Void
+
+		Raises
+		------
+		Any exception gets popped up the stack.
+		"""
 		packetData = chip.block_read(SC16IS750.REG_RHR,chip.byte_read(SC16IS750.REG_RXLVL))
 		print("Data came in: ", packetData)
 		chip.packetBuffer.append(packetData)
@@ -230,12 +343,48 @@ def run(chip,experimentEvent, runEvent, shutdownEvent):
 		#packetData = testData + CMDPacket.generateChecksum(testData)
 
 	def wtc_respond(response):
+		"""
+		Respond to the WTC with a control character.
+
+		Parameters
+		----------
+		response - string - respond with a specific control character if it exists, otherwise
+							just block_write the data to the WTC
+
+		Returns
+		-------
+		Void
+
+		Raises
+		------
+		Any exception gets popped up the stack.
+		"""
 		if response in qps.QPCOMMAND:
 			chip.byte_write(SC16IS750.REG_THR,bytes([qps.QPCOMMAND[response]]))
 		else:
 			chip.write(response)
 
 	def surfSatPseudoStateMachine(packetData,configureTimestamp):
+		"""
+		This is a "state machine" that is run every iteration over the data received by the WTC.
+		In reality, it's a glorified switch statement.
+
+		Parameters
+		----------
+		packetData - the raw input by the WTC.
+		configureTimestamp - Boolean - True: we need to set the timestamp. Should only be true on boot.
+									   False: The timestamp has been set already.
+
+		Returns
+		-------
+		packetData - if the incoming data is not a control character, return it.
+					 if the incoming data is a control character, return nothing (b'')
+		configureTimestamp - returns it so it can access it later.
+
+		Raises
+		------
+		Any exception gets popped up the stack.
+		"""
 		# Start looking at a pseduo state machine so WTC code doesn't need to change
 		if len(packetData) == 1 or (len(packetData) == 4 and configureTimestamp):
 			byte = int.from_bytes(packetData,byteorder='little')
@@ -288,39 +437,51 @@ def run(chip,experimentEvent, runEvent, shutdownEvent):
 			return packetData, configureTimestamp
 			#TODO the QPCOMMAND was not found to be legitimate. What do I do?
 
-		return b'',configureTimestamp # Return nothing if the packetData was handled as a WTC command
+		return b'',configureTimestamp # Return nothing if the packetData was handled as a WTC control
 
-
+	# Set up the callback.
 	if gpio:
 		callback = gpio.callback(CCDR_IRQ, pigpio.FALLING_EDGE, WTCRXBufferHandler)
 		logger.logSystem('Interpreter: Callback active. Waiting for data from the SC16IS750.')
 	else:
 		logger.logSystem("Interpreter: Callback is not active. PIGPIO was not defined.")
-	while not shutdownEvent.is_set():
+
+	# Begin main loop.
+	while not shutdownEvent.is_set(): # While we are NOT in shutdown mode
 		try:
+
+			# create an instance of a ChunkPacket
 			chunkPacket = fh.ChunkPacket(chip)
-			while(len(chip.packetBuffer)>0):
-				packetData = chip.packetBuffer.pop(0)
+			while(len(chip.packetBuffer)>0): # If there is data in the buffer
+				packetData = chip.packetBuffer.pop(0) # Get that input
+
+				# Determine if the data is a control character or not.
 				packetData, configureTimestamp = surfSatPseudoStateMachine(packetData,configureTimestamp)
+				# If the data was not a control character, then process it.
 				if len(packetData) != 0:
-					# Otherwise input is an actual packet
-					# We'll just assume that the chunk is 32 bytes always. That's the WTC's job.
+					# We'll just assume that the input is a chunk.
 					chunkPacket.push(packetData)
+					# If, after pushing, the chunk is complete continue on. Otherwise skip.
 					if chunkPacket.complete:
 						packetData = chunkPacket.build()
 						fieldData = splitPacket(packetData) # Return a nice dictionary for the packets
-						# Check if the packet is valid. If it's XTEA, decode it.
+						# Check if the packet is valid.
+						# If it's XTEA, decode it at this step and modify the field data appropriately.
 						isValid,fieldData = checkValidity(fieldData)
 						if isValid:
+							#TODO These prints are for DEBUG only.
 							print('Packet has passed Validation.')
 							print('OPCODE: ', fieldData['opcode'])
-							#TODO Let ground station know that there is a valid thing
-							if fieldData['opcode'] == fh.DataPacket.opcode or fieldData['opcode'] == b'NOOP!':
+							# If the opcode is that of a DataPacket procecss as incoming data.
+							# If the opcode is a command, process it as a command.
+							# If we don't know what it is at this point, then let's log it and
+							# trash the data.
+							if fieldData['opcode'] in fh.DataPacket.opcode:
 								processIncomingPacketData(chip,fieldData)
 							elif fieldData['opcode'] in COMMANDS: # Double check to see if it's a command
 								processCommand(chip,fieldData,fromWhom = 'CCDR')
 							else:
-								chip.packetBuffer.append(packetData)
+								logger.logSystem("Interpreter: Unknown valid packet.",str(fieldData))
 						else:
 							#TODO Alert the WTC? Send OKAY back to ground?
 							print('Packet did NOT pass validation.')
@@ -328,13 +489,12 @@ def run(chip,experimentEvent, runEvent, shutdownEvent):
 			runEvent.wait() # Mutex for the run
 			time.sleep(.5)  # wait for a moment
 
-		except KeyboardInterrupt:
+		except KeyboardInterrupt: # Really only needed for DEBUG. Forces a re-check for shutdownEvent.
 			continue
-		except StopIteration:
+		except StopIteration:	  # Used for control flow.
 			break
 	logger.logSystem("Interpreter: Starting cleanup for shutdown.")
-
-
+	
 	chip.close()
 	if gpio:
 		callback.cancel()

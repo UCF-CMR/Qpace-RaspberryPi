@@ -20,7 +20,11 @@ MountPoint = '/home/pi/gopro'
 SavePoint = '/home/pi/data/vid/'
 
 class PIN():
-	# Pin handler class. Each class variable is an alias for the pin assignment.
+	"""
+	Reason for Implementation
+	-------------------------
+	Pin handler class. Each class variable is an alias for the pin assignment.
+	"""
 	GOPPWR = 19
 	GOPBUT = 13
 	GOPCAP = 15
@@ -34,50 +38,151 @@ class PIN():
 	SOL3   = 37
 
 class PINGROUP():
-	# Tuples that represent functional groups of the pins.
+	"""
+	Reason for Implementation
+	-------------------------
+	Tuples that represent functional groups of the pins.
+	"""
 	gopro = (PIN.GOPPWR,PIN.GOPBUT,PIN.GOPCAP,PIN.GOPDEN)
 	solenoid = (PIN.SOL1,PIN.SOL2,PIN.SOL3)
 	stepper = (PIN.STPEN,PIN.STPENA,PIN.STPENB)
 	led = (PIN.LEDPWR)
 
 def put(pin,state):
-	# Set a pin to a specific state
+	"""
+	Set a pin to a specific state
+
+
+	Parameters
+	----------
+	pin - int - pin to set to a specific state
+	state - int - 0 for low, 1 for high
+
+	Returns
+	-------
+	Void
+
+	Raises
+	------
+	Any exception gets popped up the stack.
+	"""
 	GPIO.output(pin,state)
 
 def on(pin):
-	# Set a pin to high. Depreciated.
+	"""
+	DEPRECIATED
+	-----------
+	Use high() instead.
+	"""
 	print("\nThe on() method is depreciated. Please use high() next time.\n")
 	high(pin)
 
 def off(pin):
-	# Set a pin to low. Depreciated.
+	"""
+	DEPRECIATED
+	-----------
+	Use off() instead.
+	"""
 	print("\nThe off() method is depreciated. Please use low() next time.\n")
 
 def low(pin):
-	# Clear a pin
+	"""
+	Clear a pin.
+
+	Parameters
+	----------
+	pin - int - pin that you'd like to clear.
+
+	Returns
+	-------
+	Void
+
+	Raises
+	------
+	Any exception gets popped up the stack.
+	"""
 	put(pin,0)
 
 def high(pin):
-	# Set a pin
+	"""
+	Set a pin.
+
+	Parameters
+	----------
+	pin - int - pin that you'd like to set.
+
+	Returns
+	-------
+	Void
+
+	Raises
+	------
+	Any exception gets popped up the stack.
+	"""
 	put(pin, 1)
 
 def toggle(pin):
-	# Invert a pin
+	"""
+	Toggle a pin.
+
+	Parameters
+	----------
+	pin - int - pin that you'd like to toggle.
+
+	Returns
+	-------
+	Void
+
+	Raises
+	------
+	Any exception gets popped up the stack.
+	"""
 	put(pin,GPIO.input(pin)^1)
 
 def flip(pin,delay=.1):
-	# Invert and then revert the pin. Similar to pressing a button.
+	"""
+	Toggle a pin, wait, and then reset the pin back to it's initial state.
+	Similar to pressing a button.
+
+	Parameters
+	----------
+	pin - int - pin that you'd like to flip.
+	delay - int - Delay in seconds to wait before reverting the pin. DEFAULT: .1s
+
+	Returns
+	-------
+	Void
+
+	Raises
+	------
+	Any exception gets popped up the stack.
+	"""
 	put(pin,GPIO.input(pin)^1) # Invert the pin
 	time.sleep(delay)
 	put(pin,GPIO.input(pin)^1) # Put it back
 
 def reset(pingroup=None):
-	# Initialize the pins to their default states.
-	# If a pingroup is supplied, then only reset that pin group.
+	"""
+	Initialize the pins to their default states.
+	If a pingroup is supplied, then only reset that pin group.
+
+	Parameters
+	----------
+	pingroup - tupple - PINGROUP tupple you'd like to reset. DEFAULT: None
+						If None is supplied, reset ALL pins.
+
+	Returns
+	-------
+	Void
+
+	Raises
+	------
+	Any exception gets popped up the stack.
+	"""
 	try:
 		GPIO
 	except NameError:
-		print("GPIO reset unable to happen, GPIO is not defined.")
+		print("GPIO is not defined, the pins were not reset!")
 	else:
 		if pingroup is None: # If None, reset all pins
 			reset(PINGROUP.gopro)
@@ -105,82 +210,183 @@ def reset(pingroup=None):
 			GPIO.setup(PIN.GOPDEN, GPIO.OUT, initial=0)
 
 def pinInit():
-	# This method is depreciated
+	"""
+	DEPRECIATED
+	-----------
+	Use reset() instead.
+	"""
 	print('\nNOTE: pinInit() is depreciated. Please use reset() next time.\n')
 	reset()
 
 def gopro_on():
-	# Turn on the gopro
+	"""
+	Turn on the GoPro
+
+	Parameters
+	----------
+	None
+
+	Returns
+	-------
+	Void
+
+	Raises
+	------
+	Any exception gets popped up the stack.
+
+	"""
 	high(PIN.GOPPWR) #Active High
 	time.sleep(3)
 	flip(PIN.GOPBUT,delay=1)
 	time.sleep(5)
 
 def init_gopro():
-	# This method is depreciated
+	"""
+	DEPRECIATED
+	-----------
+	Use gopro_on() instead.
+	"""
 	print('\nNOTE: init_gopro() is depreciated. Please use gopro_on() next time.\n')
 	gopro_on()
 
 def press_capture():
-	# Press the capture button
+	"""
+	Press the capture button.
+
+	Parameters
+	----------
+	None
+
+	Returns
+	-------
+	Void
+
+	Raises
+	------
+	Any exception gets popped up the stack.
+
+	"""
 	flip(PIN.GOPCAP,delay=.5)
 
 def gopro_start():
-	# Turn on the go pro and start recording.
+	"""
+	Turn on the gopro and start recording.
+
+	Parameters
+	----------
+	None
+
+	Returns
+	-------
+	Void
+
+	Raises
+	------
+	Any exception gets popped up the stack.
+
+	"""
 	init_gopro() # Turn on camera and set mode
 	logger.logSystem("ExpCtrl: Beginning to record")
 	press_capture() # Begin Recording
 
 def transOn():
-	# Turn on the data enable circuit for the gopro
+	"""
+	Enable the Data Enable circuit for the gopro USB transfer.
+
+	Parameters
+	----------
+	None
+
+	Returns
+	-------
+	Void
+
+	Raises
+	------
+	Any exception gets popped up the stack.
+
+	"""
 	high(PIN.GOPDEN)
 
 def transOff():
-	# Turn off the data enable circuit for the gopro
+	"""
+	Disable the Data Enable circuit for the gopro USB transfer.
+
+	Parameters
+	----------
+	None
+
+	Returns
+	-------
+	Void
+
+	Raises
+	------
+	Any exception gets popped up the stack.
+
+	"""
 	low(PIN.GOPDEN)
 
 def goProTransfer():
-	# Transfer data from the gopro to the pi.
-    time.sleep(1)
-    if True:
-        #TURN USB ENABLE
-        logger.logSystem("ExpCtrl: Enabling the USB and mounting the drive...")
-        transOn()
-        time.sleep(5)
-        import os
-        try: # Mount the GoPro
-            os.system('sudo mount /dev/sda1 '+MountPoint)
-        except Exception as e:  # MOUNTING THE DRIVE FAILED
-            logger.logError("ExpCtrl: Could not mount the drive", e)
-        else:   # Mounting the drive was successful
-            try:
-                from shutil import move
-                import re
-                logger.logSystem("ExpCtrl: Moving video over to the Pi")
-                files = os.listdir(GoProDirectory)
-                for name in files:
-                    if re.match('.+\.(MP4|JPG)',name):
-                        os.system('cp '+GoProDirectory + name + ' ' + SavePoint)
-            except Exception as e:  #Moving the file from the GOPRO failed
-                logger.logError("ExpCtrl: Could not move the video", e)
-            else: #Moving the file is successful
-                try: # Delete all other uneccessary files
-                    logger.logSystem("ExpCtrl: Removing misc files from GoPro")
-                    for name in files:
-                        if re.match('.+\..+',name):
-                            os.system('sudo rm '+GoProDirectory+name)
-                except Exception as e: # Could not delete the files
-                    logger.logError("ExpCtrl: Could not delete misc. files on the GoPro", e)
-            logger.logSystem("ExpCtrl: Unmounting the USB")
-            try: # Attempt to umount.
-                os.system('sudo umount /dev/sda1')
-            except Exception as e: # Failed to call the shell
-                logger.logError("ExpCtrl: Could not unmount the drive", e)
-        transOff()
+	"""
+	Transfer data from the gopro to the pi.
+
+	Parameters
+	----------
+	None
+
+	Returns
+	-------
+	Void
+
+	Raises
+	------
+	Any exception gets popped up the stack.
+
+	"""
+	time.sleep(1)
+	if True:
+		#TURN USB ENABLE
+		logger.logSystem("ExpCtrl: Enabling the USB and mounting the drive...")
+		transOn()
+		time.sleep(5)
+		import os
+		try: # Mount the GoPro
+			os.system('sudo mount /dev/sda1 '+MountPoint)
+		except Exception as e:  # MOUNTING THE DRIVE FAILED
+			logger.logError("ExpCtrl: Could not mount the drive", e)
+		else:   # Mounting the drive was successful
+			try:
+				from shutil import move
+				import re
+				logger.logSystem("ExpCtrl: Moving video over to the Pi")
+				files = os.listdir(GoProDirectory)
+				for name in files:
+					if re.match('.+\.(MP4|JPG)',name):
+						os.system('cp '+GoProDirectory + name + ' ' + SavePoint)
+			except Exception as e:  #Moving the file from the GOPRO failed
+				logger.logError("ExpCtrl: Could not move the video", e)
+			else: #Moving the file is successful
+				try: # Delete all other uneccessary files
+					logger.logSystem("ExpCtrl: Removing misc files from GoPro")
+					for name in files:
+						if re.match('.+\..+',name):
+							os.system('sudo rm '+GoProDirectory+name)
+				except Exception as e: # Could not delete the files
+					logger.logError("ExpCtrl: Could not delete misc. files on the GoPro", e)
+			logger.logSystem("ExpCtrl: Unmounting the USB")
+			try: # Attempt to umount.
+				os.system('sudo umount /dev/sda1')
+			except Exception as e: # Failed to call the shell
+				logger.logError("ExpCtrl: Could not unmount the drive", e)
+		transOff()
 
 def gopro_stop_and_USB():
-	# Stop the recording and transfer the data.
-	# Will be depreciated.
+	"""
+	DEPRECIATED
+	-----------
+	Use individual methods to complete this task instead.
+	"""
 	print('\nNOTE: gopro_stop_and_USB() is depreciated.')
 	print('Please use individual methods next time to accomplish this.')
 	print('See documentation.\n')
@@ -228,7 +434,22 @@ def gopro_stop_and_USB():
 	reset(PINGROUP.gopro)
 
 def setStep(a, b):
-	# Set the steppers to a and b for Stepper A and stepper B
+	"""
+	Set the steppers to a and b for Stepper A and stepper B
+
+	Parameters
+	----------
+	None
+
+	Returns
+	-------
+	Void
+
+	Raises
+	------
+	Any exception gets popped up the stack.
+
+	"""
 	put(PIN.STPENA, a)
 	put(PIN.STPENB, b)
 
@@ -243,7 +464,7 @@ def stepper_forward(delay, qturn):
 
 	Returns
 	-------
-	None.
+	Void.
 
 	"""
 
@@ -270,7 +491,7 @@ def stepper_reverse(delay, qturn):
 
 	Returns
 	-------
-	None.
+	Void.
 
 	"""
 
@@ -292,6 +513,10 @@ def led(state):
 	Parameters
 	----------
 	Boolean - power - To turn the LED on/off, power is set to True/False, respectively.
+
+	Returns
+	--------
+	Void
 	"""
 	put(PIN.LEDPWR,state)
 
@@ -326,50 +551,53 @@ def solenoid(solPins,iterations):
 			for j in range(0, len(solPins) - 1):
 				fire(solPins[j])
 
-def wtc_enableStepper():
-	# Add the stepper enable request to the queue and then wait for a response
-	# Will return true if the stepper was enabled, will return false if the stepper was not enbaled
-	try:
-		from qpaceWTCHandler import NextQueue
-	except ImportError:
-		return False
 
-	NextQueue.enqueue('STEPON')
-	response = NextQueue.waitAndReturn(1)
-	if response:
-		# Get the item in the list. This will be the return of our request.
-		return response[0]
-	else:
-		return False
+# The following methods may be uneccessary due to WTC mods.
 
-def wtc_enableSolenoid():
-	# Add the stepper enable request to the queue and then wait for a response
-	# Will return true if the stepper was enabled, will return false if the stepper was not enbaled
-	try:
-		from qpaceWTCHandler import NextQueue
-	except ImportError:
-		return False
-
-	NextQueue.enqueue('SOLON')
-	response = NextQueue.waitAndReturn(1)
-	if response:
-		# Get the item in the list. This will be the return of our request.
-		return response[0]
-	else:
-		return False
-
-def disableAll():
-	# Add the stepper enable request to the queue and then wait for a response
-	# Will return true if the stepper was enabled, will return false if the stepper was not enbaled
-	try:
-		from qpaceWTCHandler import NextQueue
-	except ImportError:
-		return False
-
-	NextQueue.enqueue('ALLOFF')
-	response = NextQueue.waitAndReturn(1)
-	if response:
-		# Get the item in the list. This will be the return of our request.
-		return response[0]
-	else:
-		return False
+# def wtc_enableStepper():
+# 	# Add the stepper enable request to the queue and then wait for a response
+# 	# Will return true if the stepper was enabled, will return false if the stepper was not enbaled
+# 	try:
+# 		from qpaceWTCHandler import NextQueue
+# 	except ImportError:
+# 		return False
+#
+# 	NextQueue.enqueue('STEPON')
+# 	response = NextQueue.waitAndReturn(1)
+# 	if response:
+# 		# Get the item in the list. This will be the return of our request.
+# 		return response[0]
+# 	else:
+# 		return False
+#
+# def wtc_enableSolenoid():
+# 	# Add the stepper enable request to the queue and then wait for a response
+# 	# Will return true if the stepper was enabled, will return false if the stepper was not enbaled
+# 	try:
+# 		from qpaceWTCHandler import NextQueue
+# 	except ImportError:
+# 		return False
+#
+# 	NextQueue.enqueue('SOLON')
+# 	response = NextQueue.waitAndReturn(1)
+# 	if response:
+# 		# Get the item in the list. This will be the return of our request.
+# 		return response[0]
+# 	else:
+# 		return False
+#
+# def disableAll():
+# 	# Add the stepper enable request to the queue and then wait for a response
+# 	# Will return true if the stepper was enabled, will return false if the stepper was not enbaled
+# 	try:
+# 		from qpaceWTCHandler import NextQueue
+# 	except ImportError:
+# 		return False
+#
+# 	NextQueue.enqueue('ALLOFF')
+# 	response = NextQueue.waitAndReturn(1)
+# 	if response:
+# 		# Get the item in the list. This will be the return of our request.
+# 		return response[0]
+# 	else:
+# 		return False

@@ -32,11 +32,11 @@ class DataPacket():
 	header_size = 14			# in bytes
 	max_id = 0xFFFFFFFF	 		# 4 bytes. Stored as an int.
 	last_id = 0					# -1 if there are no packets yet.
-	opcode = b'NOOP>'
+	valid_opcodes = (b'NOOP>',b'NOOP!')
 
 	validDesignators = [0]   	# WTC, Pi 1, Pi 2, GS.
 
-	def __init__(self,data, pid,rid, xtea = False,opcode = None):
+	def __init__(self,data, pid,rid, xtea = False,opcode = b'NOOP>'):
 		"""
 		Constructor for a packet.
 
@@ -97,7 +97,7 @@ class DataPacket():
 			self.rid = rid
 			self.xtea = xtea
 			self.paddingSize = 0
-			self.opcode = opcode if opcode is not None else DataPacket.opcode
+			self.opcode = opcode if opcode is not None else DataPacket.opcode[0]
 		else:
 			raise ValueError("Packet size is too large for the current header information ("+str(len(data))+"). Data input restricted to " + str(self.data_size) + " Bytes.")
 

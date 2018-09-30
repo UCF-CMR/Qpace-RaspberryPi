@@ -73,6 +73,11 @@ def initWTCConnection():
 	return chip
 
 class NextQueue():
+	"""
+	Reason for Implementation
+	-------------------------
+	This queue is used to handle responses to the WTC when it asks "what's next"
+	"""
 	# MAX = 10
 	WAIT_TIME = 25 #in seconds
 	requestQueue = []
@@ -82,6 +87,7 @@ class NextQueue():
 
 	@staticmethod
 	def isEmpty():
+		""" Check to see if the queue is empty."""
 		return len(NextQueue.requestQueue) == 0
 
 	# @staticmethod
@@ -90,6 +96,10 @@ class NextQueue():
 
 	@staticmethod
 	def enqueue(item):
+		"""
+		Enqueue an item to the queue.
+		Set up a threading.Condition variable for use by NextQueue. This is only useful for the "wait" feature.
+		"""
 		if NextQueue.isEmpty():
 			NextQueue.cv.acquire() # If we are putting something in for the first time, set up the Lock
 		logger.logSystem("NextQueue: Adding '{}' to the queue.".format(item))
@@ -102,6 +112,9 @@ class NextQueue():
 
 	@staticmethod
 	def peek():
+		"""
+		Just look at the top of the queue.
+		"""
 		if NextQueue.isEmpty():
 			return states.QPCOMMAND['IDLE']
 
@@ -110,6 +123,9 @@ class NextQueue():
 
 	@staticmethod
 	def dequeue():
+		"""
+		Remove an item from the queue.
+		"""
 		if NextQueue.isEmpty():
 			return states.QPCOMMAND['IDLE']
 		else:
@@ -124,10 +140,16 @@ class NextQueue():
 
 	@staticmethod
 	def addResponse(response):
+		"""
+		Append a response to the responseQueue.
+		"""
 		NextQueue.responseQueue.append(response)
 
 	@staticmethod
 	def clearResponse(n=None):
+		"""
+		Clear the responseQueue if nothing is provided. Otherwise, pop off the back N times.
+		"""
 		if n:
 			for i in range(n):
 				NextQueue.responseQueue.pop()
@@ -136,11 +158,13 @@ class NextQueue():
 
 	@staticmethod
 	def waitAndReturn(popN=1,timeout=None):
-		# This method waits until the queue is empty, and returns the result values of the queue.
-		# Before returning, this method will pop the queue one time unless specified and return
-		# Those values. Those values will be removed from the responseQueue
-		#
-		# Do not use this method in interpreter.run() as that will get us stuck in an infinite loop
+		"""
+		This method waits until the queue is empty, and returns the result values of the queue.
+		Before returning, this method will pop the queue one time unless specified and return
+		Those values. Those values will be removed from the responseQueue.
+
+		WARNING: Do not use this method in interpreter.run() as that will get us stuck in an infinite loop
+		"""
 		try:
 			# Wait until the queue is empty.
 			while not NextQueue.isEmpty():
@@ -155,10 +179,25 @@ class NextQueue():
 			return None # The lock was not aquired for some reason.
 
 def run():
+	"""
+	Main loop for QPACE. All the magic happens here.
+
+	Parameters
+	----------
+	None
+
+	Returns
+	-------
+	Void
+
+	Raises
+	------
+	Ideally Nothing. If anything is raised out of this method, execution stops.
+	"""
 	import sys
 	import datetime
 	import time
-	logger.logSystem("Main: Initializing GPIO pins to default states")
+	logger.logSystem("Main: Initializing GPIO pins to default states.")
 	exp.reset()
 
 	chip = initWTCConnection()
@@ -185,6 +224,7 @@ def run():
 			interpreter.start() # Run the Interpreter
 			todoParser.start() # Run the TodoParser
 
+			# The big boy main loop. Good luck QPACE.
 			while True:
 				try:
 					time.sleep(.4)
@@ -230,9 +270,13 @@ def run():
 			else:
 				logger.logSystem('Main: Shutting down RaspberryPi...')
 				os.system('sudo halt') # Shutdown.
-
+	else:
+		logger.logError('Could not make a connection with the SC16IS750.')
+		logger.logSystem('Something went wrong. Could not connect to SC16IS750.')
 if __name__ == '__main__':
 	time.sleep(1)
+
+	# Attempt to run specialTasks.
 	try:
 		import specialTasks
 		from time import strftime,gmtime
@@ -241,7 +285,7 @@ if __name__ == '__main__':
 		logger.logSystem("SpecialTasks: No special tasks to run on boot...")
 	except OSError:
 		logger.logSystem("SpecialTasks: Was not able to run special tasks or could not rename. (OSError)")
-
-
+	except Exception as e:
+		logger.logSystem("SpecialTasks: Got an exception. {}".format(str(e)))
 	# Main script.
 	run()

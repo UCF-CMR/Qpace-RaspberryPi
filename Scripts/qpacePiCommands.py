@@ -75,19 +75,83 @@ UNAUTHORIZED = b'OKAY'
 #     else:
 #         return False
 
+def sendBytesToCCDR(chip,sendData):
+	"""
+	Send a string or bytes to the WTC. This method, by default, is dumb. It will pass whatever
+	is the input and passes it directly on to the CCDR.
 
+	Parameters
+	----------
+	chip - SC16IS750 - an SC16IS750 object which handles the WTC Connection
+	sendData - a string or bytes that we want to send to the WTC (Can be large block)
+
+	Raises
+	------
+	TypeError - thrown if sendData is not a string or bytes
+	"""
+	if isinstance(sendData,str):
+		sendData = sendData.encode('ascii')
+	elif isinstance(sendData,int):
+		sendData = bytes([sendData])
+	elif not isinstance(sendData,bytes) and not isinstance(sendData,bytearray):
+		logger.logSystem('SendBytesToCCDR: Data will not be sent to the WTC: not string or bytes.')
+		raise TypeError("Data to the WTC must be in the form of bytes or string")
+	try:
+		chip.block_write(SC16IS750.REG_THR, sendData)
+	except Exception as err:
+		#TODO do we actually handle the case where it just doesn't work?
+		print(err)
+		logger.logError('sendBytesToCCDR: An error has occured when attempting to send data to the WTC. Data to send:' + str(sendData),err)
+		pass
+	else:
+		return True
+	return False
 
 class CMDPacket():
-	def __init__(self,opcode,chip):
+	"""
+	Reason for Implementation
+	-------------------------
+	This is a class dedicated to handling packets used in responding to commands from Ground.
+	"""
+	def __init__(self,chip,opcode):
+		"""
+		Constructor for CMDPacket.
+
+		Parameters
+		----------
+		opcode - bytes - set the opcode for the packet
+		chip - an SC16IS750 object.
+
+		Returns
+		-------
+		Void
+
+		Raises
+		------
+		Any exception gets popped up the stack.
+		"""
 		self.routing = 0x00
 		self.opcode = opcode
 		self.packetData = None
 		self.chip = chip
-		# self.pathname = pathname
-		# self.nLines = nLines
-		# self.delay = delay
 
 	def respond(self):
+		"""
+		This method sends the data to the WTC as a block write.
+
+		Parameters
+		----------
+		None
+
+		Returns
+		-------
+		True if successful
+		False if unsuccessful
+
+		Raises
+		------
+		Any exception gets popped up the stack.
+		"""
 		if self.packetData:
 			sendData = self.build()
 			print(sendData)
@@ -95,11 +159,42 @@ class CMDPacket():
 		else:
 			return sendBytesToCCDR(self.chip,UNAUTHORIZED)
 
-	def confirmIntegrity(self): #TODO Make sure the packet is not corrupted
+	def isValid(self): #TODO Make sure the packet is not corrupted
+		"""
+		Not implemented yet.
+
+		Parameters
+		----------
+		None
+
+		Returns
+		-------
+		True if the packet is valid
+		False if the packet is invalid
+
+		Raises
+		------
+		Any exception gets popped up the stack.
+		"""
 		pass
 
 	@classmethod
 	def generateChecksum(self,data):
+		"""
+		Generates a FNV checksum on the packet data
+
+		Parameters
+		----------
+		data - bytes - use this to do the checksum on.
+
+		Returns
+		-------
+		the 4 byte checksum
+
+		Raises
+		------
+		Any exception gets popped up the stack.
+		"""
 		checksum = 0x811C9DC5 # 32-Bit FNV Offset Basis
 		for byte in data:
 			checksum ^= byte
@@ -108,32 +203,92 @@ class CMDPacket():
 		return checksum.to_bytes(4,byteorder='big')
 
 	def build(self):
+		"""
+		Creates the packet from all the indiviual pieces of data.
+
+		Parameters
+		----------
+		None
+
+		Returns
+		-------
+		Void
+
+		Raises
+		------
+		Any exception gets popped up the stack.
+		"""
+		if self.packetData == None:
+			self.packetData=b' ' * 118
 		return bytes([self.routing]) + self.opcode.encode('ascii') + self.packetData + CMDPacket.generateChecksum(self.packetData)
 
-
 class PrivilegedPacket(CMDPacket):
-	def __init__(self,chip,opcode,tag=None, encodedData = None):
+	"""
+	Reason for Implementation
+	-------------------------
+	Class to handle all the Privileged packets with XTEA
+	"""
+	def __init__(self,chip,opcode,tag=None, cipherText = None):
+		"""
+		Constructor for a PrivledgedPacket
+
+		Parameters
+		----------
+		chip - an SC16IS750 object.
+		opcode - bytes - the 5 byte opcode
+		tag - bytes - the 2 byte tag
+		cipherText - if there is cipherText already for the packet it is automatically decoded.
+
+		Returns
+		-------
+		Void
+
+		Raises
+		------
+		Any exception gets popped up the stack.
+		"""
 		self.tag = tag
 		CMDPacket.__init__(self,opcode=opcode,chip=chip)
 
-		if encodedData:
-			self.packetData = PrivilegedPacket.decodeXTEA(encodedData)
+		if cipherText:
+			self.packetData = PrivilegedPacket.decodeXTEA(cipherText)
 		else:
 			self.packetData = None
 
 	@staticmethod
 	def encodeXTEA(plainText):
+		"""
+		Encode a plaintext into ciphertext.
+		"""
 		cipherText = plainText
 		return cipherText
 
 	@staticmethod
 	def decodeXTEA(cipherText):
+		"""
+		decode a ciphertext into plaintext.
+		"""
 		plainText = cipherText
 		return plainText
 
 
 	@staticmethod
 	def returnRandom(n):
+		"""
+		Return N random bytes.
+
+		Parameters
+		----------
+		n - Number of random bytes to return.
+
+		Returns
+		-------
+		bytes - randomized bytes.
+
+		Raises
+		------
+		Any exception gets popped up the stack.
+		"""
 		retval = []
 		for i in range(0,n):
 			# Get ascii characters from '0' to 'Z'
@@ -144,6 +299,12 @@ class PrivilegedPacket(CMDPacket):
 		return bytes(retval)
 
 class StatusPacket(CMDPacket):
+	"""
+	Reason for Implementation
+	-------------------------
+	Handler class for Status commands.
+	When constructed creates all the necessary payload data.
+	"""
 	def __init__(self,chip):
 		CMDPacket.__init__(self,chip=chip,opcode='STATS')
 		timestamp = datetime.datetime.now()
@@ -155,6 +316,12 @@ class StatusPacket(CMDPacket):
 		self.packetData = retval
 
 class DirectoryListingPacket(PrivilegedPacket):
+	"""
+	Reason for Implementation
+	-------------------------
+	Handler class for Directory Listing commands.
+	When constructed creates all the necessary payload data.
+	"""
 	def __init__(self,chip,pathname, tag="AA"):
 		self.pathname = pathname
 		PrivilegedPacket.__init__(self,chip=chip,opcode="NOOP*",tag=tag)
@@ -168,6 +335,12 @@ class DirectoryListingPacket(PrivilegedPacket):
 		self.packetData = retVal
 
 class SendDirectoryList(PrivilegedPacket):
+	"""
+	Reason for Implementation
+	-------------------------
+	Handler class for Send Directory commands.
+	When constructed creates all the necessary payload data.
+	"""
 	def __init__(self, chip, pathname, tag='AA'):
 		PrivilegedPacket.__init__(self,chip=chip,opcode="NOOP*", tag=tag)
 		self.pathname = pathname
@@ -187,6 +360,12 @@ class SendDirectoryList(PrivilegedPacket):
 		self.packetData = retVal
 
 class MoveFilePacket(PrivilegedPacket):
+	"""
+	Reason for Implementation
+	-------------------------
+	Handler class for Move File commands.
+	When constructed creates all the necessary payload data.
+	"""
 	def __init__(self, chip, originalFile, pathToNewFile, tag='AA'):
 		PrivilegedPacket.__init__(self,chip=chip,opcode="NOOP*",tag=tag)
 		try:
@@ -235,8 +414,19 @@ class MoveFilePacket(PrivilegedPacket):
 # 		# self.useFEC = useFEC
 
 class Command():
-	fromWTC = False # Change to True for real operation.
+	"""
+	Reason for Implementation
+	-------------------------
+	Handler class for all commands. These will be invoked from the Interpreter.
+	"""
 	class UploadRequest():
+		"""
+		Reason for Implementation
+		-------------------------
+		Abstract class.
+		Class that handles if there is a request to upload a file to the pi.
+		Only one UploadRequest can happen at a time.
+		"""
 		received = False
 		# useFEC = None
 		totalPackets = None
@@ -244,6 +434,21 @@ class Command():
 
 		@staticmethod
 		def reset():
+			"""
+			Reset the UploadRequest back to it's original state.
+
+			Parameters
+			----------
+			None
+
+			Returns
+			-------
+			Void
+
+			Raises
+			------
+			Any exception gets popped up the stack.
+			"""
 			logger.logSystem('UploadRequest: Upload Request has been cleared.',str(Command.UploadRequest.totalPackets),str(Command.UploadRequest.filename))
 			Command.UploadRequest.received = False
 			# Command.UploadRequest.useFEC = None
@@ -252,70 +457,81 @@ class Command():
 
 		@staticmethod
 		def set(pak = None, filename = None):
+			"""
+			Make an UploadRequest. If there is already an active request IGNORE all future requests.
+			If there is not a request going on, then set all the required data and touch the scaffold
+			to prepare for upload.
+
+			Parameters
+			----------
+			pak = the expected packets to be receiving.
+			filename = the filename expected to be sent.
+
+			Returns
+			-------
+			Void
+
+			Raises
+			------
+			Any exception gets popped up the stack.
+			If there is a problem with touching the scaffold it is silenced.
+			"""
 			logger.logSystem("UploadRequest: Upload Request has been received.",str(pak),str(filename))
 			if Command.UploadRequest.isActive():
 				logger.logSystem("UploadRequest: Redundant Request?")
 			else:
 				try:
 					from pathlib import Path
-					Path(filename.decode('ascii')+'.scaffold').touch()
+					Path('{}.scaffold'.format(filename.decode('ascii'))).touch()
 				except:
 					#open(filename.decode('ascii') + '.scaffold','wb').close() #Fallback method to make sure it works
 					pass
-			Command.UploadRequest.received = True
-			# Command.UploadRequest.useFEC = fec
-			Command.UploadRequest.totalPackets = pak
-			Command.UploadRequest.filename = filename
+				Command.UploadRequest.received = True
+				# Command.UploadRequest.useFEC = fec
+				Command.UploadRequest.totalPackets = pak
+				Command.UploadRequest.filename = filename
 
 		@staticmethod
 		def isActive():
+			"""
+			Check if there has been an UploadRequest received.
+			"""
 			return Command.UploadRequest.received
 
-	def sendBytesToCCDR(chip,sendData):
-		"""
-		Send a string or bytes to the WTC. This method, by default, is dumb. It will pass whatever
-		is the input and passes it directly on to the CCDR.
-
-		Parameters
-		----------
-		chip - SC16IS750 - an SC16IS750 object which handles the WTC Connection
-		sendData - a string or bytes that we want to send to the WTC (Can be large block)
-
-		Raises
-		------
-		TypeError - thrown if sendData is not a string or bytes
-		"""
-		if isinstance(sendData,str):
-			sendData = sendData.encode('ascii')
-		elif isinstance(sendData,int):
-			sendData = bytes([sendData])
-		elif not isinstance(sendData,bytes) and not isinstance(sendData,bytearray):
-			logger.logSystem('SendBytesToCCDR: Data will not be sent to the WTC: not string or bytes.')
-			raise TypeError("Data to the WTC must be in the form of bytes or string")
-		try:
-			chip.block_write(SC16IS750.REG_THR, sendData)
-		except Exception as err:
-			#TODO do we actually handle the case where it just doesn't work?
-			print(err)
-			logger.logError('sendBytesToCCDR: An error has occured when attempting to send data to the WTC. Data to send:' + str(sendData),err)
-			pass
-		else:
-			return True
-		return False
-
 	def status(chip,cmd,args):
+		"""
+		Create a StatusPacket and respond with the response packet.
+		"""
 		StatusPacket().respond()
 	def directoryListingSet(chip,cmd,args):
+		"""
+		Create a DirectoryListingPacket and respond with the response packet.
+		"""
 		DirectoryListingPacket().respond()
 	def directoryList(chip,cmd,args):
+		"""
+		Create a SendDirectoryList packet and respond with the response packet.
+		"""
 		SendDirectoryList().respond()
 	def move(chip,cmd,args):
+		"""
+		Create a MoveFilePacket and respond with the response packet.
+		"""
 		pass
 	def tar(chip,cmd,args):
+		"""
+		Create a TarBallFilePacket and respond with the response packet.
+		"""
 		pass
 	def dlReq(chip,cmd,args):
+		"""
+		Create a DownloadRequestPacket and respond with the response packet.
+		"""
 		pass
 	def dlFile(chip,cmd,args):
+		"""
+		Create a Transmitter instance and transmit a file packet by packet to the WTC for Ground.
+		"""
 		import qpaceFileHandler as qfh
 		qfh.DataPacket.last_id = 0
 		# fec = args[:4]
@@ -343,7 +559,11 @@ class Command():
 		transmitter.run()
 
 	def upReq(chip,cmd,args):
-		# Magic numbers based on Packet Specification Document.
+		"""
+		We have received an Upload Request. Figure out the necessary information and
+		make an UploadRequest active by calling UploadRequest.set()
+		"""
+		# Numbers based on Packet Specification Document.
 		import qpaceFileHandler as qfh
 
 		totPak = int.from_bytes(args[0:4], byteorder='big')
@@ -354,17 +574,17 @@ class Command():
 		print('FNM:',filename)
 		Command.UploadRequest.set(pak=totPak,filename=filename)
 
-		# receiver = qfh.Receiver(	chip,
-		# 							filename.decode('ascii'),
-		# 							route = 0x01,
-		# 							useFEC = fec == b' FEC',
-		# 							xtea = False,
-		# 							expected_packets = totPak
-		# 						)
-		# receiver.run(Command.fromWTC)
 	def upFile(chip,cmd,args):
+		"""
+		Possibly depreciated. To be implemented if not.
+		"""
 		pass
-	def manual(chip,cmd,args):
+
+	def manual(chip,cmd,args,runningExperiment=None):
+		"""
+		Special command for DEBUG mainly. Used to manually affect the instruments of the experiment module.
+		This can only be done if an experiment is NOT running.
+		"""
 		import qpaceExperiment as exp
 		import qpaceStates as qps
 		import SC16IS750

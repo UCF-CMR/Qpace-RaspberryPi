@@ -117,10 +117,13 @@ def _processTask(chip,task,experimentEvent = None):
 
 		Parameters
 		----------
-		List - List that is the arguments to a command.
+		chip - an SC16IS750 object
+		task - List - List that is the arguments to a command.
 			   task[0] is when the command should execute.
 			   task[1] is the name of the command.
 			   task[2:] is args for that command.
+		experimentEvent - threading.Event - if set() then there is an experiment going on.
+											if clear() there is no experiment running.
 
 		Returns
 		-------
@@ -172,7 +175,9 @@ def executeTodoList(chip,todo_list, shutdownEvent, experimentEvent = None):
 
 		Parameters
 		----------
+		chip - an SC16IS750 object.
 		todo_list - List - Sorted todo_list. (Sorted by the timestamp to execute.)
+		shutdownEvent - threading.Event - if set() then we need to back out and shutdown.
 		experimentEvent - threading.Event - pass through an event object to determine whether or not an experiment
 										 is running.
 
@@ -203,7 +208,7 @@ def executeTodoList(chip,todo_list, shutdownEvent, experimentEvent = None):
 			# Wait until it's time to run our next task. If the time has already passed wait a second and then do it.
 			wait_time = wait_time if wait_time > 0 else 1
 			logger.logSystem("TodoParser: Waiting {} seconds for {}.".format(str(wait_time),str(todo_list[0][1])))
-			# Wait for wait_time seconds but also check the interrupt every second.
+			# Wait for wait_time seconds but also check the shutdownEvent every second.
 			for i in range(wait_time):
 				if shutdownEvent.isSet():
 					return todo_list
@@ -212,8 +217,7 @@ def executeTodoList(chip,todo_list, shutdownEvent, experimentEvent = None):
 			taskCompleted = _processTask(chip,todo_list[0],experimentEvent)
 			if taskCompleted:
 				logger.logSystem("TodoParser: Task completed.",str(todo_list[0]))
-				todo_list = todo_list[1:] # pop the first item off the list.
-
+				todo_list = todo_list.pop(0) # pop the first item off the list.
 
 	return todo_list
 
@@ -260,8 +264,11 @@ def run(chip,experimentEvent, runEvent, shutdownEvent):
 
 	Paramters
 	---------
+	chip - an SC16IS750 object
 	experimentEvent - threading.Event - pass through an event object to determine whether or not an experiment
 									 is running.
+	runEvent - threading.Event - acts as a wait-until-set object. If not set(), wait until set().
+	shutdownEvent - threading.Event - used to flag that we need to shutdown the Pi.
 
 	Raises
 	-------
