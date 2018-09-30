@@ -125,7 +125,7 @@ def logSystem(*data):
     """
     try:
         timestamp = strftime("%Y%m%d-%H%M%S",gmtime())
-        return _logData('system_',timestmp,*data)
+        return _logData('system_',timestamp,*data)
     except Exception as e:
         global LOG_ATTEMPTS
         LOG_ATTEMPTS += 1
