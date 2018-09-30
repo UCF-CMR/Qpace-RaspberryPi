@@ -68,8 +68,14 @@ def _logData(fileName,timestamp = 'Unknown', *strings):
                 stringBuilder.append('[{}] {}'.format(timestamp,string))
 
             f.write('\n'.join(stringBuilder))
-            if LOGGER_DEBUG: print('\n'.join(stringBuilder))
-        return filename
+            if LOGGER_DEBUG:
+                if fileName[:6] == 'error_':
+                    prefix = 'Error: '
+                else:
+                    prefix = 'System:'
+                for string in stringBuilder:
+                    print(prefix, string)
+        return fileName
     except Exception: raise # Pass all and any exceptions back to the caller.
 
 def logError(description, exception = None):
