@@ -322,7 +322,7 @@ class DirectoryListingPacket(PrivilegedPacket):
 	Handler class for Directory Listing commands.
 	When constructed creates all the necessary payload data.
 	"""
-	def __init__(self,chip,pathname, tag="AA"):
+	def __init__(self,chip,pathname, tag):
 		self.pathname = pathname
 		PrivilegedPacket.__init__(self,chip=chip,opcode="NOOP*",tag=tag)
 		lenstr = str(len(os.listdir(pathname))) # Get the number of files/directories in this directory.
@@ -341,7 +341,7 @@ class SendDirectoryList(PrivilegedPacket):
 	Handler class for Send Directory commands.
 	When constructed creates all the necessary payload data.
 	"""
-	def __init__(self, chip, pathname, tag='AA'):
+	def __init__(self, chip, pathname, tag):
 		PrivilegedPacket.__init__(self,chip=chip,opcode="NOOP*", tag=tag)
 		self.pathname = pathname
 		filepath = '../temp/DirList'
@@ -366,7 +366,7 @@ class MoveFilePacket(PrivilegedPacket):
 	Handler class for Move File commands.
 	When constructed creates all the necessary payload data.
 	"""
-	def __init__(self, chip, originalFile, pathToNewFile, tag='AA'):
+	def __init__(self, chip, originalFile, pathToNewFile, tag):
 		PrivilegedPacket.__init__(self,chip=chip,opcode="NOOP*",tag=tag)
 		try:
 			import shutil
@@ -399,19 +399,16 @@ class MoveFilePacket(PrivilegedPacket):
 # 		self.packetsPerAck = packetsPerAck
 # 		# self.useFEC = useFEC
 
-# class UploadFilePacket(PrivilegedPacket):
-# 	def __init__(self,pid, data):
-# 		PrivilegedPacket.__init__('','>')
-
-# class UploadFileHandler(): #In place for the request and the procedure
-# 	def __init__(self,filename,expectedPackets, tag):
-# 		self.filename = filename
-# 		self.expectedPackets = expectedPackets
-#
-# class DownloadFileHandler(): #In place for the request and the procedure
-# 	def __init__(self,pathname):
-# 		self.pathname = pathname
-# 		# self.useFEC = useFEC
+class TarBallFilePacket(PrivilegedPacket):
+	"""
+	Reason for Implementation
+	-------------------------
+	Handler class for creating and extracting compressed files.
+	When constructed, creates all the necessary payload data.
+	"""
+	def __init__(self,chip,tag):
+		PrivilegedPacket.__init__(self,chip=chip,opcode="NOOP*",tag=tag)
+		self.packetData = PrivilegedPacket.returnRandom(118)
 
 class Command():
 	"""
@@ -502,27 +499,62 @@ class Command():
 		"""
 		Create a StatusPacket and respond with the response packet.
 		"""
-		StatusPacket().respond()
+		StatusPacket(chip=chip).respond()
 	def directoryListingSet(chip,cmd,args):
 		"""
 		Create a DirectoryListingPacket and respond with the response packet.
 		"""
-		DirectoryListingPacket().respond()
+		pathname = args.split(' ')[0]
+		tag = "AA"
+		DirectoryListingPacket(chip=chip,pathname=pathname,tag=tag).respond()
 	def directoryList(chip,cmd,args):
 		"""
+
 		Create a SendDirectoryList packet and respond with the response packet.
 		"""
-		SendDirectoryList().respond()
+		pathname = args.split(' ')[0]
+		tag = "AA"
+		SendDirectoryList(chip=chip,pathname=pathname,tag=tag).respond()
 	def move(chip,cmd,args):
 		"""
+		Move a file from one location to another.
 		Create a MoveFilePacket and respond with the response packet.
 		"""
-		pass
-	def tar(chip,cmd,args):
+		args = args.split(' ')
+		originalFile = args[0]
+		pathToNewFile = args[1]
+		tag = 'AA'
+		MoveFilePacket(chip=chip,originalFile=originalFile,pathToNewFile=pathToNewFile,tag=tag).respond()
+	def tarExtract(chip,cmd,args):
 		"""
+		Extract a Tar file.
 		Create a TarBallFilePacket and respond with the response packet.
 		"""
-		pass
+		tempdir = "../temp/"
+		args = args.split(' ')
+		filename = args[0]
+		pathname = args[1]
+		with tarfile.open(tempdir + filename) as tar:
+			tar.extractall(path=pathname)
+		try:
+			os.remove(tempdir + filename)
+		except:pass
+		TarBallFilePacket(chip=chip,tag=tag).respond()
+	def tarCreate(chip,cmd,args):
+		"""
+		Create a compressed Tar.
+		Create a TarBallFilePacket and respond with the response packet.
+		"""
+		import tarfile
+		args = args.split(' ')
+		# The name of the new file will be whatever was input, but since the path could be long
+		# create the {}.tar.gz at the filename. Since it could be a directory with a /
+		# look for the 2nd to last / and then slice it. Then remove and trailing /'s
+		newFile = args[0][args[0].rfind('/',o,len(args[0])-1):].replace('/','')
+		tarDir = '../data/misc/{}.tar.gz'.format(newFile)
+	    with tarfile.open(tarDir, "w:gz") as tar:
+	        tar.add(args[0], arcname=os.path.basename(args[0]))
+		TarBallFilePacket(chip=chip,tag=tag).respond()
 	def dlReq(chip,cmd,args):
 		"""
 		Create a DownloadRequestPacket and respond with the response packet.
@@ -643,20 +675,6 @@ class Command():
 		Popen(["sudo", "reboot"],shell=True) #os.system('sudo reboot')
 		raise SystemExit # Close the interpreter and clean up the buffers before reboot happens.
 
-	def pingPi(chip,cmd,args):
-		"""
-		A ping was received from the WTC. Respond back!
-
-		Parameters
-		----------
-		chip - SC16IS750 - an SC16IS750 object which handles the WTC Connection
-		cmd,args - string, array of args (seperated by ' ') - the actual command, the args for the command
-		"""
-		logger.logSystem("Pong!")
-		sendBytesToCCDR(chip,b'OK')
-
-	# TODO Probably uneccessary now. Should make less information. Not sure what is and what isn't necessary here anymore
-	# TODO it will need to be looked at and determined what exactly needs to be done here.
 	def getStatus():
 
 		logger.logSystem("Attempting to get the status of the Pi")

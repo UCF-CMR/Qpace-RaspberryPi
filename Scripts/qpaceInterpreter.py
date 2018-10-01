@@ -48,7 +48,8 @@ COMMANDS = {
 	b'ls': 			Command.directoryListingSet,
 	b'dl': 			Command.directoryList,
 	b'mv': 			Command.move,
-	b'tb': 			Command.tar,
+	b'tb': 			Command.tarExtract,
+	b'tc':			Command.tarCreate,
 	b'DOWNR': 		Command.dlReq,
 	b'DWNLD': 		Command.dlFile,
 	b'up': 			Command.upReq,
@@ -494,7 +495,7 @@ def run(chip,experimentEvent, runEvent, shutdownEvent):
 		except StopIteration:	  # Used for control flow.
 			break
 	logger.logSystem("Interpreter: Starting cleanup for shutdown.")
-	
+
 	chip.close()
 	if gpio:
 		callback.cancel()
