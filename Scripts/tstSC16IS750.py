@@ -323,9 +323,10 @@ class SC16IS750:
         else:
             register_file[reg] = data
         if reg == 0:
-            print("Writing: ", data)
+            print("Writing to WTC: ", data)
 
     def block_write(self,reg,data):
+
         if reg in register_file:
             try:
                 register_file[reg] += data
@@ -337,7 +338,7 @@ class SC16IS750:
         else:
             register_file[reg] = data
         if reg == 0:
-            print('Writing: ', data)
+            print('Writing to WTC: ', data)
 
     def write(self,data):
         self.block_write(0,data)

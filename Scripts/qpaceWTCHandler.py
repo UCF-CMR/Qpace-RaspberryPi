@@ -81,11 +81,12 @@ class Queue():
 	WAIT_TIME = 5 #in seconds
 	# MAX = 10
 
-	def __init__(self,name="Queue"):
+	def __init__(self,name="Queue",suppressLog=False):
 		self.internalQueue = []
 		self.enqueueCount = 0
 		self.cv = threading.Condition()
 		self.name = name
+		self.suppress = suppressLog
 
 	def isEmpty(self):
 		""" Check to see if the queue is empty."""
@@ -102,11 +103,18 @@ class Queue():
 		"""
 		if self.isEmpty():
 			self.cv.acquire() # If we are putting something in for the first time, set up the Lock
-		logger.logSystem("{}: Adding '{}' to the queue.".format(self.name,item))
-		try:
+
+		if not self.suppress:
+			if not isinstance(item,int) and len(item) > 32:# If we are logging something quite long, don't include it in the log
+				logMessage = 'data (len:{}) [{}]'.format(len(item),item[:10])
+			else:
+				logMessage = "'{}'".format(item)
+
+			logger.logSystem("{}: Adding {} to the queue.".format(self.name,logMessage))
+
+		if item in states.QPCONTROL:
 			item = states.QPCONTROL[item]
-		except KeyError:
-			item = states.QPCONTROL['NOOP']
+
 		self.internalQueue.append(item)
 		self.enqueueCount += 1
 
@@ -115,7 +123,7 @@ class Queue():
 		Just look at the top of the queue.
 		"""
 		if self.isEmpty():
-			return states.QPCONTROL['IDLE']
+			return []
 
 		else:
 			return self.internalQueue[0]
@@ -125,16 +133,24 @@ class Queue():
 		Remove an item from the queue.
 		"""
 		if self.isEmpty():
-			return states.QPCONTROL['IDLE']
+			return []
 		else:
-			next =  self.internalQueue.pop(0)
-			logger.logSystem("{}: Removed item from queue: '{}'".format(self.name,next))
+			item =  self.internalQueue.pop(0)
+
+			if not self.suppress:
+				if not isinstance(item,int) and len(item) > 32:# If we are logging something quite long, don't include it in the log
+					logMessage = 'data (len:{}) [{}]'.format(len(item),item[:10])
+				else:
+					logMessage = "'{}'".format(item)
+				logger.logSystem("{}: Removed item from queue: {}".format(self.name,logMessage))
+
+
 			if self.isEmpty():
 				try:
 					self.cv.release() # If there is nothing in the queue, release the lock.
 				except RuntimeError:
 					pass # If it's already released for some reason, ignore it.
-			return next
+			return item
 
 	# @staticmethod
 	# def addResponse(response):
@@ -158,7 +174,7 @@ class Queue():
 		NextQueue.internalQueue = NextQueue.internalQueue[:-popN]
 		return response
 
-	def getInputCount(self):
+	def getCount(self):
 		return self.enqueueCount
 
 	def waitUntilEmpty(self,popN=1,timeout=None):

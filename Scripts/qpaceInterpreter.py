@@ -389,7 +389,7 @@ def run(chip,nextQueue,experimentEvent, runEvent, shutdownEvent):
 		# Start looking at a pseduo state machine so WTC code doesn't need to change
 		if len(packetData) == 1 or (len(packetData) == 4 and configureTimestamp):
 			byte = int.from_bytes(packetData,byteorder='little')
-			print('byte: ', byte)
+			print('Read from WTC: ', byte)
 			if len(packetData) == 4:
 				logger.logSystem('PseudoSM: Configuring the timestamp.',str(byte))
 				os.system("sudo date -s '@" + str(byte) +"'")
@@ -417,6 +417,8 @@ def run(chip,nextQueue,experimentEvent, runEvent, shutdownEvent):
 					configureTimestamp = True
 				elif byte == qpStates['WHATISNEXT']:
 					next = nextQueue.peek()
+					if not next:
+						next = qpStates['IDLE']
 					wtc_respond(next) # Respond with what the Pi would like the WTC to know.
 					if next >= qpStates['STEPON'] and next <= qpStates['ALLOFF']:
 						if waitForBytesFromCCDR(chip,1,timeout=WHATISNEXT_WAIT): # Wait for 15s for a response from the WTC
@@ -426,8 +428,8 @@ def run(chip,nextQueue,experimentEvent, runEvent, shutdownEvent):
 						nextQueue.dequeue() # After "waiting" for the bytes, dequeue the items.
 
 				elif byte == qpStates['NEXTPACKET']:
-					#TODO Implement NEXTPACKET Code
-					pass
+					wtc_respond(packetQueue.dequeue())
+
 				elif byte == qpStates['BUFFERFULL']:
 					# If we get a BUFFERFULL, there's nothing really we need to do at this point.
 					# Just don't do anything.
@@ -462,6 +464,15 @@ def run(chip,nextQueue,experimentEvent, runEvent, shutdownEvent):
 	nextQueue.enqueue('IDLE')
 	nextQueue.enqueue('IDLE')
 	nextQueue.enqueue('SENDPACKET')
+	print('----------CREATING FAKE PACKET QUEUE----------')
+	packetQueue = qph.Queue(name="PacketQueue",suppressLog=True)
+	for i in range(0xd0):
+		samplePacket = b'\x00SAMPL\x00'
+		samplePacket += bytes([i])
+		samplePacket += b'\x00' * 116
+		samplePacket += CMDPacket.generateChecksum(samplePacket)
+		packetQueue.enqueue(samplePacket)
+	print('Done. PTT is go.')
 
 
 	# Begin main loop.
