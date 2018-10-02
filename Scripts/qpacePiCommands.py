@@ -552,8 +552,8 @@ class Command():
 		# look for the 2nd to last / and then slice it. Then remove and trailing /'s
 		newFile = args[0][args[0].rfind('/',o,len(args[0])-1):].replace('/','')
 		tarDir = '../data/misc/{}.tar.gz'.format(newFile)
-	    with tarfile.open(tarDir, "w:gz") as tar:
-	        tar.add(args[0], arcname=os.path.basename(args[0]))
+		with tarfile.open(tarDir, "w:gz") as tar:
+			tar.add(args[0], arcname=os.path.basename(args[0]))
 		TarBallFilePacket(chip=chip,tag=tag).respond()
 	def dlReq(chip,cmd,args):
 		"""
@@ -632,7 +632,7 @@ class Command():
 		exp.led(False)
 		# StatusPacket(chip).respond()
 
-		chip.byte_write(SC16IS750.REG_THR,qps.QPCOMMAND['SCIENCESTOP'])
+		chip.byte_write(SC16IS750.REG_THR,qps.QPCONTROL['SCIENCESTOP'])
 		#waitForBytesFromCCDR(chip,1,timeout=None)
 		#chip.read_byte(SC16IS750.REG_RHR) # Clear buffer, WTC will send ERRNONE
 		print("DONE :D :D :D")
@@ -687,22 +687,11 @@ class Command():
 		ram_free = 'Unknown'
 		disk_free = 'Unknown'
 		disk_total = 'Unknown'
-		requests_queued = "Unknown"
-		nextqueue_size = "Unknown"
 		last_command = "Unknown"
 		last_command_from = "Unknown"
 		last_command_when = "Unknown"
 		commands_executed = "Unknown"
 		boot = "Unknown"
-
-
-		try:
-			from qpaceWTCHandler import NextQueue
-			requests_queued = NextQueue.requestCount
-			nextqueue_size = len(NextQueue.requestQueue)
-		except Exception as err:
-			print(str(err))
-			logger.logError("Could not import NextQueue",err)
 		try:
 			from qpaceInterpreter import LastCommand
 			last_command = LastCommand.type
@@ -744,8 +733,6 @@ class Command():
 						"Boot: {}\n"			+\
 						"Last Command Executed was \"{}\" at {} invoked by \"{}\"\n" +\
 						"Commands Executed: {}\n" +\
-						"Requests queued: {}\n"   +\
-						"Size of NextQueue: {}\n" +\
 						"CPU Usage: {}%\n"      +\
 						"CPU Temp: {} deg C\n"  +\
 						"Uptime: {}\n"  		+\
@@ -754,7 +741,7 @@ class Command():
 						"RAM Free: {} bytes\n"  +\
 						"Disk total: {}\n"      +\
 						"Disk free: {}\n"
-		return text_to_write.format(identity,boot,last_command,last_command_when,last_command_from,commands_executed,requests_queued,nextqueue_size,cpu,cpu_temp,
+		return text_to_write.format(identity,boot,last_command,last_command_when,last_command_from,commands_executed,cpu,cpu_temp,
 								uptime,ram_tot,ram_used,ram_free,disk_total,disk_free)
 
 	def saveStatus(chip,cmd,args):

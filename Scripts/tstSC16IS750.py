@@ -238,14 +238,18 @@ class SC16IS750:
                 while not self.shutdownEvent.is_set():
                     time.sleep(.15)
                     length = os.path.getsize('inputSC16IS750.txt')
-                    if length > 1:
+                    try:
+                    	import pigpio
+                    	gpio = pigpio.pi()
+                    except:
+                        gpio = None
+                    if (gpio and length > 1) or length > 0:
                         buf = fileDescriptor.read()
                         if buf[-1] == b'\n':
                             buf = buf[:-1]
                         fileDescriptor.seek(0)
                         fileDescriptor.truncate()
                         if buf != b'':
-                            
                             #register_file[REG_RHR] += buf
                             self.packetBuffer.append(buf)
                 fileDescriptor.close()
@@ -309,7 +313,13 @@ class SC16IS750:
 
     def byte_write(self,reg,data):
         if reg in register_file:
-            register_file[reg] += data
+            try:
+                register_file[reg] += data
+            except TypeError:
+                try:
+                    register_file[reg] += bytes([data])
+                except Exception as e:
+                    print('Exception: ', e)
         else:
             register_file[reg] = data
         if reg == 0:
@@ -317,19 +327,23 @@ class SC16IS750:
 
     def block_write(self,reg,data):
         if reg in register_file:
-            register_file[reg] += data
+            try:
+                register_file[reg] += data
+            except TypeError:
+                try:
+                    register_file[reg] += bytes([data])
+                except Exception as e:
+                    print('Exception: ', e)
         else:
             register_file[reg] = data
         if reg == 0:
             print('Writing: ', data)
-            if use_files:
-                with open(str(SC16IS750.total_packets)+'.qp','wb') as f:
-                    f.write(data)
-                SC16IS750.total_packets += 1
 
-
+    def write(self,data):
+        self.block_write(0,data)
 
     def byte_read(self, reg):
+        print('byte read')
         register_file[REG_RXLVL] = len(register_file[REG_RHR])
         try:
             if isinstance(register_file[reg],bytes):

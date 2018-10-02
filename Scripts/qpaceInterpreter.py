@@ -25,7 +25,7 @@ import qpaceLogger as logger
 import qpaceStates as states
 import qpaceFileHandler as fh
 
-qpStates = states.QPCOMMAND
+qpStates = states.QPCONTROL
 WHATISNEXT_WAIT = 15 #in seconds
 # Routing ID defined in packet structure document
 class ROUTES():
@@ -147,7 +147,7 @@ def processCommand(chip, fieldData, fromWhom = 'CCDR'):
 			LastCommand.set(command, str(datetime.datetime.now()), fromWhom)
 			COMMANDS[fieldData['opcode']](chip,command,arguments) # Run the command
 
-def run(chip,experimentEvent, runEvent, shutdownEvent):
+def run(chip,nextQueue,experimentEvent, runEvent, shutdownEvent):
 	"""
 	This function is the "main" purpose of this module. Placed into a function so that it can be called in another module.
 
@@ -360,12 +360,12 @@ def run(chip,experimentEvent, runEvent, shutdownEvent):
 		------
 		Any exception gets popped up the stack.
 		"""
-		if response in qps.QPCOMMAND:
-			chip.byte_write(SC16IS750.REG_THR,bytes([qps.QPCOMMAND[response]]))
+		if response in qps.QPCONTROL:
+			chip.byte_write(SC16IS750.REG_THR,bytes([qps.QPCONTROL[response]]))
 		else:
 			chip.write(response)
 
-	def surfSatPseudoStateMachine(packetData,configureTimestamp):
+	def surfSatPseudoStateMachine(packetData,configureTimestamp,nextQueue):
 		"""
 		This is a "state machine" that is run every iteration over the data received by the WTC.
 		In reality, it's a glorified switch statement.
@@ -375,7 +375,7 @@ def run(chip,experimentEvent, runEvent, shutdownEvent):
 		packetData - the raw input by the WTC.
 		configureTimestamp - Boolean - True: we need to set the timestamp. Should only be true on boot.
 									   False: The timestamp has been set already.
-
+		nextQueue - qph.Queue - the WHATISNEXT queue. Imperitive for operation.
 		Returns
 		-------
 		packetData - if the incoming data is not a control character, return it.
@@ -396,17 +396,17 @@ def run(chip,experimentEvent, runEvent, shutdownEvent):
 				chip.block_write(SC16IS750.REG_THR,packetData)
 				configureTimestamp = False
 			if byte in qpStates.values():
-				# The byte was found in the list of QPCOMMANDs
+				# The byte was found in the list of QPCONTROLs
 				if byte == qpStates['NOOP']:
 					logger.logSystem('PseudoSM: NOOP.')
-					qph.NextQueue.enqueue('NOOP')
+					nextQueue.enqueue('NOOP')
 				elif byte == qpStates['SHUTDOWN']:
 					logger.logSystem('PseudoSM: Shutdown was set!')
-					#qph.NextQueue.enqueue('SHUTDOWN') # Just in case the interrupt is fired before shutting down.
+					#nextQueue.enqueue('SHUTDOWN') # Just in case the interrupt is fired before shutting down.
 					shutdownEvent.set()	# Set for shutdown
 				elif byte == qpStates['REBOOT']:
 					logger.logSystem('PseudoSM: Reboot was set!')
-					#qph.NextQueue.enqueue('SHUTDOWN')
+					#nextQueue.enqueue('SHUTDOWN')
 					shutdownEvent.set()
 				elif byte == qpStates['PIALIVE']:
 					logger.logSystem('PseudoSM: PIALIVE from WTC.')
@@ -416,27 +416,35 @@ def run(chip,experimentEvent, runEvent, shutdownEvent):
 					wtc_respond('TIMESTAMP')
 					configureTimestamp = True
 				elif byte == qpStates['WHATISNEXT']:
-					wtc_respond(qph.NextQueue.peek()) # Respond with what the Pi would like the WTC to know.
-					if waitForBytesFromCCDR(chip,1,timeout=WHATISNEXT_WAIT): # Wait for 15s for a response from the WTC
-						response = chip.read_byte(SC16IS750.REG_RHR) == qpStates['True']
-						qph.NextQueue.addResponse(response)
-					else:
-						qph.NextQueue.addResponse(False)
-					if not qph.NextQueue.isEmpty():
-						qph.NextQueue.dequeue() # After "waiting" for the bytes, dequeue the items.
+					next = nextQueue.peek()
+					wtc_respond(next) # Respond with what the Pi would like the WTC to know.
+					if next >= qpStates['STEPON'] and next <= qpStates['ALLOFF']:
+						if waitForBytesFromCCDR(chip,1,timeout=WHATISNEXT_WAIT): # Wait for 15s for a response from the WTC
+							response = chip.byte_read(SC16IS750.REG_RHR)
+							#NextQueue.addResponse(response == qpStates['True'])
+					if not nextQueue.isEmpty():
+						nextQueue.dequeue() # After "waiting" for the bytes, dequeue the items.
+
+				elif byte == qpStates['NEXTPACKET']:
+					#TODO Implement NEXTPACKET Code
+					pass
+				elif byte == qpStates['BUFFERFULL']:
+					# If we get a BUFFERFULL, there's nothing really we need to do at this point.
+					# Just don't do anything.
+					pass
 
 				elif byte == qpStates['ERRNONE']:
-					print('ERRNONE recv')
+					logger.logSystem("PseudoSM: ERRNONE recv.")
 					pass
 				elif byte == qpStates['ERRMISMATCH']:
-					print('ERRMISMATCH recv')
+					logger.logSystem('PseudoSM: ERRMISMATCH recv.')
 					pass
 				else:
 					logger.logSystem('PseudoSM: State existed for {} but a method is not written for it.'.format(str(byte)))
 		else:
 			print('Input is not a valid WTC state.')
 			return packetData, configureTimestamp
-			#TODO the QPCOMMAND was not found to be legitimate. What do I do?
+			#TODO the QPCONTROL was not found to be legitimate. What do I do?
 
 		return b'',configureTimestamp # Return nothing if the packetData was handled as a WTC control
 
@@ -447,17 +455,25 @@ def run(chip,experimentEvent, runEvent, shutdownEvent):
 	else:
 		logger.logSystem("Interpreter: Callback is not active. PIGPIO was not defined.")
 
+	#NOTE: This code exists for the PTT. Remove later.
+	nextQueue.enqueue('IDLE')
+	nextQueue.enqueue('IDLE')
+	nextQueue.enqueue('IDLE')
+	nextQueue.enqueue('IDLE')
+	nextQueue.enqueue('IDLE')
+	nextQueue.enqueue('SENDPACKET')
+
+
 	# Begin main loop.
 	while not shutdownEvent.is_set(): # While we are NOT in shutdown mode
 		try:
-
 			# create an instance of a ChunkPacket
 			chunkPacket = fh.ChunkPacket(chip)
 			while(len(chip.packetBuffer)>0): # If there is data in the buffer
 				packetData = chip.packetBuffer.pop(0) # Get that input
 
 				# Determine if the data is a control character or not.
-				packetData, configureTimestamp = surfSatPseudoStateMachine(packetData,configureTimestamp)
+				packetData, configureTimestamp = surfSatPseudoStateMachine(packetData,configureTimestamp,nextQueue)
 				# If the data was not a control character, then process it.
 				if len(packetData) != 0:
 					# We'll just assume that the input is a chunk.

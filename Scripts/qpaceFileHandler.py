@@ -180,7 +180,7 @@ class ChunkPacket():
 			for chunk in ChunkPacket.chunks:
 				#print('<',len(chunk),'>',chunk)
 				packet += chunk
-			if len(packet) != DataPacket.max_size: logger.logSystem("Packet is not {} bytes! It  is {} bytes!".format(str(DataPacket.max_size),str(len(packet))) ,str(packet))
+			if len(packet) != DataPacket.max_size: logger.logSystem("Packet is not {} bytes! It is {} bytes!".format(str(DataPacket.max_size),str(len(packet))) ,str(packet))
 			ChunkPacket.chunks[:] = [] #reset chunks to empty
 			ChunkPacket.complete = False #reset copmlete to False
 			ChunkPacket.lastInputTime = None # reset the timer.

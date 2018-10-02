@@ -72,110 +72,118 @@ def initWTCConnection():
 
 	return chip
 
-class NextQueue():
+class Queue():
 	"""
 	Reason for Implementation
 	-------------------------
-	This queue is used to handle responses to the WTC when it asks "what's next"
+	This is a generic queue used for the NextQueue, PacketQueue, and ResponseQueue
 	"""
+	WAIT_TIME = 5 #in seconds
 	# MAX = 10
-	WAIT_TIME = 25 #in seconds
-	requestQueue = []
-	responseQueue = []
-	requestCount = 0
-	cv = threading.Condition()
 
-	@staticmethod
-	def isEmpty():
+	def __init__(self,name="Queue"):
+		self.internalQueue = []
+		self.enqueueCount = 0
+		self.cv = threading.Condition()
+		self.name = name
+
+	def isEmpty(self):
 		""" Check to see if the queue is empty."""
-		return len(NextQueue.requestQueue) == 0
+		return len(self.internalQueue) == 0
 
 	# @staticmethod
 	# def NextQueue.isFull():
-	# 	return len(queue) == NextQueue.MAX
+	# 	return len(internalQueue) >= NextQueue.MAX
 
-	@staticmethod
-	def enqueue(item):
+	def enqueue(self,item):
 		"""
 		Enqueue an item to the queue.
 		Set up a threading.Condition variable for use by NextQueue. This is only useful for the "wait" feature.
 		"""
-		if NextQueue.isEmpty():
-			NextQueue.cv.acquire() # If we are putting something in for the first time, set up the Lock
-		logger.logSystem("NextQueue: Adding '{}' to the queue.".format(item))
+		if self.isEmpty():
+			self.cv.acquire() # If we are putting something in for the first time, set up the Lock
+		logger.logSystem("{}: Adding '{}' to the queue.".format(self.name,item))
 		try:
-			item = states.QPCOMMAND[item]
+			item = states.QPCONTROL[item]
 		except KeyError:
-			item = states.QPCOMMAND['NOOP']
-		NextQueue.requestQueue.append(item)
-		NextQueue.requestCount += 1
+			item = states.QPCONTROL['NOOP']
+		self.internalQueue.append(item)
+		self.enqueueCount += 1
 
-	@staticmethod
-	def peek():
+	def peek(self):
 		"""
 		Just look at the top of the queue.
 		"""
-		if NextQueue.isEmpty():
-			return states.QPCOMMAND['IDLE']
+		if self.isEmpty():
+			return states.QPCONTROL['IDLE']
 
 		else:
-			return NextQueue.requestQueue[0]
+			return self.internalQueue[0]
 
-	@staticmethod
-	def dequeue():
+	def dequeue(self):
 		"""
 		Remove an item from the queue.
 		"""
-		if NextQueue.isEmpty():
-			return states.QPCOMMAND['IDLE']
+		if self.isEmpty():
+			return states.QPCONTROL['IDLE']
 		else:
-			next =  NextQueue.requestQueue.pop(0)
-			logger.logSystem("NextQueue: Removed item from queue: '{}'".format(next))
-			if NextQueue.isEmpty():
+			next =  self.internalQueue.pop(0)
+			logger.logSystem("{}: Removed item from queue: '{}'".format(self.name,next))
+			if self.isEmpty():
 				try:
-					NextQueue.cv.release() # If there is nothing in the queue, release the lock.
+					self.cv.release() # If there is nothing in the queue, release the lock.
 				except RuntimeError:
 					pass # If it's already released for some reason, ignore it.
 			return next
 
-	@staticmethod
-	def addResponse(response):
-		"""
-		Append a response to the responseQueue.
-		"""
-		NextQueue.responseQueue.append(response)
+	# @staticmethod
+	# def addResponse(response):
+	# 	"""
+	# 	Append a response to the responseQueue.
+	# 	"""
+	# 	NextQueue.responseQueue.append(response)
+	#
+	# @staticmethod
+	# def clearResponse(n=None):
+	# 	"""
+	# 	Clear the responseQueue if nothing is provided. Otherwise, pop off the back N times.
+	# 	"""
+	# 	if n:
+	# 		for i in range(n):
+	# 			NextQueue.responseQueue.pop()
+	# 	else:
+	# 		NextQueue.responseQueue.clear()
+	def stackPop(self, n):
+		response = self.internalQueue[-popN:]
+		NextQueue.internalQueue = NextQueue.internalQueue[:-popN]
+		return response
 
-	@staticmethod
-	def clearResponse(n=None):
-		"""
-		Clear the responseQueue if nothing is provided. Otherwise, pop off the back N times.
-		"""
-		if n:
-			for i in range(n):
-				NextQueue.responseQueue.pop()
-		else:
-			NextQueue.responseQueue.clear()
+	def getInputCount(self):
+		return self.enqueueCount
 
-	@staticmethod
-	def waitAndReturn(popN=1,timeout=None):
+	def waitUntilEmpty(self,popN=1,timeout=None):
 		"""
 		This method waits until the queue is empty, and returns the result values of the queue.
 		Before returning, this method will pop the queue one time unless specified and return
 		Those values. Those values will be removed from the responseQueue.
 
-		WARNING: Do not use this method in interpreter.run() as that will get us stuck in an infinite loop
+		WARNING: Be careful where this is placed. Depending on the thread it is placed in, an
+				 infinite wait is possible. The queue must be able to be dequeued for this wait to
+				 exit properly. To counter this, a timeout is set.
 		"""
+		logger.logSystem("{}: Entered a wait. pop={}, timeout={}".format(self.name,popN,str(timeout)))
 		try:
 			# Wait until the queue is empty.
-			while not NextQueue.isEmpty():
-				if not cv.wait(timeout or NextQueue.WAIT_TIME):
+			while not self.isEmpty():
+				if not self.cv.wait(timeout or NextQueue.WAIT_TIME):
+					logger.logSystem('{}: Wait timed out. Exiting wait.'.format(self.name))
 					# After the wait time, let's just continue going. Something held up.
 					return None
 			# pop the number of resposes we want off the back and then return them.
-			response = NextQueue.responseQueue[-popN:]
-			NextQueue.responseQueue = NextQueue.responseQueue[:-popN]
-			return response
-		except RuntimeError:
+			logger.logSystem('{}: Wait completed.'.format(self.name))
+			return None
+		except RuntimeError as e:
+			logger.logError("{}: Lock was not aquired for wait".format(self.name),e)
 			return None # The lock was not aquired for some reason.
 
 def run():
@@ -217,8 +225,11 @@ def run():
 			experimentRunningEvent.clear()
 			shutdownEvent.clear()
 
-			interpreter = threading.Thread(target=qpi.run,args=(chip,experimentRunningEvent,runEvent,shutdownEvent))
-			todoParser = threading.Thread(target=todo.run,args=(chip,experimentRunningEvent,runEvent,shutdownEvent))
+			# Initialize the nextQueue for WHATISNEXT operations
+			nextQueue = Queue(name='NextQueue')
+
+			interpreter = threading.Thread(target=qpi.run,args=(chip,nextQueue,experimentRunningEvent,runEvent,shutdownEvent))
+			todoParser = threading.Thread(target=todo.run,args=(chip,nextQueue,experimentRunningEvent,runEvent,shutdownEvent))
 
 			logger.logSystem("Main: Starting up the Interpreter and TodoParser.")
 			interpreter.start() # Run the Interpreter
@@ -236,8 +247,8 @@ def run():
 							break
 						else: # Otherwise, something must have happened....restart the Interpreter and TodoParser
 							logger.logSystem('Main: TodoParser and Interpreter are shutdown when they should not be. Restarting...')
-							interpreter = threading.Thread(target=qpi.run,args=(chip,experimentRunningEvent,runEvent,shutdownEvent))
-							todoParser = threading.Thread(target=todo.run,args=(chip,experimentRunningEvent,runEvent,shutdownEvent))
+							interpreter = threading.Thread(target=qpi.run,args=(chip,nextQueue,experimentRunningEvent,runEvent,shutdownEvent))
+							todoParser = threading.Thread(target=todo.run,args=(chip,nextQueue,experimentRunningEvent,runEvent,shutdownEvent))
 							interpreter.start()
 							todoParser.start()
 				except KeyboardInterrupt:

@@ -18,7 +18,7 @@ import qpaceLogger as logger
 import qpaceExperimentParser as exp
 import qpacePiCommands as cmd
 import qpaceWTCHandler as qph
-from qpaceStates import QPCOMMAND
+from qpaceStates import QPCONTROL
 
 TODO_PATH = "/home/pi/data/text/"
 TODO_FILE = "todo.txt"
@@ -111,7 +111,7 @@ def sortTodoList(todo_list):
 		todo_list.sort() # Python will sort a 2D list based off the first argument of each nested list in ascending order.
 	return todo_list
 
-def _processTask(chip,task,experimentEvent = None):
+def _processTask(chip,nextQueue,task,experimentEvent = None):
 	"""
 		This function handles processing a specific command given. This is what does the real "parsing"
 
@@ -148,9 +148,11 @@ def _processTask(chip,task,experimentEvent = None):
 			parserThread = threading.Thread(name='experimentParser',target=exp.experimentparser, args=(task[2],experimentEvent))
 
 
-			qph.NextQueue.enqueue('ALLON')
-			queueReturn = qph.NextQueue.waitAndReturn()
-			if queueReturn == QPCOMMAND['True']:
+			#nextQueue.enqueue('ALLON')
+			#nextQueue.waitUntilEmpty()
+			#queueReturn = responseQueue
+			queueReturn = True
+			if queueReturn == QPCONTROL['True']:
 				logger.logSystem("TodoParser: Solenoids enabled. Beginning experiment.")
 				experimentEvent.set()
 				parserThread.start()
@@ -169,7 +171,7 @@ def _processTask(chip,task,experimentEvent = None):
 
 	return True # If we reach here, assume everything was a success.
 
-def executeTodoList(chip,todo_list, shutdownEvent, experimentEvent = None):
+def executeTodoList(chip,nextQueue,todo_list, shutdownEvent, experimentEvent = None):
 	"""
 		This function will execute the todoList in order. If it is interrupted, it will return the todolist
 
@@ -214,7 +216,7 @@ def executeTodoList(chip,todo_list, shutdownEvent, experimentEvent = None):
 					return todo_list
 				time.sleep(.5)
 			# run the next item on the todolist.
-			taskCompleted = _processTask(chip,todo_list[0],experimentEvent)
+			taskCompleted = _processTask(chip,nextQueue,todo_list[0],experimentEvent)
 			if taskCompleted:
 				logger.logSystem("TodoParser: Task completed.",str(todo_list[0]))
 				todo_list = todo_list.pop(0) # pop the first item off the list.
@@ -257,7 +259,7 @@ def updateTodoFile(todo_list):
 		return False
 	return True
 
-def run(chip,experimentEvent, runEvent, shutdownEvent):
+def run(chip,nextQueue,experimentEvent, runEvent, shutdownEvent):
 	"""
 	Method to handle the todo parser when running it. This allows the parser to be used when calling
 	it from another module.
@@ -286,7 +288,7 @@ def run(chip,experimentEvent, runEvent, shutdownEvent):
 			# We will assume the todo-list is NOT sorted, and sort it.
 			sortTodoList(todo_list)
 			if chip is not None:
-				todo_list = executeTodoList(chip,todo_list,shutdownEvent,experimentEvent)
+				todo_list = executeTodoList(chip,nextQueue,todo_list,shutdownEvent,experimentEvent)
 
 			if todo_list:
 				logger.logSystem("TodoParser: The TodoParser has terminated early. Updating the todo file.")

@@ -7,16 +7,22 @@
 # The location of the list of different WTC states. This was derived from SurfSat. It has since
 # been changed slightly.
 
-QPCOMMAND = {
+QPCONTROL = {
 	"True":			  0x00,
 	"False":		  0x02,
 	"NOOP":			  0x0F,
+
 	"STEPON":		  0x10,
 	"STEPOFF":		  0x11,
 	"SOLON":		  0x12,
 	"SOLOFF":		  0x13,
 	"ALLON":		  0x14,
 	"ALLOFF":		  0x15,
+
+	"SENDPACKET":	  0x20,	# Added to queue. Implies the pi would like to send data.
+	"NEXTPACKET":	  0x21,	# Sent by WTC. Asks for next packet.
+	"BUFFERFULL":	  0x22,	# Sent by WTC. Implies the buffer is full.
+
 
 	"PIALIVE":        0x41, # WTC Is the Pi alive?
 	"TIMESTAMP":      0x42, # WTC Send the timestamp

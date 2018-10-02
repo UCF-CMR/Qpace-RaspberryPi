@@ -15,7 +15,7 @@ except:
 	print("Unable to import RPi.GPIO")
 	pass
 
-GoProDirectory = '/home/pi/gopro/DCIM/100GOPRO'
+GoProDirectory = '/home/pi/gopro/DCIM/100GOPRO/'
 MountPoint = '/home/pi/gopro'
 SavePoint = '/home/pi/data/vid/'
 
@@ -563,7 +563,7 @@ def solenoid(solPins,iterations):
 # 		return False
 #
 # 	NextQueue.enqueue('STEPON')
-# 	response = NextQueue.waitAndReturn(1)
+# 	response = NextQueue.waitUntilEmpty(1)
 # 	if response:
 # 		# Get the item in the list. This will be the return of our request.
 # 		return response[0]
@@ -579,7 +579,7 @@ def solenoid(solPins,iterations):
 # 		return False
 #
 # 	NextQueue.enqueue('SOLON')
-# 	response = NextQueue.waitAndReturn(1)
+# 	response = NextQueue.waitUntilEmpty(1)
 # 	if response:
 # 		# Get the item in the list. This will be the return of our request.
 # 		return response[0]
@@ -595,7 +595,7 @@ def solenoid(solPins,iterations):
 # 		return False
 #
 # 	NextQueue.enqueue('ALLOFF')
-# 	response = NextQueue.waitAndReturn(1)
+# 	response = NextQueue.waitUntilEmpty(1)
 # 	if response:
 # 		# Get the item in the list. This will be the return of our request.
 # 		return response[0]
