@@ -116,37 +116,6 @@ def waitForBytesFromCCDR(chip,n,timeout = 2.5,interval = 0.25):
 			time.sleep(interval)
 	return True
 
-def processCommand(chip, fieldData, fromWhom = 'CCDR'):
-	"""
-	Split the command from the arguments and then run the command as expected.
-
-	Parameters
-	----------
-	chip - SC16IS750() - an SC16IS750 object to read/write from/to
-	query- bytes - the command string.
-	fromWhom - string - a string to denote who sent the command. If fromWhom is not provided, assume the WTC.
-
-	Raises
-	------
-	ConnectionError - If a connection to the WTC was not passed to the command
-	BufferError - Could not decode bytes to string for command query.
-	"""
-
-
-	if not chip:
-		raise ConnectionError("Connection to the CCDR not established.")
-	if fieldData:
-		try:
-			command = fieldData['opcode'].decode('ascii')
-			arguments = fieldData['information'] #These are bytes objects
-		except UnicodeError:
-			#TODO Alert ground of problem decoding command!
-			raise BufferError("Could not decode ASCII bytes to string for command query.")
-		else:
-			logger.logSystem("Interpreter: Command Received!",command,str(arguments))
-			LastCommand.set(command, str(datetime.datetime.now()), fromWhom)
-			COMMANDS[fieldData['opcode']](chip,command,arguments) # Run the command
-
 def run(chip,nextQueue,experimentEvent, runEvent, shutdownEvent):
 	"""
 	This function is the "main" purpose of this module. Placed into a function so that it can be called in another module.
@@ -269,6 +238,37 @@ def run(chip,nextQueue,experimentEvent, runEvent, shutdownEvent):
 		if not Command.UploadRequest.isActive():
 			print('UPLOAD REQUEST NOT MADE ACTIVE')
 
+	def processCommand(chip, fieldData, fromWhom = 'WTC'):
+		"""
+		Split the command from the arguments and then run the command as expected.
+
+		Parameters
+		----------
+		chip - SC16IS750() - an SC16IS750 object to read/write from/to
+		query- bytes - the command string.
+		fromWhom - string - a string to denote who sent the command. If fromWhom is not provided, assume the WTC.
+
+		Raises
+		------
+		ConnectionError - If a connection to the WTC was not passed to the command
+		BufferError - Could not decode bytes to string for command query.
+		"""
+
+
+		if not chip:
+			raise ConnectionError("Connection to the CCDR not established.")
+		if fieldData:
+			try:
+				command = fieldData['opcode'].decode('ascii')
+				arguments = fieldData['information'] #These are bytes objects
+			except UnicodeError:
+				#TODO Alert ground of problem decoding command!
+				raise BufferError("Could not decode ASCII bytes to string for command query.")
+			else:
+				logger.logSystem("Interpreter: Command Received!",command,str(arguments))
+				LastCommand.set(command, str(datetime.datetime.now()), fromWhom)
+				COMMANDS[fieldData['opcode']](chip,command,arguments) # Run the command
+
 	def isValidTag(tag):
 		"""
 		To be implemented.
@@ -361,11 +361,14 @@ def run(chip,nextQueue,experimentEvent, runEvent, shutdownEvent):
 		Any exception gets popped up the stack.
 		"""
 		if response in qps.QPCONTROL:
-			chip.byte_write(SC16IS750.REG_THR,bytes([qps.QPCONTROL[response]]))
+			chip.byte_write(SC16IS750.REG_THR,qps.QPCONTROL[response])
 		else:
+
+			if isinstance(response,int):
+				response = bytes([response])
 			chip.write(response)
 
-	def surfSatPseudoStateMachine(packetData,configureTimestamp,nextQueue):
+	def pseudoStateMachine(packetData,configureTimestamp,nextQueue):
 		"""
 		This is a "state machine" that is run every iteration over the data received by the WTC.
 		In reality, it's a glorified switch statement.
@@ -395,7 +398,7 @@ def run(chip,nextQueue,experimentEvent, runEvent, shutdownEvent):
 				os.system("sudo date -s '@" + str(byte) +"'")
 				chip.block_write(SC16IS750.REG_THR,packetData)
 				configureTimestamp = False
-			if byte in qpStates.values():
+			elif byte in qpStates.values():
 				# The byte was found in the list of QPCONTROLs
 				if byte == qpStates['NOOP']:
 					logger.logSystem('PseudoSM: NOOP.')
@@ -448,7 +451,7 @@ def run(chip,nextQueue,experimentEvent, runEvent, shutdownEvent):
 			return packetData, configureTimestamp
 			#TODO the QPCONTROL was not found to be legitimate. What do I do?
 
-		return b'',configureTimestamp # Return nothing if the packetData was handled as a WTC control
+		return None,configureTimestamp # Return nothing if the packetData was handled as a WTC control
 
 	# Set up the callback.
 	if gpio:
@@ -456,24 +459,6 @@ def run(chip,nextQueue,experimentEvent, runEvent, shutdownEvent):
 		logger.logSystem('Interpreter: Callback active. Waiting for data from the SC16IS750.')
 	else:
 		logger.logSystem("Interpreter: Callback is not active. PIGPIO was not defined.")
-
-	#NOTE: This code exists for the PTT. Remove later.
-	nextQueue.enqueue('IDLE')
-	nextQueue.enqueue('IDLE')
-	nextQueue.enqueue('IDLE')
-	nextQueue.enqueue('IDLE')
-	nextQueue.enqueue('IDLE')
-	nextQueue.enqueue('SENDPACKET')
-	print('----------CREATING FAKE PACKET QUEUE----------')
-	packetQueue = qph.Queue(name="PacketQueue",suppressLog=True)
-	for i in range(0xd0):
-		samplePacket = b'\x00SAMPL\x00'
-		samplePacket += bytes([i])
-		samplePacket += b'\x00' * 116
-		samplePacket += CMDPacket.generateChecksum(samplePacket)
-		packetQueue.enqueue(samplePacket)
-	print('Done. PTT is go.')
-
 
 	# Begin main loop.
 	while not shutdownEvent.is_set(): # While we are NOT in shutdown mode
@@ -484,9 +469,9 @@ def run(chip,nextQueue,experimentEvent, runEvent, shutdownEvent):
 				packetData = chip.packetBuffer.pop(0) # Get that input
 
 				# Determine if the data is a control character or not.
-				packetData, configureTimestamp = surfSatPseudoStateMachine(packetData,configureTimestamp,nextQueue)
+				packetData, configureTimestamp = pseudoStateMachine(packetData,configureTimestamp,nextQueue)
 				# If the data was not a control character, then process it.
-				if len(packetData) != 0:
+				if packetData:
 					# We'll just assume that the input is a chunk.
 					chunkPacket.push(packetData)
 					# If, after pushing, the chunk is complete continue on. Otherwise skip.

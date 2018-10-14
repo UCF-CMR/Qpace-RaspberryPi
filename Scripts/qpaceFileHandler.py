@@ -164,7 +164,7 @@ class ChunkPacket():
 				ChunkPacket.lastInputTime = datetime.now()
 			ChunkPacket.chunks.append(data)
 			#Acknowledge WTC with chunk number
-			self.chip.byte_write(SC16IS750.REG_THR,bytes([0x60 + len(ChunkPacket.chunks)])) # Defined by WTC state machine
+			self.chip.byte_write(SC16IS750.REG_THR,0x60 + len(ChunkPacket.chunks)) # Defined by WTC state machine
 			if len(ChunkPacket.chunks) == 4: # We are doing 4 chunks!
 				ChunkPacket.complete = True
 

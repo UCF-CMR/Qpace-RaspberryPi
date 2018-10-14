@@ -632,7 +632,7 @@ class Command():
 		exp.led(False)
 		# StatusPacket(chip).respond()
 
-		chip.byte_write(SC16IS750.REG_THR,qps.QPCONTROL['SCIENCESTOP'])
+		#chip.byte_write(SC16IS750.REG_THR,qps.QPCONTROL['SCIENCESTOP'])
 		#waitForBytesFromCCDR(chip,1,timeout=None)
 		#chip.read_byte(SC16IS750.REG_RHR) # Clear buffer, WTC will send ERRNONE
 		print("DONE :D :D :D")

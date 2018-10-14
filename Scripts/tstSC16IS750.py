@@ -240,9 +240,9 @@ class SC16IS750:
                     length = os.path.getsize('inputSC16IS750.txt')
                     try:
                     	import pigpio
-                    	gpio = pigpio.pi()
+                    	gpio = True
                     except:
-                        gpio = None
+                        gpio = False
                     if (gpio and length > 1) or length > 0:
                         buf = fileDescriptor.read()
                         if buf[-1] == b'\n':

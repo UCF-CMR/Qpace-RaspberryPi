@@ -36,6 +36,9 @@ class PIN():
 	SOL1   = 35
 	SOL2   = 31
 	SOL3   = 37
+	SOLX   = 35
+	SOLY   = 31
+	SOLZ   = 37
 
 class PINGROUP():
 	"""
@@ -44,9 +47,9 @@ class PINGROUP():
 	Tuples that represent functional groups of the pins.
 	"""
 	gopro = (PIN.GOPPWR,PIN.GOPBUT,PIN.GOPCAP,PIN.GOPDEN)
-	solenoid = (PIN.SOL1,PIN.SOL2,PIN.SOL3)
+	solenoid = (PIN.SOLX,PIN.SOLY,PIN.SOLZ)
 	stepper = (PIN.STPEN,PIN.STPENA,PIN.STPENB)
-	led = (PIN.LEDPWR)
+	led = (PIN.LEDPWR,)
 
 def put(pin,state):
 	"""
@@ -67,23 +70,6 @@ def put(pin,state):
 	Any exception gets popped up the stack.
 	"""
 	GPIO.output(pin,state)
-
-def on(pin):
-	"""
-	DEPRECIATED
-	-----------
-	Use high() instead.
-	"""
-	print("\nThe on() method is depreciated. Please use high() next time.\n")
-	high(pin)
-
-def off(pin):
-	"""
-	DEPRECIATED
-	-----------
-	Use off() instead.
-	"""
-	print("\nThe off() method is depreciated. Please use low() next time.\n")
 
 def low(pin):
 	"""
@@ -161,6 +147,9 @@ def flip(pin,delay=.1):
 	time.sleep(delay)
 	put(pin,GPIO.input(pin)^1) # Put it back
 
+def read(pin):
+	return GPIO.input(pin)
+
 def reset(pingroup=None):
 	"""
 	Initialize the pins to their default states.
@@ -194,9 +183,9 @@ def reset(pingroup=None):
 			GPIO.setup(PIN.LEDPWR, GPIO.OUT, initial=0)				#Controls the LEDs
 		elif pingroup == PINGROUP.solenoid:
 			#Solenoid setup
-			GPIO.setup(PIN.SOL1, GPIO.OUT, initial=0)				#Solenoid 1
-			GPIO.setup(PIN.SOL2, GPIO.OUT, initial=0)				#Solenoid 2
-			GPIO.setup(PIN.SOL3, GPIO.OUT, initial=0)				#Solenoid 3
+			GPIO.setup(PIN.SOLX, GPIO.OUT, initial=0)				#Solenoid 1
+			GPIO.setup(PIN.SOLY, GPIO.OUT, initial=0)				#Solenoid 2
+			GPIO.setup(PIN.SOLZ, GPIO.OUT, initial=0)				#Solenoid 3
 		elif pingroup == PINGROUP.stepper:
 			#Stepper pin setup
 			GPIO.setup(PIN.STPEN, GPIO.OUT, initial=1)				#Step Enable
@@ -208,15 +197,6 @@ def reset(pingroup=None):
 			GPIO.setup(PIN.GOPBUT, GPIO.OUT, initial=1)				#On Button
 			GPIO.setup(PIN.GOPCAP, GPIO.OUT, initial=1)				#Capture Button
 			GPIO.setup(PIN.GOPDEN, GPIO.OUT, initial=0)
-
-def pinInit():
-	"""
-	DEPRECIATED
-	-----------
-	Use reset() instead.
-	"""
-	print('\nNOTE: pinInit() is depreciated. Please use reset() next time.\n')
-	reset()
 
 def gopro_on():
 	"""
@@ -239,15 +219,6 @@ def gopro_on():
 	time.sleep(3)
 	flip(PIN.GOPBUT,delay=1)
 	time.sleep(5)
-
-def init_gopro():
-	"""
-	DEPRECIATED
-	-----------
-	Use gopro_on() instead.
-	"""
-	print('\nNOTE: init_gopro() is depreciated. Please use gopro_on() next time.\n')
-	gopro_on()
 
 def press_capture():
 	"""
@@ -349,7 +320,7 @@ def goProTransfer():
 		#TURN USB ENABLE
 		logger.logSystem("ExpCtrl: Enabling the USB and mounting the drive...")
 		transOn()
-		time.sleep(5)
+		time.sleep(3)
 		import os
 		try: # Mount the GoPro
 			os.system('sudo mount /dev/sda1 '+MountPoint)
@@ -379,81 +350,31 @@ def goProTransfer():
 				os.system('sudo umount /dev/sda1')
 			except Exception as e: # Failed to call the shell
 				logger.logError("ExpCtrl: Could not unmount the drive", e)
+		time.sleep(.25)
 		transOff()
 
-def gopro_stop_and_USB():
-	"""
-	DEPRECIATED
-	-----------
-	Use individual methods to complete this task instead.
-	"""
-	print('\nNOTE: gopro_stop_and_USB() is depreciated.')
-	print('Please use individual methods next time to accomplish this.')
-	print('See documentation.\n')
+class Stepper():
+	rotationStates = {
+		0: (0,0),
+		1: (1,0),
+		2: (1,1),
+		3: (0,1)
+	}
+	nextState = 0
 
-	logger.logSystem("ExpCtrl: Stopping recording...")
-	press_capture() #Stop Recording
+	@staticmethod
+	def forward():
+		put(PIN.STPENA, Stepper.rotationStates[Stepper.nextState%4][0])
+		put(PIN.STPENB, Stepper.rotationStates[Stepper.nextState%4][1])
+		Stepper.nextState += 1
 
-	#TURN USB ENABLE
-	logger.logSystem("ExpCtrl: Enabling the USB and mounting the drive...")
-	high(PIN.GOPDEN)
+	def reverse():
+		Stepper.nextState -= 2 # subtract 2 from the NEXT state to figure out the previous state
+		put(PIN.STPENA, Stepper.rotationStates[Stepper.nextState%4][0])
+		put(PIN.STPENB, Stepper.rotationStates[Stepper.nextState%4][1])
+		Stepper.nextState += 1
 
-	import os
-	try: # Mount the GoPro
-		os.system('sudo mount /dev/sda1 /home/pi/gopro')
-	except Exception as e:	# MOUNTING THE DRIVE FAILED
-		logger.logError("ExpCtrl: Could not mount the drive", e)
-	else:	# Mounting the drive was successful
-		try:
-			from shutil import move
-			import re
-			logger.logSystem("ExpCtrl: Moving video over to the Pi")
-			files = os.listdir('/home/pi/gopro/DCIM/101GOPRO')
-			for name in files:
-				if re.match('.+\.(MP4|JPG)',name):
-					os.system('cp /home/pi/gopro/DCIM/101GOPRO/'+name+ ' /home/pi/data/vid/')
-		except Exception as e:	#Moving the file from the GOPRO failed
-			logger.logError("ExpCtrl: Could not move the video", e)
-		else: #Moving the file is successful
-			try: # Delete all other uneccessary files
-				logger.logSystem("ExpCtrl: Removing misc files from GoPro")
-				for name in files:
-					if re.match('.+\..+',name):
-						os.system('sudo rm /home/pi/gopro/DCIM/101GOPRO/'+name)
-			except Exception as e: # Could not delete the files
-				logger.logError("ExpCtrl: Could not delete misc files on the GoPro", e)
-		logger.logSystem("ExpCtrl: Turning off the GoPro and unmounting the USB")
-		try: # Attempt to umount.
-			os.system('sudo umount /dev/sda1')
-		except Exception as e: # Failed to call the shell
-			logger.logError("ExpCtrl: Could not unmount the drive", e)
-	#Turn off the gopro
-	low(PIN.GOPPWR)
-	time.sleep(.25)
-	#reset pins to initial state
-	reset(PINGROUP.gopro)
-
-def setStep(a, b):
-	"""
-	Set the steppers to a and b for Stepper A and stepper B
-
-	Parameters
-	----------
-	None
-
-	Returns
-	-------
-	Void
-
-	Raises
-	------
-	Any exception gets popped up the stack.
-
-	"""
-	put(PIN.STPENA, a)
-	put(PIN.STPENB, b)
-
-def stepper_forward(delay, qturn):
+def stepper_turn(delay, qturn,multiplier = 1):
 	"""
 	This function activates the stepper motor in the forward direction.
 
@@ -467,43 +388,15 @@ def stepper_forward(delay, qturn):
 	Void.
 
 	"""
-
-	for i in range(0, qturn):
-		setStep(0, 0)
-		time.sleep(delay)
-		setStep(1, 0)
-		time.sleep(delay)
-		setStep(1, 1)
-		time.sleep(delay)
-		setStep(0, 1)
-		time.sleep(delay)
-
-	time.sleep(3)
-
-def stepper_reverse(delay, qturn):
-	"""
-	This function activates the stepper motor in the forward direction.
-
-	Parameters
-	----------
-	Integer / Float - delay - The time between each phase of the stepper motor.
-	Integer - qturn - The number of turns.
-
-	Returns
-	-------
-	Void.
-
-	"""
-
-	for i in range(0, qturn):
-		setStep(1, 1)
-		time.sleep(delay)
-		setStep(1, 0)
-		time.sleep(delay)
-		setStep(0, 0)
-		time.sleep(delay)
-		setStep(0, 1)
-		time.sleep(delay)
+	if qturn > 0:
+		# Multiply * 4 because we are doing qTurns
+		for i in range(0, qturn*multiplier):
+			Stepper.forward()
+			time.sleep(delay)
+	else:
+		for i in range(0, -qturn*multiplier): #qturn is already negative so make it positive
+			Stepper.reverse()
+			time.sleep(delay)
 	time.sleep(3)
 
 def led(state):
@@ -519,6 +412,46 @@ def led(state):
 	Void
 	"""
 	put(PIN.LEDPWR,state)
+
+def solenoid_run(solenoidPin,hz,duration,override = False):
+	if hz < 1:
+		logger.logSystem('Solenoid: Hz was set <1. This makes no sense.')
+		return
+	elif hz > 12 and not override:
+		logger.logSystem('Solenoid: Max is 12Hz, please override.')
+		hz = 12
+
+	period = 1/hz
+	for i in range(duration/period):
+		put(solenoidPin[i%len(solenoidPin)],0) # turn the solenoid on
+		time.sleep(period/2)
+		put(solenoidPin[i%len(solenoidPin)],1) # turn the solenoid off
+		time.sleep(period/2)
+
+def solenoid_ramp(solenoidPin, start_hz, end_hz, granularity=100,override = False):
+	if start_hz < 1 or end_hz < 1:
+		logger.logSystem('Solenoid: Hz was set <1. This makes no sense.')
+		return
+	elif (start_hz > 12 or end_hz > 12) and not override:
+		logger.logSystem('Solenoid: Max is 12Hz, please override.')
+		if start_hz > 12: start_hz = 12
+		if end_hz > 12: end_hz = 12
+	start_period = 1/start_hz
+	end_period = 1/end_hz
+	diff_period = (end_period/2) - (start_period/2)
+	for i in range(granularity):
+		print(1/(2*((start_period/2) + (diff_period/granularity)*i)))
+		put(solenoidPin,0) # turn the solenoid on
+		time.sleep((start_period/2) + (diff_period/granularity)*i)
+		put(solenoidPin,1) # turn the solenoid off
+		time.sleep((start_period/2) + (diff_period/granularity)*i)
+
+def solenoid_tap(solenoidPin, hz=12):
+	period = 1/hz # 12 hz (max speed)
+	put(solenoidPin,0) # turn the solenoid on
+	time.sleep(period/2)
+	put(solenoidPin,1) # turn the solenoid off
+	time.sleep(period/2)
 
 def solenoid(solPins,iterations):
 		"""
@@ -536,9 +469,9 @@ def solenoid(solPins,iterations):
 		"""
 		solPins.sort()
 		# Set all solenoids off by default
-		put(PIN.SOL1, 1)
-		put(PIN.SOL2, 1)
-		put(PIN.SOL3, 1)
+		put(PIN.SOLX, 1)
+		put(PIN.SOLY, 1)
+		put(PIN.SOLZ, 1)
 
 		def fire(pin : tuple):
 			put(pin[1], 0)		#Turn solenoid on
@@ -550,7 +483,6 @@ def solenoid(solPins,iterations):
 			fire(solPins[-1])
 			for j in range(0, len(solPins) - 1):
 				fire(solPins[j])
-
 
 # The following methods may be uneccessary due to WTC mods.
 

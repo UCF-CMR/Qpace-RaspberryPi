@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # qpaceWTCHandler.py by Jonathan Kessluk
-# 4-19-2018, Rev. 1
+# 4-19-2018, Rev. 2
 # Q-Pace project, Center for Microgravity Research
 # University of Central Florida
 #
@@ -46,9 +46,12 @@ def initWTCConnection():
 
 	I2C_BUS = 1 # I2C bus identifier
 	CCDR_IRQ = 16 #BCM 16, board 36
-	I2C_ADDR_WTC = 0x4c#0x48 # I2C addresses for WTC comm chips
+	# QPACE IS 0X48
+	I2C_ADDR_WTC = 0x48#0x4c # I2C addresses for WTC comm chips
+	# QPACE IS 115200
 	I2C_BAUD_WTC = 115200 # UART baudrates for WTC comm chips
-	XTAL_FREQ = 11059200#1843200 # Crystal frequency for comm chips
+	# QPACE IS 1843200
+	XTAL_FREQ = 1843200#11059200 # Crystal frequency for comm chips
 	DATA_BITS = SC16IS750.LCR_DATABITS_8
 	STOP_BITS = SC16IS750.LCR_STOPBITS_1
 	PARITY_BITS = SC16IS750.LCR_PARITY_NONE
@@ -221,8 +224,6 @@ def run():
 	import sys
 	import datetime
 	import time
-	logger.logSystem("Main: Initializing GPIO pins to default states.")
-	exp.reset()
 
 	chip = initWTCConnection()
 	if chip:
@@ -302,6 +303,9 @@ def run():
 		logger.logSystem('Something went wrong. Could not connect to SC16IS750.')
 if __name__ == '__main__':
 	time.sleep(1)
+	logger.logSystem("Main: Initializing GPIO pins to default states.")
+	exp.reset()
+	time.sleep(.5)
 
 	# Attempt to run specialTasks.
 	try:
