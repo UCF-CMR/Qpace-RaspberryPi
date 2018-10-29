@@ -33,12 +33,9 @@ class PIN():
 	STPEN  = 33
 	STPENA = 29
 	STPENB = 21
-	SOL1   = 35
-	SOL2   = 31
-	SOL3   = 37
-	SOLX   = 35
-	SOLY   = 31
-	SOLZ   = 37
+	SOLX   = 37 # Side opposite to stepper.
+	SOLY   = 35
+	SOLZ   = 31
 
 class PINGROUP():
 	"""
@@ -413,6 +410,9 @@ def led(state):
 	"""
 	put(PIN.LEDPWR,state)
 
+	#TODO Make sure all solenoids stop at 0 when they are done.
+	# If they are at 1 then they are dead.
+
 def solenoid_run(solenoidPin,hz,duration,override = False):
 	if hz < 1:
 		logger.logSystem('Solenoid: Hz was set <1. This makes no sense.')
@@ -440,7 +440,7 @@ def solenoid_ramp(solenoidPin, start_hz, end_hz, granularity=100,override = Fals
 	end_period = 1/end_hz
 	diff_period = (end_period/2) - (start_period/2)
 	for i in range(granularity):
-		print(1/(2*((start_period/2) + (diff_period/granularity)*i)))
+		#print("HZ:",1/(2*((start_period/2) + (diff_period/granularity)*i)))
 		put(solenoidPin,0) # turn the solenoid on
 		time.sleep((start_period/2) + (diff_period/granularity)*i)
 		put(solenoidPin,1) # turn the solenoid off
@@ -454,6 +454,7 @@ def solenoid_tap(solenoidPin, hz=12):
 	time.sleep(period/2)
 
 def solenoid(solPins,iterations):
+		print('\nThis method is deprecitaed. Please use one of the other solenoid methods.\n')
 		"""
 		This function handles the operation of the solenoids.
 
@@ -469,9 +470,9 @@ def solenoid(solPins,iterations):
 		"""
 		solPins.sort()
 		# Set all solenoids off by default
-		put(PIN.SOLX, 1)
-		put(PIN.SOLY, 1)
-		put(PIN.SOLZ, 1)
+		put(PIN.SOLX, 0)
+		put(PIN.SOLY, 0)
+		put(PIN.SOLZ, 0)
 
 		def fire(pin : tuple):
 			put(pin[1], 0)		#Turn solenoid on

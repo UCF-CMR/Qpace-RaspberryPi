@@ -402,21 +402,20 @@ def run(chip,nextQueue,experimentEvent, runEvent, shutdownEvent):
 				# The byte was found in the list of QPCONTROLs
 				if byte == qpStates['NOOP']:
 					logger.logSystem('PseudoSM: NOOP.')
-					nextQueue.enqueue('NOOP')
+					wtc_respond('NOOP')
 				elif byte == qpStates['SHUTDOWN']:
 					logger.logSystem('PseudoSM: Shutdown was set!')
 					#nextQueue.enqueue('SHUTDOWN') # Just in case the interrupt is fired before shutting down.
+					wtc_respond('DONE')
 					shutdownEvent.set()	# Set for shutdown
 				elif byte == qpStates['REBOOT']:
 					logger.logSystem('PseudoSM: Reboot was set!')
 					#nextQueue.enqueue('SHUTDOWN')
 					shutdownEvent.set()
-				elif byte == qpStates['PIALIVE']:
-					logger.logSystem('PseudoSM: PIALIVE from WTC.')
-					wtc_respond('PIALIVE')
 				elif byte == qpStates['TIMESTAMP']:
 					logger.logSystem('PseudoSM: TIMESTAMP from WTC.')
 					wtc_respond('TIMESTAMP')
+					# Yo, configure the timestamp after this
 					configureTimestamp = True
 				elif byte == qpStates['WHATISNEXT']:
 					next = nextQueue.peek()
@@ -436,14 +435,7 @@ def run(chip,nextQueue,experimentEvent, runEvent, shutdownEvent):
 				elif byte == qpStates['BUFFERFULL']:
 					# If we get a BUFFERFULL, there's nothing really we need to do at this point.
 					# Just don't do anything.
-					pass
-
-				elif byte == qpStates['ERRNONE']:
-					logger.logSystem("PseudoSM: ERRNONE recv.")
-					pass
-				elif byte == qpStates['ERRMISMATCH']:
-					logger.logSystem('PseudoSM: ERRMISMATCH recv.')
-					pass
+					wtc_respond('DONE')
 				else:
 					logger.logSystem('PseudoSM: State existed for {} but a method is not written for it.'.format(str(byte)))
 		else:
