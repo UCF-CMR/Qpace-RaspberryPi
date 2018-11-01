@@ -103,7 +103,7 @@ def logError(description, exception = None):
         errorData = [description]
         if exception is not None:
             errorData.append(str(exception.args))
-        _logData('system_',timestamp,'An Error is being recorded to the error log.','Preview: ' + description[0][:45])
+        _logData('system_',timestamp,'An Error is being recorded to the error log.','Preview: {}'.format(description[0][:90]))
         Errors.inc()
         return _logData('error_',timestamp,*errorData) # Actually log the data.
     except Exception:

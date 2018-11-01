@@ -32,6 +32,7 @@ def run(filepath, isRunningEvent):
 	// [Comment]
 	# [Comment]
 	COMMENT [COMMENT]
+	LOG [COMMENT]
 	START [AUTHOR]
 	END
 	INIT
@@ -68,20 +69,54 @@ def run(filepath, isRunningEvent):
 	Stop the recording and transfer the video to the Pis
 
 	"""
-	comment_tuple = ('#','//',) # These are what will be used to have comments in the profile.
+	comment_tuple = ('#','//') # These are what will be used to have comments in the profile.
 	logLocation = '/home/pi/logs/text'
 	experimentStartTime = None
 	experimentLog = None
 	isRecording = False
 	try:
 		with open(filepath, 'r') as inputFile:
-			for line in inputFile:
-				# Remove comments from the code.
+			# Determine if we need solenoids and/or steppers. Act accordingly.
+			solenoidRequest = False
+			stepperRequest = False
+			inputLines = inputFile.readlines()
+			logger.logSystem("ExpParser: Determining if we need the solenoids or steppers...")
+			# Look for SOLENOID or STEPPER. If we see that, we'll need to ask for them to turn on.
+			for line in inputLines:
+				instruction = line.upper().split()[0]
+				if instruction is 'SOLENOID':
+					solenoidRequest = True
+				elif instruction is 'STEPPER':
+					stepperRequest = True
+
+				if solenoidRequest and stepperRequest:
+					break
+			# If we want the solenoids, let's request them. Failure to enable will abort the experiment.
+			if solenoidRequest:
+				logger.logSystem('ExpParser: WTC...may I have the solenoids please?')
+				if not exp.wtc_request('SOLON'):
+					raise StopIteration('WTC denied access to the solenoids.')
+
+			# If we want the steppers, let's request them. Failure to enable will abort the experiment.
+			if stepperRequest:
+				logger.logSystem('ExpParser: WTC...may I have the steppers please?')
+				if not exp.wtc_request('STEPON'):
+					raise StopIteration('WTC denied access to the steppers.')
+
+
+			# At this point the solenoids and steppers should be enabled. NOW we can do some science!
+			logger.logSystem('ExpParser: Experiment is ready to begin. Time to do science!')
+
+			# Begin interpreting the experiment.
+			for line in inputLines:
+				# Remove comments from the instructions.
 				instruction = line
 				for delimiter in comment_tuple:
 					if delimiter in instruction:
 						instruction = instruction.split(delimiter)[0]
 				instruction = instruction.upper().split()
+
+				# Begin interpreting the instructions that matter.
 				try:
 					if(instruction[0] == 'START'):
 						# Start an experiment if one hasn't started yet.
@@ -100,7 +135,7 @@ def run(filepath, isRunningEvent):
 							isRunningEvent.clear()
 							if experimentLog:
 								experimentLog.close()
-							logMessage = 'ExpParser: Ending an Experiment. Execution time:{} seconds.'.format((experimentStartTime - datetime.datetime.now()).seconds)
+							logMessage = 'ExpParser: Ending an Experiment. Execution time: {} seconds.'.format((experimentStartTime - datetime.datetime.now()).seconds)
 							logger.logSystem(logMessage)
 							experimentLog.write('{}\n'.format(logMessage))
 					elif(instruction[0] == 'INIT'):
@@ -113,7 +148,7 @@ def run(filepath, isRunningEvent):
 							exp.reset()
 							exp.led(1)
 							exp.gopro_on()
-					elif(instruction[0] == 'COMMENT'):
+					elif(instruction[0] == 'COMMENT' or instruction[0] == 'LOG'):
 						if isRunningEvent.is_set():
 							# Write to the log whatever comment is here.
 							comment = ' '.join(instruction[1:])
@@ -138,7 +173,7 @@ def run(filepath, isRunningEvent):
 								who = 'GoPro'
 								group = exp.PINGROUP.gopro
 
-							logMessage = 'ExpParser: Resetting {} pins to their defaults.'
+							logMessage = 'ExpParser: Resetting {} pins to their defaults.'.format(who)
 							logger.logSystem(logMessage)
 							experimentLog.write('{}\n'.format(logMessage))
 							exp.reset(group)
@@ -262,8 +297,11 @@ def run(filepath, isRunningEvent):
 
 	# Output to the logger here.
 	except IOError as e:
-		qpaceLogger.logError("ExpParser: Could not open experiment file at " + str(filepath) + ".", e)
-	else:
+		logger.logError("ExpParser: Could not open experiment file at {}. {}".format(str(filepath),str(e)))
+
+	except StopIteration as e:
+		logger.logSystem('ExpParser: Aborted the experiment. It appears as if we got denied by the WTC. {}'.format(str(e)))
+	finally:
 		if isRunningEvent.is_set():
 			isRunningEvent.clear()
 		if experimentLog:

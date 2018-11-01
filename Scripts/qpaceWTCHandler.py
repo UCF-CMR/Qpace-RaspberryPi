@@ -90,6 +90,7 @@ class Queue():
 		self.cv = threading.Condition()
 		self.name = name
 		self.suppress = suppressLog
+		self.response = None
 
 	def isEmpty(self):
 		""" Check to see if the queue is empty."""
@@ -155,23 +156,7 @@ class Queue():
 					pass # If it's already released for some reason, ignore it.
 			return item
 
-	# @staticmethod
-	# def addResponse(response):
-	# 	"""
-	# 	Append a response to the responseQueue.
-	# 	"""
-	# 	NextQueue.responseQueue.append(response)
-	#
-	# @staticmethod
-	# def clearResponse(n=None):
-	# 	"""
-	# 	Clear the responseQueue if nothing is provided. Otherwise, pop off the back N times.
-	# 	"""
-	# 	if n:
-	# 		for i in range(n):
-	# 			NextQueue.responseQueue.pop()
-	# 	else:
-	# 		NextQueue.responseQueue.clear()
+
 	def stackPop(self, n):
 		response = self.internalQueue[-popN:]
 		NextQueue.internalQueue = NextQueue.internalQueue[:-popN]
@@ -180,7 +165,7 @@ class Queue():
 	def getCount(self):
 		return self.enqueueCount
 
-	def waitUntilEmpty(self,popN=1,timeout=None):
+	def waitUntilEmpty(self,popN=1,timeout=NextQueue.WAIT_TIME):
 		"""
 		This method waits until the queue is empty, and returns the result values of the queue.
 		Before returning, this method will pop the queue one time unless specified and return
@@ -194,7 +179,7 @@ class Queue():
 		try:
 			# Wait until the queue is empty.
 			while not self.isEmpty():
-				if not self.cv.wait(timeout or NextQueue.WAIT_TIME):
+				if not self.cv.wait(timeout):
 					logger.logSystem('{}: Wait timed out. Exiting wait.'.format(self.name))
 					# After the wait time, let's just continue going. Something held up.
 					return None
@@ -204,6 +189,59 @@ class Queue():
 		except RuntimeError as e:
 			logger.logError("{}: Lock was not aquired for wait".format(self.name),e)
 			return None # The lock was not aquired for some reason.
+
+	def respond(self,response,timeout=NextQueue.WAIT_TIME):
+		"""
+		This method will block until the response is read by another thread.
+		Adds response to self.response; until self.response is null, this will block for a certain time
+		until a timeout.
+		"""
+		logger.logSystem("{}: Adding a response. '{}' must be read before continuing... Will wait {} seconds before removing the response".format(self.name,response,timeout))
+		try:
+			self.response = response
+			pollingDelay = .5
+			fragments = timeout/pollingDelay
+			counter = 0
+			while True:
+				if self.response is None:
+					logger.logSystem("{}: Response was read... continuing on.".format(self.name))
+					break
+				if counter >= fragments:
+					logger.logSystem("{}: Response was not read: Timeout!".format(self.name))
+					break
+				time.sleep(pollingDelay)
+				counter+=1
+		except:
+			logger.logError("{}: Was not able to wait for response to be read.".format(self.name))
+
+	def waitForResponse(self,timeout=NextQueue.WAIT_TIME):
+		"""
+		This method will block until the response is available.
+		reads response from self.response; until self.response is not null, this will block for a certain time
+		until a timeout.
+		"""
+		logger.logSystem("{}: Someone is waiting for the response to be read. (Timeout={})".format(self.name,timeout))
+		try:
+			pollingDelay = .5
+			fragments = timeout/pollingDelay
+			counter = 0
+			while True:
+				if self.response is not None:
+					logger.logSystem("{}: Response was found... continuing on. Response: {}".format(self.name,self.response))
+					break
+				if counter >= fragments:
+					logger.logSystem("{}: Response was not read: Timeout!".format(self.name))
+					break
+				time.sleep(pollingDelay)
+				counter+=1
+			response = self.response
+			self.response = None
+			return response
+		except:
+			logger.logError("{}: Was not able to wait for response to be read.".format(self.name))
+
+	def clearResponse(self):
+		self.resposne = None
 
 def run():
 	"""

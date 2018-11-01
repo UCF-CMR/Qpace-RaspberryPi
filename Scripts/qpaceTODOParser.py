@@ -24,6 +24,7 @@ TODO_PATH = "/home/pi/data/text/"
 TODO_FILE = "todo.txt"
 TODO_FILE_PATH = TODO_PATH + TODO_FILE
 TODO_TEMP = "todo_temp.tmp"
+EXPERIMENT_DELTA = 600 # SECONDS
 
 WTC_IRQ = 7
 
@@ -195,6 +196,7 @@ def executeTodoList(chip,nextQueue,todo_list, shutdownEvent, experimentEvent = N
 	"""
 	#signal.signal(STOP_SIGNAL, stop_handler)
 	completedTask = True
+	timeDelta = EXPERIMENT_DELTA
 
 	# We ideally want to use the global threading.Event, but worst case is it doesn't exist.
 	# If it doesn't, lets create one locally so we have something to use regardless.
@@ -204,11 +206,16 @@ def executeTodoList(chip,nextQueue,todo_list, shutdownEvent, experimentEvent = N
 		# How many seconds until our next task?
 		try:
 			wait_time = ceil((todo_list[0][0] - datetime.now()).total_seconds()) # Determine how long to wait.
+			if wait_time < 0 and wait_time > -timeDelta:
+				wait_time = 1
+			elif wait_time < -timeDelta:
+				raise TimeoutError("I mean....it's basically timed out.")
 		except:
-			todo_list = todo_list[1:] # IF there is a problem determining when to execute, remove it from the list.
+			logger.logSystem('TodoParser: There is a problem executing {}. It will be removed from the list.'.format(str(todo_list[0][1])))
+			todo_list = todo_list[1:] # If there is a problem determining when to execute, remove it from the list.
+
 		else:
 			# Wait until it's time to run our next task. If the time has already passed wait a second and then do it.
-			wait_time = wait_time if wait_time > 0 else 1
 			logger.logSystem("TodoParser: Waiting {} seconds for {}.".format(str(wait_time),str(todo_list[0][1])))
 			# Wait for wait_time seconds but also check the shutdownEvent every second.
 			for i in range(wait_time):

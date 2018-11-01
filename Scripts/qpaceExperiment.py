@@ -18,6 +18,7 @@ except:
 GoProDirectory = '/home/pi/gopro/DCIM/100GOPRO/'
 MountPoint = '/home/pi/gopro'
 SavePoint = '/home/pi/data/vid/'
+MAX_PENDING_DELTA = 300 # in seconds
 
 class PIN():
 	"""
@@ -413,7 +414,7 @@ def led(state):
 	#TODO Make sure all solenoids stop at 0 when they are done.
 	# If they are at 1 then they are dead.
 
-def solenoid_run(solenoidPin,hz,duration,override = False):
+def solenoid_run(solenoidPins,hz,duration,override = False):
 	if hz < 1:
 		logger.logSystem('Solenoid: Hz was set <1. This makes no sense.')
 		return
@@ -422,13 +423,15 @@ def solenoid_run(solenoidPin,hz,duration,override = False):
 		hz = 12
 
 	period = 1/hz
-	for i in range(duration/period):
-		put(solenoidPin[i%len(solenoidPin)],0) # turn the solenoid on
+	for pinSelect in range(duration/period):
+		put(solenoidPins[pinSelect%len(solenoidPins)],0) # turn the solenoid on
 		time.sleep(period/2)
-		put(solenoidPin[i%len(solenoidPin)],1) # turn the solenoid off
+		put(solenoidPins[pinSelect%len(solenoidPins)],1) # turn the solenoid off
 		time.sleep(period/2)
 
-def solenoid_ramp(solenoidPin, start_hz, end_hz, granularity=100,override = False):
+	reset(PINGROUP.solenoid)
+
+def solenoid_ramp(solenoidPins, start_hz, end_hz, granularity=100,override = False):
 	if start_hz < 1 or end_hz < 1:
 		logger.logSystem('Solenoid: Hz was set <1. This makes no sense.')
 		return
@@ -439,19 +442,26 @@ def solenoid_ramp(solenoidPin, start_hz, end_hz, granularity=100,override = Fals
 	start_period = 1/start_hz
 	end_period = 1/end_hz
 	diff_period = (end_period/2) - (start_period/2)
+	pinSelect = 0
 	for i in range(granularity):
 		#print("HZ:",1/(2*((start_period/2) + (diff_period/granularity)*i)))
-		put(solenoidPin,0) # turn the solenoid on
+		put(solenoidPins[pinSelect%len(solenoidPins)],0) # turn the solenoid on
 		time.sleep((start_period/2) + (diff_period/granularity)*i)
-		put(solenoidPin,1) # turn the solenoid off
+		put(solenoidPins[pinSelect%len(solenoidPins)],1) # turn the solenoid off
 		time.sleep((start_period/2) + (diff_period/granularity)*i)
+		pinSelect += 1
 
-def solenoid_tap(solenoidPin, hz=12):
+	reset(PINGROUP.solenoid)
+
+def solenoid_tap(solenoidPins, hz=12):
 	period = 1/hz # 12 hz (max speed)
-	put(solenoidPin,0) # turn the solenoid on
-	time.sleep(period/2)
-	put(solenoidPin,1) # turn the solenoid off
-	time.sleep(period/2)
+	for pin in solenoidPins:
+		put(pin,0) # turn the solenoid on
+		time.sleep(period/2)
+		put(pin,1) # turn the solenoid off
+		time.sleep(period/2)
+
+	reset(PINGROUP.solenoid)
 
 def solenoid(solPins,iterations):
 		print('\nThis method is deprecitaed. Please use one of the other solenoid methods.\n')
@@ -485,52 +495,31 @@ def solenoid(solPins,iterations):
 			for j in range(0, len(solPins) - 1):
 				fire(solPins[j])
 
-# The following methods may be uneccessary due to WTC mods.
 
-# def wtc_enableStepper():
-# 	# Add the stepper enable request to the queue and then wait for a response
-# 	# Will return true if the stepper was enabled, will return false if the stepper was not enbaled
-# 	try:
-# 		from qpaceWTCHandler import NextQueue
-# 	except ImportError:
-# 		return False
-#
-# 	NextQueue.enqueue('STEPON')
-# 	response = NextQueue.waitUntilEmpty(1)
-# 	if response:
-# 		# Get the item in the list. This will be the return of our request.
-# 		return response[0]
-# 	else:
-# 		return False
-#
-# def wtc_enableSolenoid():
-# 	# Add the stepper enable request to the queue and then wait for a response
-# 	# Will return true if the stepper was enabled, will return false if the stepper was not enbaled
-# 	try:
-# 		from qpaceWTCHandler import NextQueue
-# 	except ImportError:
-# 		return False
-#
-# 	NextQueue.enqueue('SOLON')
-# 	response = NextQueue.waitUntilEmpty(1)
-# 	if response:
-# 		# Get the item in the list. This will be the return of our request.
-# 		return response[0]
-# 	else:
-# 		return False
-#
-# def disableAll():
-# 	# Add the stepper enable request to the queue and then wait for a response
-# 	# Will return true if the stepper was enabled, will return false if the stepper was not enbaled
-# 	try:
-# 		from qpaceWTCHandler import NextQueue
-# 	except ImportError:
-# 		return False
-#
-# 	NextQueue.enqueue('ALLOFF')
-# 	response = NextQueue.waitUntilEmpty(1)
-# 	if response:
-# 		# Get the item in the list. This will be the return of our request.
-# 		return response[0]
-# 	else:
-# 		return False
+def wtc_request(request,pendingTimeout=MAX_PENDING_DELTA,timeout=5):
+	"""
+	Adds a request to the NextQueue and waits for a response. There is a timeout though!
+
+	Return TRUE for request ACCEPTED; Return FALSE for request DENIED.
+	If PENDING is returned, continue to enqueue until a response is received.
+
+	To avoid an infinite loop, count up how many pendings we've received. Should we get more than
+	a lot of pendings, then back out and assume denied.
+	"""
+	try:
+		from qpaceWTCHandler import NextQueue
+		from qpaceStates import QPCONTROL as qp
+	except ImportError:
+		return False
+
+	pendingMAXCount = pendingTimeout / timeout
+	pendingCount = 0
+	response = None
+	while response is qp['PENDING'] or response is None: # None implies timeout
+		if pendingCount > pendingMAXCount:
+			return False
+		NextQueue.enqueue(request)
+		response = NextQueue.waitForResponse(timeout)
+		pendingCount += 1
+
+	return response is qp['ACCEPTED']

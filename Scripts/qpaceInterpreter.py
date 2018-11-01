@@ -27,6 +27,7 @@ import qpaceFileHandler as fh
 
 qpStates = states.QPCONTROL
 WHATISNEXT_WAIT = 15 #in seconds
+CONN_ATTEMPT_MAX = 5 # 5 attempts to connect to WTC via SC16IS750
 # Routing ID defined in packet structure document
 class ROUTES():
 	"""
@@ -142,10 +143,17 @@ def run(chip,nextQueue,experimentEvent, runEvent, shutdownEvent):
 	CCDR_IRQ = 16
 	TEMP_PACKET_LOCATION = 'temp/packets/'
 	logger.logSystem("Interpreter: Starting...")
-	if chip is None:
+	connectionAttempts = 0
+	# Attempt to connect to the SC16IS750 until we get a connection.
+	while chip is None:
 		chip = qph.initWTCConnection()
 		if chip is None:
-			raise ConnectionError("A connection could not be made to the CCDR.")
+			time.sleep(1)
+			logger.logSystem('Interpeter: Connection could not be made to the SC16IS750. Attempt {}'.format(connectionAttempts))
+		if connectionAttempts > CONN_ATTEMPT_MAX:
+			welp_oh_no = 'Interpreter: Could not connect to SC17IS750. Max attemptes reached: {}'.format(connectionAttempts)
+			logger.logSystem(welp_oh_no)
+			raise ConnectionError(welp_oh_no)
 
 	try:
 		# Initialize the pins
@@ -422,10 +430,11 @@ def run(chip,nextQueue,experimentEvent, runEvent, shutdownEvent):
 					if not next:
 						next = qpStates['IDLE']
 					wtc_respond(next) # Respond with what the Pi would like the WTC to know.
-					if next >= qpStates['STEPON'] and next <= qpStates['ALLOFF']:
-						if waitForBytesFromCCDR(chip,1,timeout=WHATISNEXT_WAIT): # Wait for 15s for a response from the WTC
-							response = chip.byte_read(SC16IS750.REG_RHR)
-							#NextQueue.addResponse(response == qpStates['True'])
+					# Wait for a response from the WTC.
+					if waitForBytesFromCCDR(chip,1,timeout=WHATISNEXT_WAIT): # Wait for 15s for a response from the WTC
+						response = chip.byte_read(SC16IS750.REG_RHR)
+						# THIS IS A BLOCKING CALL
+						NextQueue.respond(response,timeout=5) # Blocking until the response is read or timeout.
 					if not nextQueue.isEmpty():
 						nextQueue.dequeue() # After "waiting" for the bytes, dequeue the items.
 
