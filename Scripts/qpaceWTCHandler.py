@@ -165,7 +165,7 @@ class Queue():
 	def getCount(self):
 		return self.enqueueCount
 
-	def waitUntilEmpty(self,popN=1,timeout=NextQueue.WAIT_TIME):
+	def waitUntilEmpty(self,popN=1,timeout=WAIT_TIME):
 		"""
 		This method waits until the queue is empty, and returns the result values of the queue.
 		Before returning, this method will pop the queue one time unless specified and return
@@ -190,7 +190,7 @@ class Queue():
 			logger.logError("{}: Lock was not aquired for wait".format(self.name),e)
 			return None # The lock was not aquired for some reason.
 
-	def blockWithResponse(self,response,timeout=NextQueue.WAIT_TIME):
+	def blockWithResponse(self,response,timeout=WAIT_TIME):
 		"""
 		This method will block until the response is read by another thread.
 		Adds response to self.response; until self.response is null, this will block for a certain time
@@ -214,7 +214,7 @@ class Queue():
 		except:
 			logger.logError("{}: Was not able to wait for response to be read.".format(self.name))
 
-	def waitForResponse(self,timeout=NextQueue.WAIT_TIME):
+	def waitForResponse(self,timeout=WAIT_TIME):
 		"""
 		This method will block until the response is available.
 		reads response from self.response; until self.response is not null, this will block for a certain time

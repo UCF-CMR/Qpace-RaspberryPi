@@ -17,7 +17,7 @@ except:
 	pass
 import time
 import datetime
-import qpaceWTCHandler as qph
+from qpaceWTCHandler import initWTCConnection
 from  qpacePiCommands import *
 import tstSC16IS750 as SC16IS750
 import SC16IS750
@@ -146,7 +146,7 @@ def run(chip,nextQueue,experimentEvent, runEvent, shutdownEvent):
 	connectionAttempts = 0
 	# Attempt to connect to the SC16IS750 until we get a connection.
 	while chip is None:
-		chip = qph.initWTCConnection()
+		chip = initWTCConnection()
 		if chip is None:
 			time.sleep(1)
 			logger.logSystem('Interpeter: Connection could not be made to the SC16IS750. Attempt {}'.format(connectionAttempts))
