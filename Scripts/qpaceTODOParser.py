@@ -14,7 +14,7 @@ from datetime import datetime, date, timedelta
 from math import ceil
 from shutil import copy
 import threading
-import qpaceLogger as logger
+import qpaceLogger as qpLog
 import qpaceExperimentParser as exp
 import qpacePiCommands as cmd
 import qpaceWTCHandler as qph
@@ -28,7 +28,7 @@ EXPERIMENT_DELTA = 600 # SECONDS
 
 WTC_IRQ = 7
 
-def getTodoList():
+def getTodoList(logger):
 	"""
 		This function will gather the data from the todo list and parse it into a 2D array for manipulation and processing.
 
@@ -61,7 +61,7 @@ def getTodoList():
 
 	return todo_list
 
-def sortTodoList(todo_list):
+def sortTodoList(todo_list,logger):
 	"""
 		This function will gather the data from the todo list and parse it into a 2D array for manipulation and processing.
 
@@ -112,7 +112,7 @@ def sortTodoList(todo_list):
 		todo_list.sort() # Python will sort a 2D list based off the first argument of each nested list in ascending order.
 	return todo_list
 
-def _processTask(chip,nextQueue,task,experimentEvent = None):
+def _processTask(chip,nextQueue,task,experimentEvent,logger):
 	"""
 		This function handles processing a specific command given. This is what does the real "parsing"
 
@@ -146,7 +146,7 @@ def _processTask(chip,nextQueue,task,experimentEvent = None):
 		if experimentEvent is not None and not experimentEvent.is_set():
 			#Run an experiment file from the experiment directory
 			logger.logSystem("TodoParser: Running an experiment.", task[2]) # Placeholder
-			parserThread = threading.Thread(name='experimentParser',target=exp.experimentparser, args=(task[2],experimentEvent))
+			parserThread = threading.Thread(name='experimentParser',target=exp.experimentparser, args=(task[2],experimentEvent,logger))
 
 
 			#nextQueue.enqueue('ALLON')
@@ -172,7 +172,7 @@ def _processTask(chip,nextQueue,task,experimentEvent = None):
 
 	return True # If we reach here, assume everything was a success.
 
-def executeTodoList(chip,nextQueue,todo_list, shutdownEvent, experimentEvent = None):
+def executeTodoList(chip,nextQueue,todo_list, shutdownEvent, experimentEvent,logger):
 	"""
 		This function will execute the todoList in order. If it is interrupted, it will return the todolist
 
@@ -202,35 +202,34 @@ def executeTodoList(chip,nextQueue,todo_list, shutdownEvent, experimentEvent = N
 	# If it doesn't, lets create one locally so we have something to use regardless.
 	if experimentEvent is None:
 		experimentEvent = threading.Event()
-	while todo_list and not shutdownEvent.isSet():
+	while todo_list and not shutdownEvent.is_set():
 		# How many seconds until our next task?
 		try:
 			wait_time = ceil((todo_list[0][0] - datetime.now()).total_seconds()) # Determine how long to wait.
-			if wait_time < 0 and wait_time > -timeDelta:
+			if wait_time < 0 and wait_time > -timeDelta: # If the wait_time ends up being negative, but we're within' the delta, just start the task.
 				wait_time = 1
-			elif wait_time < -timeDelta:
-				raise TimeoutError("I mean....it's basically timed out.")
-		except:
-			logger.logSystem('TodoParser: There is a problem executing {}. It will be removed from the list.'.format(str(todo_list[0][1])))
-			todo_list = todo_list[1:] # If there is a problem determining when to execute, remove it from the list.
-
+			elif wait_time < -timeDelta: # If the wait_time is negative, but also less than then the time delta then we need to trash that task.
+				raise TimeoutError("The timeDelta was passed so the item could not be run.")
+		except Exception as e:
+			logger.logSystem('TodoParser: There is a problem executing {}. It will be removed from the list. Exception: {}'.format(str(todo_list[0][1]),str(e)))
+			todo_list = todo_list.pop(0) # If there is a problem determining when to execute, remove it from the list
 		else:
 			# Wait until it's time to run our next task. If the time has already passed wait a second and then do it.
 			logger.logSystem("TodoParser: Waiting {} seconds for {}.".format(str(wait_time),str(todo_list[0][1])))
 			# Wait for wait_time seconds but also check the shutdownEvent every second.
 			for i in range(wait_time):
-				if shutdownEvent.isSet():
+				if shutdownEvent.is_set():
 					return todo_list
-				time.sleep(.5)
+				time.sleep(.35)
 			# run the next item on the todolist.
-			taskCompleted = _processTask(chip,nextQueue,todo_list[0],experimentEvent)
+			taskCompleted = _processTask(chip,nextQueue,todo_list[0],experimentEvent,logger)
 			if taskCompleted:
 				logger.logSystem("TodoParser: Task completed.",str(todo_list[0]))
 				todo_list = todo_list.pop(0) # pop the first item off the list.
 
 	return todo_list
 
-def updateTodoFile(todo_list):
+def updateTodoFile(todo_list,logger):
 	"""
 		This function will rewrite the todo list to contain the current tasks that haven't yet
 		been completed. This would only happen if we are interrupted.
@@ -266,7 +265,7 @@ def updateTodoFile(todo_list):
 		return False
 	return True
 
-def run(chip,nextQueue,experimentEvent, runEvent, shutdownEvent):
+def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent,logger):
 	"""
 	Method to handle the todo parser when running it. This allows the parser to be used when calling
 	it from another module.
@@ -290,16 +289,16 @@ def run(chip,nextQueue,experimentEvent, runEvent, shutdownEvent):
 
 	logger.logSystem("TodoParser: Starting <{}>".format(TODO_FILE_PATH))
 	try:
-		todo_list = getTodoList()
+		todo_list = getTodoList(logger)
 		if todo_list:
 			# We will assume the todo-list is NOT sorted, and sort it.
-			sortTodoList(todo_list)
+			sortTodoList(todo_list,logger)
 			if chip is not None:
-				todo_list = executeTodoList(chip,nextQueue,todo_list,shutdownEvent,experimentEvent)
+				todo_list = executeTodoList(chip,nextQueue,todo_list,shutdownEvent,experimentEvent,logger)
 
 			if todo_list:
 				logger.logSystem("TodoParser: The TodoParser has terminated early. Updating the todo file.")
-				if updateTodoFile(todo_list): # If we terminated early, re-write the todo file before leaving.
+				if updateTodoFile(todo_list,logger): # If we terminated early, re-write the todo file before leaving.
 					logger.logSystem("TodoParser: Successfuly updated the todo file.<{}>".format(TODO_FILE_PATH),"TodoParser: Finished.")
 				else:
 					logger.logError("TodoParser: Encountered a problem when trying to update the todo file!")

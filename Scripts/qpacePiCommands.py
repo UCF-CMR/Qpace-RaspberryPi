@@ -15,7 +15,7 @@ import datetime
 import random
 import tarfile
 #from qpaceInterpreter import *
-import qpaceLogger as logger
+import qpaceLogger as qpLog
 import qpaceStates as qps
 
 
@@ -473,9 +473,9 @@ class Command():
 			Any exception gets popped up the stack.
 			If there is a problem with touching the scaffold it is silenced.
 			"""
-			logger.logSystem("UploadRequest: Upload Request has been received.",str(pak),str(filename))
+			logger.logSystem("UploadRequest: Upload Request has been received. ({},{})".format(str(pak),str(filename)))
 			if Command.UploadRequest.isActive():
-				logger.logSystem("UploadRequest: Redundant Request?")
+				logger.logSystem("UploadRequest: Redundant Request? ({},{})".format(str(pak),str(filename)))
 			else:
 				try:
 					from pathlib import Path

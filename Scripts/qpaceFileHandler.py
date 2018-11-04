@@ -6,7 +6,7 @@
 #
 # Handler for encoding and decoding packets for file transfer.
 
-import qpaceLogger as logger
+import qpaceLogger as qpLog
 from qpacePiCommands import *
 import qpaceInterpreter as interp
 import tstSC16IS750 as SC16IS750
@@ -151,8 +151,9 @@ class ChunkPacket():
 	complete = False
 	lastInputTime = None
 
-	def __init__(self, chip):
+	def __init__(self, chip,logger):
 		self.chip = chip
+		self.logger = logger
 
 	def push(self,data):
 		if not ChunkPacket.complete:
@@ -169,7 +170,7 @@ class ChunkPacket():
 				ChunkPacket.complete = True
 
 		else:
-			logger.logSytem([["ChunkPacket: Attempted to push when complete..."]])
+			self.logger.logSytem([["ChunkPacket: Attempted to push when complete..."]])
 			ChunkPacket.complete = True
 
 
@@ -180,7 +181,7 @@ class ChunkPacket():
 			for chunk in ChunkPacket.chunks:
 				#print('<',len(chunk),'>',chunk)
 				packet += chunk
-			if len(packet) != DataPacket.max_size: logger.logSystem("Packet is not {} bytes! It is {} bytes!".format(str(DataPacket.max_size),str(len(packet))) ,str(packet))
+			if len(packet) != DataPacket.max_size: self.logger.logSystem("Packet is not {} bytes! It is {} bytes!".format(str(DataPacket.max_size),str(len(packet))) ,str(packet))
 			ChunkPacket.chunks[:] = [] #reset chunks to empty
 			ChunkPacket.complete = False #reset copmlete to False
 			ChunkPacket.lastInputTime = None # reset the timer.

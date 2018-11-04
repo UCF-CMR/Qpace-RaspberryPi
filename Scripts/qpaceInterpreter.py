@@ -17,17 +17,15 @@ except:
 	pass
 import time
 import datetime
-from qpaceWTCHandler import initWTCConnection
 from  qpacePiCommands import *
 import tstSC16IS750 as SC16IS750
 import SC16IS750
-import qpaceLogger as logger
+import qpaceLogger as qpLog
 import qpaceStates as states
 import qpaceFileHandler as fh
 
 qpStates = states.QPCONTROL
 WHATISNEXT_WAIT = 15 #in seconds
-CONN_ATTEMPT_MAX = 5 # 5 attempts to connect to WTC via SC16IS750
 # Routing ID defined in packet structure document
 class ROUTES():
 	"""
@@ -110,14 +108,13 @@ def waitForBytesFromCCDR(chip,n,timeout = 2.5,interval = 0.25):
 			attempts += 1
 
 		if attempts >= total_attempts:
-			logger.logSystem("WaitForBytesFromCCDR: Timeout occurred. Moving on.")
 			return False
 	else:
 		while(chip.byte_read(SC16IS750.REG_RXLVL) < n):
 			time.sleep(interval)
 	return True
 
-def run(chip,nextQueue,experimentEvent, runEvent, shutdownEvent):
+def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent, logger):
 	"""
 	This function is the "main" purpose of this module. Placed into a function so that it can be called in another module.
 
@@ -143,17 +140,10 @@ def run(chip,nextQueue,experimentEvent, runEvent, shutdownEvent):
 	CCDR_IRQ = 16
 	TEMP_PACKET_LOCATION = 'temp/packets/'
 	logger.logSystem("Interpreter: Starting...")
-	connectionAttempts = 0
-	# Attempt to connect to the SC16IS750 until we get a connection.
-	while chip is None:
-		chip = initWTCConnection()
-		if chip is None:
-			time.sleep(1)
-			logger.logSystem('Interpeter: Connection could not be made to the SC16IS750. Attempt {}'.format(connectionAttempts))
-		if connectionAttempts > CONN_ATTEMPT_MAX:
-			welp_oh_no = 'Interpreter: Could not connect to SC17IS750. Max attemptes reached: {}'.format(connectionAttempts)
-			logger.logSystem(welp_oh_no)
-			raise ConnectionError(welp_oh_no)
+	if chip is None:
+		e = ConnectionError('The SC16IS750 is not connected. The Interpreter can not run.')
+		logger.logError(str(e),e)
+		raise e
 
 	try:
 		# Initialize the pins
@@ -406,6 +396,7 @@ def run(chip,nextQueue,experimentEvent, runEvent, shutdownEvent):
 				os.system("sudo date -s '@" + str(byte) +"'")
 				chip.block_write(SC16IS750.REG_THR,packetData)
 				configureTimestamp = False
+				logger.setBoot()
 			elif byte in qpStates.values():
 				# The byte was found in the list of QPCONTROLs
 				if byte == qpStates['NOOP']:
@@ -419,12 +410,14 @@ def run(chip,nextQueue,experimentEvent, runEvent, shutdownEvent):
 				elif byte == qpStates['REBOOT']:
 					logger.logSystem('PseudoSM: Reboot was set!')
 					#nextQueue.enqueue('SHUTDOWN')
+					wtc_respond('DONE')
 					shutdownEvent.set()
 				elif byte == qpStates['TIMESTAMP']:
 					logger.logSystem('PseudoSM: TIMESTAMP from WTC.')
 					wtc_respond('TIMESTAMP')
 					# Yo, configure the timestamp after this
 					configureTimestamp = True
+					logger.clearBoot()
 				elif byte == qpStates['WHATISNEXT']:
 					next = nextQueue.peek()
 					if not next:
@@ -449,9 +442,7 @@ def run(chip,nextQueue,experimentEvent, runEvent, shutdownEvent):
 				else:
 					logger.logSystem('PseudoSM: State existed for {} but a method is not written for it.'.format(str(byte)))
 		else:
-			print('Input is not a valid WTC state.')
-			return packetData, configureTimestamp
-			#TODO the QPCONTROL was not found to be legitimate. What do I do?
+			return packetData, configureTimestamp # Return the data if it's not actually a control character.
 
 		return None,configureTimestamp # Return nothing if the packetData was handled as a WTC control
 
@@ -466,8 +457,10 @@ def run(chip,nextQueue,experimentEvent, runEvent, shutdownEvent):
 	while not shutdownEvent.is_set(): # While we are NOT in shutdown mode
 		try:
 			# create an instance of a ChunkPacket
-			chunkPacket = fh.ChunkPacket(chip)
+			chunkPacket = fh.ChunkPacket(chip,logger)
 			while(len(chip.packetBuffer)>0): # If there is data in the buffer
+				if shutdownEvent.is_set():
+					raise StopIteration('Shutdown was set. The buffer will be dropped.')
 				packetData = chip.packetBuffer.pop(0) # Get that input
 
 				# Determine if the data is a control character or not.
@@ -499,7 +492,7 @@ def run(chip,nextQueue,experimentEvent, runEvent, shutdownEvent):
 								logger.logSystem("Interpreter: Unknown valid packet.",str(fieldData))
 						else:
 							#TODO Alert the WTC? Send OKAY back to ground?
-							print('Packet did NOT pass validation.')
+							logger.logSystem('Interpreter: Packet did not pass validation.')
 
 			runEvent.wait() # Mutex for the run
 			time.sleep(.5)  # wait for a moment

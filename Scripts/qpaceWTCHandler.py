@@ -7,8 +7,7 @@
 # This script is run at boot to initialize the system clock and then wait for interrupts.
 #TODO: Re-do comments/documentation
 
-import qpaceLogger as logger
-
+import qpaceLogger
 import qpaceExperiment as exp
 import qpaceInterpreter as qpi
 import qpaceTODOParser as todo
@@ -25,8 +24,8 @@ try:
 	gpio = pigpio.pi()
 except:
 	gpio = None
-CCDR_IRQ = 16 #BCM 16, board 36
 REBOOT_ON_EXIT = False
+CONN_ATTEMPT_MAX = 5 # 5 attempts to connect to WTC via SC16IS750
 def initWTCConnection():
 	"""
 	This function Initializes and returns the SC16IS750 object to interact with the registers.
@@ -84,13 +83,15 @@ class Queue():
 	WAIT_TIME = 5 #in seconds
 	# MAX = 10
 
-	def __init__(self,name="Queue",suppressLog=False):
+	def __init__(self,logger=None,name="Queue",suppressLog=False):
 		self.internalQueue = []
 		self.enqueueCount = 0
 		self.cv = threading.Condition()
 		self.name = name
 		self.suppress = suppressLog
 		self.response = None
+		self.logger=logger
+		logger.logSystem('{}: Initializing...'.format(name))
 
 	def isEmpty(self):
 		""" Check to see if the queue is empty."""
@@ -243,7 +244,7 @@ class Queue():
 	def clearResponse(self):
 		self.resposne = None
 
-def run():
+def run(logger):
 	"""
 	Main loop for QPACE. All the magic happens here.
 
@@ -264,85 +265,99 @@ def run():
 	import time
 
 	chip = initWTCConnection()
-	if chip:
-		#chip.byte_write(SC16IS750.REG_THR, ord(identity)) # Send the identity to the WTC
-		#TODO Implement identity on the WTC
-		try:
-			# Begin running the rest of the code for the Pi.
-			logger.logSystem("Main: Starting...")
-			# Create a threading.Event to determine if an experiment is running or not.
-			# Or if we are doing something and should wait until it's done.
-			experimentRunningEvent = threading.Event()
-			runEvent = threading.Event()
-			shutdownEvent = threading.Event()
-			# Ensure these are in the state we want them in.
-			runEvent.set()
-			experimentRunningEvent.clear()
-			shutdownEvent.clear()
 
-			# Initialize the nextQueue for WHATISNEXT operations
-			nextQueue = Queue(name='NextQueue')
-
-			interpreter = threading.Thread(target=qpi.run,args=(chip,nextQueue,experimentRunningEvent,runEvent,shutdownEvent))
-			todoParser = threading.Thread(target=todo.run,args=(chip,nextQueue,experimentRunningEvent,runEvent,shutdownEvent))
-
-			logger.logSystem("Main: Starting up the Interpreter and TodoParser.")
-			interpreter.start() # Run the Interpreter
-			todoParser.start() # Run the TodoParser
-
-			# The big boy main loop. Good luck QPACE.
-			while True:
-				try:
-					time.sleep(.4)
-
-					# If the scripts aren't running then we have two options
-					if not (interpreter.isAlive() or todoParser.isAlive()):
-						# If we want to shutdown, then break out of the loop and shutdown.
-						if shutdownEvent.is_set():
-							break
-						else: # Otherwise, something must have happened....restart the Interpreter and TodoParser
-							logger.logSystem('Main: TodoParser and Interpreter are shutdown when they should not be. Restarting...')
-							interpreter = threading.Thread(target=qpi.run,args=(chip,nextQueue,experimentRunningEvent,runEvent,shutdownEvent))
-							todoParser = threading.Thread(target=todo.run,args=(chip,nextQueue,experimentRunningEvent,runEvent,shutdownEvent))
-							interpreter.start()
-							todoParser.start()
-				except KeyboardInterrupt:
-					shutdownEvent.set()
-
-			logger.logSystem("Main: The Interpreter and TodoParser have exited.")
-		except BufferError as err:
-			#TODO Alert the WTC of the problem and/or log it and move on
-			#TODO figure out what we actually want to do.
-			logger.logError("Main: Something went wrong when reading the buffer of the WTC.", err)
-
-		except ConnectionError as err:
-			#TODO Alert the WTC of the problem and/or log it and move on
-			#TODO figure out what we actually want to do.
-			logger.logError("Main: There is a problem with the connection to the WTC", err)
-
-		# If we've reached this point, just shutdown.
-		logger.logSystem("Main: Cleaning up and closing out...")
-		if gpio:
-			gpio.stop()
-		shutdownEvent.set()
-		interpreter.join()
-		todoParser.join()
+	connectionAttempts = 0
+	# Attempt to connect to the SC16IS750 until we get a connection.
+	while chip is None:
+		chip = initWTCConnection()
+		if chip is None:
+			time.sleep(1)
+			logger.logSystem('Interpeter: Connection could not be made to the SC16IS750. Attempt {}'.format(connectionAttempts))
+		if connectionAttempts > CONN_ATTEMPT_MAX:
+			welp_oh_no = 'Interpreter: Could not connect to SC17IS750. Max attemptes reached: {}'.format(connectionAttempts)
+			logger.logSystem(welp_oh_no)
+			raise ConnectionError(welp_oh_no)
 
 
-		if False: #TODO: Change to True for release
-			if REBOOT_ON_EXIT:
-				logger.logSystem('Main: Rebooting RaspberryPi...')
-				os.system('sudo reboot') # reboot
-			else:
-				logger.logSystem('Main: Shutting down RaspberryPi...')
-				os.system('sudo halt') # Shutdown.
-	else:
-		logger.logError('Could not make a connection with the SC16IS750.')
-		logger.logSystem('Something went wrong. Could not connect to SC16IS750.')
+
+	#chip.byte_write(SC16IS750.REG_THR, ord(identity)) # Send the identity to the WTC
+	#TODO Implement identity on the WTC
+	try:
+		# Begin running the rest of the code for the Pi.
+		logger.logSystem("Main: Starting...")
+		# Create a threading.Event to determine if an experiment is running or not.
+		# Or if we are doing something and should wait until it's done.
+		experimentRunningEvent = threading.Event()
+		runEvent = threading.Event()
+		shutdownEvent = threading.Event()
+		# Ensure these are in the state we want them in.
+		runEvent.set()
+		experimentRunningEvent.clear()
+		shutdownEvent.clear()
+
+		# Initialize the nextQueue for WHATISNEXT operations
+		nextQueue = Queue(logger=logger,name='NextQueue')
+		packetQueue = Queue(logger=logger,name='PacketQueue')
+
+		interpreter = threading.Thread(target=qpi.run,args=(chip,nextQueue,packetQueue,experimentRunningEvent,runEvent,shutdownEvent,logger))
+		todoParser = threading.Thread(target=todo.run,args=(chip,nextQueue,packetQueue,experimentRunningEvent,runEvent,shutdownEvent,logger))
+
+		logger.logSystem("Main: Starting up the Interpreter and TodoParser.")
+		interpreter.start() # Run the Interpreter
+		todoParser.start() # Run the TodoParser
+
+		# The big boy main loop. Good luck QPACE.
+		while True:
+			try:
+				time.sleep(.4)
+
+				# If the scripts aren't running then we have two options
+				if not (interpreter.isAlive() or todoParser.isAlive()):
+					# If we want to shutdown, then break out of the loop and shutdown.
+					if shutdownEvent.is_set():
+						break
+					else: # Otherwise, something must have happened....restart the Interpreter and TodoParser
+						logger.logSystem('Main: TodoParser and Interpreter are shutdown when they should not be. Restarting...')
+						interpreter = threading.Thread(target=qpi.run,args=(chip,nextQueue,packetQueue,experimentRunningEvent,runEvent,shutdownEvent,logger))
+						todoParser = threading.Thread(target=todo.run,args=(chip,nextQueue,packetQueue,experimentRunningEvent,runEvent,shutdownEvent,logger))
+						interpreter.start()
+						todoParser.start()
+			except KeyboardInterrupt:
+				shutdownEvent.set()
+
+		logger.logSystem("Main: The Interpreter and TodoParser have exited.")
+	except BufferError as err:
+		#TODO Alert the WTC of the problem and/or log it and move on
+		#TODO figure out what we actually want to do.
+		logger.logError("Main: Something went wrong when reading the buffer of the WTC.", err)
+
+	except ConnectionError as err:
+		#TODO Alert the WTC of the problem and/or log it and move on
+		#TODO figure out what we actually want to do.
+		logger.logError("Main: There is a problem with the connection to the WTC", err)
+
+	# If we've reached this point, just shutdown.
+	logger.logSystem("Main: Cleaning up and closing out...")
+	if gpio:
+		gpio.stop()
+	shutdownEvent.set()
+	interpreter.join()
+	todoParser.join()
+
+
+	if False: #TODO: Change to True for release
+		if REBOOT_ON_EXIT:
+			logger.logSystem('Main: Rebooting RaspberryPi...')
+			os.system('sudo reboot') # reboot
+		else:
+			logger.logSystem('Main: Shutting down RaspberryPi...')
+			os.system('sudo halt') # Shutdown.
+
 if __name__ == '__main__':
 	time.sleep(1)
+	logger = qpaceLogger.Logger()
 	logger.logSystem("Main: Initializing GPIO pins to default states.")
-	exp.reset()
+	exp.Action(logger).reset()
 	time.sleep(.5)
 
 	# Attempt to run specialTasks.
@@ -357,4 +372,4 @@ if __name__ == '__main__':
 	except Exception as e:
 		logger.logSystem("SpecialTasks: Got an exception. {}".format(str(e)))
 	# Main script.
-	run()
+	run(logger)

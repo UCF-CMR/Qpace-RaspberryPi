@@ -4,12 +4,12 @@
 #Q-Pace project, Center for Microgravity Research
 #University of Central Florida
 
-import qpaceExperiment as exp
-import qpaceLogger as logger
+import qpaceExperiment as expModule
+import qpaceLogger as qpLog
 import datetime
 import time
 
-def run(filepath, isRunningEvent):
+def run(filepath, isRunningEvent,logger):
 	"""
 	This function handles the parsing and execution of the raw text experiment files.
 
@@ -69,8 +69,9 @@ def run(filepath, isRunningEvent):
 	Stop the recording and transfer the video to the Pis
 
 	"""
+	exp = expModule.Action(logger)
 	comment_tuple = ('#','//') # These are what will be used to have comments in the profile.
-	logLocation = '/home/pi/logs/text'
+	logLocation = '/home/pi/logs/'
 	experimentStartTime = None
 	experimentLog = None
 	isRecording = False
@@ -121,10 +122,10 @@ def run(filepath, isRunningEvent):
 					if(instruction[0] == 'START'):
 						# Start an experiment if one hasn't started yet.
 						if isRunningEvent.is_set():
-							raise StopIteration('An experiment is already running.')
+							raise StopIteration('ExpParser: An experiment is already running.')
 						experimentStartTime= datetime.datetime.now()
 						author = ' '.join(instruction[1:]) or 'Unknown'
-						experimentLog = open('{}exp_{}_{}'.format(logLocation,experimentStartTime,author),'w')
+						experimentLog = open('{}exp_{}_{}.qpe'.format(logLocation,experimentStartTime.strftime('%Y%m%d-%H%M%S'),author),'w')
 						isRunningEvent.set()
 						logMessage = 'ExpParser: Starting Experiment written by {}.'.format(author)
 						logger.logSystem(logMessage)
@@ -297,7 +298,7 @@ def run(filepath, isRunningEvent):
 											exp.solenoid_ramp(group[0],int(instruction[3]),int(instruction[4]),int(instruction[5]),override=override)
 
 				except StopIteration as e:
-					pass
+					logger.logSystem(str(e))
 
 	# Output to the logger here.
 	except IOError as e:
@@ -306,7 +307,10 @@ def run(filepath, isRunningEvent):
 	except StopIteration as e:
 		logger.logSystem('ExpParser: Aborted the experiment. It appears as if we got denied by the WTC. {}'.format(str(e)))
 	finally:
+		# Catch case for if END is not provided.
 		if isRunningEvent.is_set():
 			isRunningEvent.clear()
 		if experimentLog:
 			experimentLog.close()
+
+		logger.logSystem("ExpParser: Closing ExpParser and reutrning to normal function...")
