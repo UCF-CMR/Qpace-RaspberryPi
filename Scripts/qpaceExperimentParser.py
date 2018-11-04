@@ -135,6 +135,10 @@ def run(filepath, isRunningEvent):
 							isRunningEvent.clear()
 							if experimentLog:
 								experimentLog.close()
+
+							if not exp.wtc_request('SOLOFF') or not exp.wtc_request('STEPOFF'):
+								logger.logSystem('ExpParser: The WTC denied turning off the steppers or solenoids.')
+
 							logMessage = 'ExpParser: Ending an Experiment. Execution time: {} seconds.'.format((experimentStartTime - datetime.datetime.now()).seconds)
 							logger.logSystem(logMessage)
 							experimentLog.write('{}\n'.format(logMessage))

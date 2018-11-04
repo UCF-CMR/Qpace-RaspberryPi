@@ -190,7 +190,7 @@ class Queue():
 			logger.logError("{}: Lock was not aquired for wait".format(self.name),e)
 			return None # The lock was not aquired for some reason.
 
-	def respond(self,response,timeout=NextQueue.WAIT_TIME):
+	def blockWithResponse(self,response,timeout=NextQueue.WAIT_TIME):
 		"""
 		This method will block until the response is read by another thread.
 		Adds response to self.response; until self.response is null, this will block for a certain time

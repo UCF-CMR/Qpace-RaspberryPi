@@ -433,8 +433,9 @@ def run(chip,nextQueue,experimentEvent, runEvent, shutdownEvent):
 					# Wait for a response from the WTC.
 					if waitForBytesFromCCDR(chip,1,timeout=WHATISNEXT_WAIT): # Wait for 15s for a response from the WTC
 						response = chip.byte_read(SC16IS750.REG_RHR)
+						wtc_respond('DONE') # Always respond with done for an "ACCEPTED or PENDING"
 						# THIS IS A BLOCKING CALL
-						NextQueue.respond(response,timeout=5) # Blocking until the response is read or timeout.
+						NextQueue.blockWithResponse(response,timeout=5) # Blocking until the response is read or timeout.
 					if not nextQueue.isEmpty():
 						nextQueue.dequeue() # After "waiting" for the bytes, dequeue the items.
 
