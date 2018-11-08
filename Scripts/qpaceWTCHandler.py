@@ -7,16 +7,17 @@
 # This script is run at boot to initialize the system clock and then wait for interrupts.
 #TODO: Re-do comments/documentation
 
+import os
+import threading
+import time
+import datetime
+
 import qpaceLogger
 import qpaceExperiment as exp
 import qpaceInterpreter as qpi
 import qpaceTODOParser as todo
-import os
-import threading
 import tstSC16IS750 as SC16IS750
 #import SC16IS750
-
-import time
 import qpaceStates as states
 
 try:
@@ -244,6 +245,46 @@ class Queue():
 	def clearResponse(self):
 		self.resposne = None
 
+def graveyardHandler(runEvent,shutdownEvent,logger):
+	GRAVEYARD_SLEEP = 600 # seconds
+	GRAVEYARD_DAYS = 30 #days
+	GRAVEYARD_PATH = '/home/pi/graveyard/' # Make sure to include the ending slash.
+
+	graveyard = {}
+
+	logger.logSystem('GraveKeeper: graveyardHandler started.')
+	try:
+		while not shutdownEvent.is_set():
+			# wait for GRAVEYARD_SLEEP seconds and then continue. if we need to shutdown, backout and do so.
+			shutdownEvent.wait(GRAVEYARD_SLEEP)
+			if shutdownEvent.is_set():
+				raise StopAsyncIteration()
+
+			runEvent.wait() # Also wait here if we need to wait.
+			logger.logSystem('GraveKeeper: Checking for ghosts...')
+			# Check for the ghosts (files in the graveyard that need to be removed)
+			# Remove the ghosts
+			currentGraveyard = os.listdir(GRAVEYARD_PATH)
+
+			# Remove files that shouldn't be in the map anymore.
+			for ghost in graveyard:
+				if not ghost in currentGraveyard:
+					del graveyard[ghost]
+
+			# Add files that are in the graveyard now OR delete them if they are too old.
+			for ghost in currentGraveyard:
+				if ghost in graveyard:
+					# Check the timings and remove it if necessary
+					# If the time of that file is older than GRAVEYARD_DAYS days ago... delete it!
+					if graveyard[ghost] < (datetime.datetime.now() - datetime.timedelta(days=GRAVEYARD_DAYS)):
+						os.remove('{}{}'.format(GRAVEYARD_PATH,ghost))
+				else: # If it's not in the graveyard, add it.
+					graveyard[ghost] = datetime.datetime.now()
+
+
+	except StopAysncIteration:
+		logger.logSystem('GraveKeeper: Shutting down...')
+
 def run(logger):
 	"""
 	Main loop for QPACE. All the magic happens here.
@@ -284,7 +325,7 @@ def run(logger):
 	#TODO Implement identity on the WTC
 	try:
 		# Begin running the rest of the code for the Pi.
-		logger.logSystem("Main: Starting...")
+		logger.logSystem("Main: Starting QPACE...")
 		# Create a threading.Event to determine if an experiment is running or not.
 		# Or if we are doing something and should wait until it's done.
 		experimentRunningEvent = threading.Event()
@@ -301,10 +342,12 @@ def run(logger):
 
 		interpreter = threading.Thread(target=qpi.run,args=(chip,nextQueue,packetQueue,experimentRunningEvent,runEvent,shutdownEvent,logger))
 		todoParser = threading.Thread(target=todo.run,args=(chip,nextQueue,packetQueue,experimentRunningEvent,runEvent,shutdownEvent,logger))
+		graveyardThread = threading.Thread(target=graveyardHandler,args(runEvent,shutdownEvent,logger))
 
-		logger.logSystem("Main: Starting up the Interpreter and TodoParser.")
+		logger.logSystem("Main: Starting up threads.")
 		interpreter.start() # Run the Interpreter
 		todoParser.start() # Run the TodoParser
+		graveyardThread.start()
 
 		# The big boy main loop. Good luck QPACE.
 		while True:
@@ -343,6 +386,7 @@ def run(logger):
 	shutdownEvent.set()
 	interpreter.join()
 	todoParser.join()
+	graveyardThread.join()
 
 
 	if False: #TODO: Change to True for release
@@ -364,6 +408,8 @@ if __name__ == '__main__':
 	try:
 		import specialTasks
 		from time import strftime,gmtime
+		if 'fire' in dir(specialTasks):
+			specialTasks.fire()
 		os.rename('specialTasks.py','../graveyard/specialTasks'+str(strftime("%Y%m%d-%H%M%S",gmtime()))+'.py')
 	except ImportError:
 		logger.logSystem("SpecialTasks: No special tasks to run on boot...")

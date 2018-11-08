@@ -112,7 +112,7 @@ def sortTodoList(todo_list,logger):
 		todo_list.sort() # Python will sort a 2D list based off the first argument of each nested list in ascending order.
 	return todo_list
 
-def _processTask(chip,nextQueue,task,experimentEvent,logger):
+def _processTask(chip,task,experimentEvent,runEvent,nextQueue,logger):
 	"""
 		This function handles processing a specific command given. This is what does the real "parsing"
 
@@ -143,36 +143,43 @@ def _processTask(chip,nextQueue,task,experimentEvent,logger):
 	currentTask = task[1].upper()
 	if currentTask == "EXPERIMENT":
 		# If experimentEvent exists and is not set, then let's run an experiment.
-		if experimentEvent is not None and not experimentEvent.is_set():
-			#Run an experiment file from the experiment directory
-			logger.logSystem("TodoParser: Running an experiment.", task[2]) # Placeholder
-			parserThread = threading.Thread(name='experimentParser',target=exp.experimentparser, args=(task[2],experimentEvent,logger))
-
-
-			#nextQueue.enqueue('ALLON')
-			#nextQueue.waitUntilEmpty()
-			#queueReturn = responseQueue
-			queueReturn = True
-			if queueReturn == QPCONTROL['True']:
-				logger.logSystem("TodoParser: Solenoids enabled. Beginning experiment.")
-				experimentEvent.set()
-				parserThread.start()
-			else:
-				logger.logSystem("TodoParser: Solenoids not enabled. Experiment is being purged from the list.")
-		else: # If experimentEvent does not exist or is set, return True to know there is a failure.
-			return False
+		if experimentEvent is None or not experimentEvent.is_set():
+			return False # If experimentEvent does not exist or is set, return False to know there is a failure.
+		
+		# Run an experiment file from the experiment directory
+		logger.logSystem("TodoParser: Running an experiment.", task[2]) # Placeholder
+		parserThread = threading.Thread(name='experimentParser',target=exp.run, args=(task[2],experimentEvent,runEvent,logger,nextQueue))
+		experimentEvent.set()
+		parserThread.start()
+		
 	elif currentTask == "BACKUP":  #Back up a file
-		copy(task[2],task[3]) #Copy the file from task[2] to task[3]
+		
 		logger.logSystem("Attempting to create a backup.",task[2],task[3]) # Placeholder
+		copy(task[2],task[3]) #Copy the file from task[2] to task[3]
 	elif currentTask == "REPORT":  #Get the status
 		logger.logSystem("TodoParser: Saving status to file.")
 		cmd.Command.saveStatus(None,None,None)
+	elif currentTask == 'COMPRESS': # Compress a file
+		try:
+			import tarfile
+			# The name of the new file will be whatever was input, but since the path could be long
+			# create the {}.tar.gz at the filename. Since it could be a directory with a /
+			# look for the 2nd to last / and then slice it. Then remove and trailing /'s
+			newFile = task[2][task[2].rfind('/',o,len(task[2])-1):].replace('/','')
+			tarDir = '../data/tar/{}.tar.gz'.format(newFile)
+			with tarfile.open(tarDir, "w:gz") as tar:
+				tar.add(task[2], arcname=os.path.basename(task[2]))
+		except ImportError as e:
+			logger.logSystem('TodoParser: The task could not be completed due to an import error.')
+		except Exception as e:
+			logger.logError('TodoParser: The task encountered an error.',e)
+			return False # It failed.
 	else:
 		logger.logSystem("TodoParser: Unknown task!", str(task[1:]))
 
 	return True # If we reach here, assume everything was a success.
 
-def executeTodoList(chip,nextQueue,todo_list, shutdownEvent, experimentEvent,logger):
+def executeTodoList(chip,nextQueue,todo_list, shutdownEvent, experimentEvent, runEvent,logger):
 	"""
 		This function will execute the todoList in order. If it is interrupted, it will return the todolist
 
@@ -205,6 +212,7 @@ def executeTodoList(chip,nextQueue,todo_list, shutdownEvent, experimentEvent,log
 	while todo_list and not shutdownEvent.is_set():
 		# How many seconds until our next task?
 		try:
+			runEvent.wait() # If we should be holding, do the hold.
 			wait_time = ceil((todo_list[0][0] - datetime.now()).total_seconds()) # Determine how long to wait.
 			if wait_time < 0 and wait_time > -timeDelta: # If the wait_time ends up being negative, but we're within' the delta, just start the task.
 				wait_time = 1
@@ -222,7 +230,7 @@ def executeTodoList(chip,nextQueue,todo_list, shutdownEvent, experimentEvent,log
 					return todo_list
 				time.sleep(.35)
 			# run the next item on the todolist.
-			taskCompleted = _processTask(chip,nextQueue,todo_list[0],experimentEvent,logger)
+			taskCompleted = _processTask(chip,todo_list[0],experimentEvent,runEvent,nextQueue,logger)
 			if taskCompleted:
 				logger.logSystem("TodoParser: Task completed.",str(todo_list[0]))
 				todo_list = todo_list.pop(0) # pop the first item off the list.

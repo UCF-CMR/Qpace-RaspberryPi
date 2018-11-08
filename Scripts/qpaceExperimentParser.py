@@ -9,7 +9,7 @@ import qpaceLogger as qpLog
 import datetime
 import time
 
-def run(filepath, isRunningEvent,logger):
+def run(filepath, isRunningEvent, runEvent,logger,nextQueue):
 	"""
 	This function handles the parsing and execution of the raw text experiment files.
 
@@ -56,20 +56,9 @@ def run(filepath, isRunningEvent,logger):
 	SOLENOID [GROUP] [HZ] [DURATION] <OVERRIDE>
 	SOLENOID [GROUP] RAMP [START_HZ] [END_HZ] [ACCURACY] <OVERRIDE>
 
-
-
-	This example file will:
-	turn on the led
-	initialize the gopro
-	start recording
-	move the stepper motor forward by some amount at some speed (actual speeds should be tunned on EM stack)
-	move the stpper motor in revese by the same amount
-	vibrate the experimant for 30 seconds and 100 Hz
-	Wait an addition 500 seconds of recording time
-	Stop the recording and transfer the video to the Pis
-
+	Also supports inline comments.
 	"""
-	exp = expModule.Action(logger)
+	exp = expModule.Action(logger=logger,queue=nextQueue)
 	comment_tuple = ('#','//') # These are what will be used to have comments in the profile.
 	logLocation = '/home/pi/logs/'
 	experimentStartTime = None
@@ -116,6 +105,7 @@ def run(filepath, isRunningEvent,logger):
 					if delimiter in instruction:
 						instruction = instruction.split(delimiter)[0]
 				instruction = instruction.upper().split()
+				runEvent.wait() # If we should be waiting, then wait.
 
 				# Begin interpreting the instructions that matter.
 				try:

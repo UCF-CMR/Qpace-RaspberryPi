@@ -53,7 +53,8 @@ COMMANDS = {
 	b'DWNLD': 		Command.dlFile,
 	b'up': 			Command.upReq,
 	#b'Upload File': Command.upFile, #TODO ????
-	b'MANUL': 		Command.manual
+	b'MANUL': 		Command.manual,
+	b'MANUL':		Command.dil # TODO: Remove when real things are available to be done. ALTHOUGH it could stay. I don't see any reason why not.
 }
 
 class LastCommand():
@@ -458,7 +459,10 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent, log
 		try:
 			# create an instance of a ChunkPacket
 			chunkPacket = fh.ChunkPacket(chip,logger)
+			runEvent.wait() # Mutex for the run
+			time.sleep(.25)  # wait for a moment
 			while(len(chip.packetBuffer)>0): # If there is data in the buffer
+				runEvent.wait() # Mutex for running.
 				if shutdownEvent.is_set():
 					raise StopIteration('Shutdown was set. The buffer will be dropped.')
 				packetData = chip.packetBuffer.pop(0) # Get that input
@@ -493,9 +497,6 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent, log
 						else:
 							#TODO Alert the WTC? Send OKAY back to ground?
 							logger.logSystem('Interpreter: Packet did not pass validation.')
-
-			runEvent.wait() # Mutex for the run
-			time.sleep(.5)  # wait for a moment
 
 		except KeyboardInterrupt: # Really only needed for DEBUG. Forces a re-check for shutdownEvent.
 			continue

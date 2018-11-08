@@ -611,8 +611,11 @@ class Command():
 		Possibly depreciated. To be implemented if not.
 		"""
 		pass
+		
+	def manual(chip,cmd,args):
+		print('NOTHING HAS BEEN WRITTEN FOR THE "MANUAL" METHOD.')
 
-	def manual(chip,cmd,args,runningExperiment=None):
+	def dil(chip,cmd,args,runningExperiment=None):
 		"""
 		Special command for DEBUG mainly. Used to manually affect the instruments of the experiment module.
 		This can only be done if an experiment is NOT running.

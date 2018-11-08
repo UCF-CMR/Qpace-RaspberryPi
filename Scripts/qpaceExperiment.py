@@ -74,7 +74,7 @@ class Stepper():
 
 class Action():
 
-	def __init__(self,logger=None):
+	def __init__(self,logger=None,queue=None):
 		if logger is None:
 			class DummyLogger():
 				def logSystem(*x): print(x)
@@ -82,6 +82,7 @@ class Action():
 				def logData(*x): print(x)
 			logger = DummyLogger()
 		self.logger=logger
+		self.queue=queue
 
 	def put(self,pin,state):
 		"""
@@ -474,7 +475,7 @@ class Action():
 
 		self.reset(PINGROUP.solenoid)
 
-	def wtc_request(self,request,pendingTimeout=MAX_PENDING_DELTA,timeout=5):
+	def wtc_request(self,request,nextQueue,pendingTimeout=MAX_PENDING_DELTA,timeout=5):
 		"""
 		Adds a request to the NextQueue and waits for a response. There is a timeout though!
 
@@ -485,7 +486,6 @@ class Action():
 		a lot of pendings, then back out and assume denied.
 		"""
 		try:
-			from qpaceWTCHandler import NextQueue
 			from qpaceStates import QPCONTROL as qp
 		except ImportError:
 			return False
@@ -497,7 +497,7 @@ class Action():
 			if pendingCount > pendingMAXCount:
 				return False
 			NextQueue.enqueue(request)
-			response = NextQueue.waitForResponse(timeout)
+			response = self.queue.waitForResponse(timeout)
 			pendingCount += 1
 
 		return response is qp['ACCEPTED']
