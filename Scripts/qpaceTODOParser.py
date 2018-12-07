@@ -17,7 +17,6 @@ import threading
 import qpaceLogger as qpLog
 import qpaceExperimentParser as exp
 import qpacePiCommands as cmd
-import qpaceWTCHandler as qph
 from qpaceStates import QPCONTROL
 
 TODO_PATH = "/home/pi/data/text/"
@@ -145,15 +144,15 @@ def _processTask(chip,task,experimentEvent,runEvent,nextQueue,logger):
 		# If experimentEvent exists and is not set, then let's run an experiment.
 		if experimentEvent is None or not experimentEvent.is_set():
 			return False # If experimentEvent does not exist or is set, return False to know there is a failure.
-		
+
 		# Run an experiment file from the experiment directory
 		logger.logSystem("TodoParser: Running an experiment.", task[2]) # Placeholder
 		parserThread = threading.Thread(name='experimentParser',target=exp.run, args=(task[2],experimentEvent,runEvent,logger,nextQueue))
 		experimentEvent.set()
 		parserThread.start()
-		
+
 	elif currentTask == "BACKUP":  #Back up a file
-		
+
 		logger.logSystem("Attempting to create a backup.",task[2],task[3]) # Placeholder
 		copy(task[2],task[3]) #Copy the file from task[2] to task[3]
 	elif currentTask == "REPORT":  #Get the status

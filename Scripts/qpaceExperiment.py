@@ -77,10 +77,14 @@ class Action():
 	def __init__(self,logger=None,queue=None):
 		if logger is None:
 			class DummyLogger():
-				def logSystem(*x): print(x)
-				def logError(*x): print(x)
-				def logData(*x): print(x)
+				def logSystem(*x): print('System: {}'.format(x))
+				def logError(*x): print('Error:  {}'.format(x))
+				def logData(*x): print('Data:   {}'.format(x))
 			logger = DummyLogger()
+		if queue is None:
+			class DummyQueue():
+				def waitForResponse(*args): logger.logError('Queue is None. Action() cannot run this method.')
+			queue = DummyQueue()
 		self.logger=logger
 		self.queue=queue
 

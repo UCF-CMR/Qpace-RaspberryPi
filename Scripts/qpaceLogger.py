@@ -85,7 +85,11 @@ class Logger():
 
             if Logger.DEBUG:
                 for string in stringBuilder:
-                    print(self.counter,'|',string)
+                    if string.startswith('Err'):
+                        color = '\033[1;31m' # Red. Make errors pop out in terminal, because that's fun.
+                    else:
+                        color = '\033[0;1m' # Bold
+                    print(self.counter,'|{}'.format(color),string,'\033[0;0m')
         except Exception as e:
             print(e)
             raise # Pass all and any exceptions back to the caller.
@@ -112,11 +116,10 @@ class Logger():
         """
         try:
             timestamp = strftime("%Y%m%d-%H%M%S",gmtime()) if self._boot else 'TIME IS NOT SET'
-            errorData = [description]
             if exception is not None:
-                errorData.append(str(exception.args))
+                description += ' {}'.format(str(exception.args))
             Errors.inc()
-            return self.logData('Err',timestamp,*errorData) # Actually log the data.
+            return self.logData('Err',timestamp,description) # Actually log the data.
         except Exception:
             Logger.LOG_ATTEMPTS += 1
 

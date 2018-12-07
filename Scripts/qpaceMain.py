@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# qpaceWTCHandler.py by Jonathan Kessluk
+# qpaceMain.py by Jonathan Kessluk
 # 4-19-2018, Rev. 2
 # Q-Pace project, Center for Microgravity Research
 # University of Central Florida
@@ -246,9 +246,12 @@ class Queue():
 		self.resposne = None
 
 def graveyardHandler(runEvent,shutdownEvent,logger):
-	GRAVEYARD_SLEEP = 600 # seconds
-	GRAVEYARD_DAYS = 30 #days
-	GRAVEYARD_PATH = '/home/pi/graveyard/' # Make sure to include the ending slash.
+	GRAVEYARD_SLEEP = 7#1800 # Seconds    Every 30 minutes
+	GRAVEYARD_DAYS = 0#30 # Days
+	GRAVEYARD_MINUTES = .2 # Minutes
+	GRAVEYARD_PATH = '../graveyard/' # Make sure to include the ending slash.
+
+	previous_graveyard_size = 0
 
 	graveyard = {}
 
@@ -258,31 +261,52 @@ def graveyardHandler(runEvent,shutdownEvent,logger):
 			# wait for GRAVEYARD_SLEEP seconds and then continue. if we need to shutdown, backout and do so.
 			shutdownEvent.wait(GRAVEYARD_SLEEP)
 			if shutdownEvent.is_set():
-				raise StopAsyncIteration()
+				raise StopIteration()
 
 			runEvent.wait() # Also wait here if we need to wait.
-			logger.logSystem('GraveKeeper: Checking for ghosts...')
+			#logger.logSystem('GraveKeeper: Checking for ghosts... (Graveyard size: {})'.format(len(graveyard)))
 			# Check for the ghosts (files in the graveyard that need to be removed)
 			# Remove the ghosts
-			currentGraveyard = os.listdir(GRAVEYARD_PATH)
+			currentGraveyard = None
+			def updateGraveyard():
+				try:
+					return os.listdir(GRAVEYARD_PATH)
+				except FileNotFoundError as e:
+					logger.logError("GraveKeeper: There's no graveyard to manage.",e)
+					return None
 
-			# Remove files that shouldn't be in the map anymore.
-			for ghost in graveyard:
-				if not ghost in currentGraveyard:
-					del graveyard[ghost]
+			currentGraveyard = updateGraveyard()
+			if currentGraveyard is not None:
+				try:
+					# Add files that are in the graveyard now OR delete them if they are too old.
+					for ghost in currentGraveyard:
+						if ghost in graveyard:
+							# Check the timings and remove it if necessary
+							# If the time of that file is older than GRAVEYARD_DAYS days ago... delete it!
+							if graveyard[ghost] < (datetime.datetime.now() - datetime.timedelta(days=GRAVEYARD_DAYS,minutes=GRAVEYARD_MINUTES)):
+								try:
+									logger.logSystem('GraveKeeper: Deleted {}'.format(ghost))
+									os.remove('{}{}'.format(GRAVEYARD_PATH,ghost))
+								except: pass
+						else: # If it's not in the graveyard, add it.
+							logger.logSystem('GraveKeeper: File added. <{}>'.format(ghost))
+							graveyard[ghost] = datetime.datetime.now()
+				except Exception as e:
+					logger.logError('GraveKeeper: Could not add a ghost to the graveyard.',e)
 
-			# Add files that are in the graveyard now OR delete them if they are too old.
-			for ghost in currentGraveyard:
-				if ghost in graveyard:
-					# Check the timings and remove it if necessary
-					# If the time of that file is older than GRAVEYARD_DAYS days ago... delete it!
-					if graveyard[ghost] < (datetime.datetime.now() - datetime.timedelta(days=GRAVEYARD_DAYS)):
-						os.remove('{}{}'.format(GRAVEYARD_PATH,ghost))
-				else: # If it's not in the graveyard, add it.
-					graveyard[ghost] = datetime.datetime.now()
+			currentGraveyard = updateGraveyard()
+			if currentGraveyard is not None:
+				try:
+					# Remove files that shouldn't be in the map anymore.
+					graveyardCopy = dict(graveyard) # Python doesn't like modifying iterables
+					for ghost in graveyardCopy:
+						if not ghost in currentGraveyard:
+							logger.logSystem('GraveKeeper: Forgot about <{}>'.format(ghost))
+							del graveyard[ghost]
+				except Exception as e:
+					logger.logError('GraveKeeper: Could not remove ghosts from the graveyard.',e)
 
-
-	except StopAysncIteration:
+	except StopIteration:
 		logger.logSystem('GraveKeeper: Shutting down...')
 
 def run(logger):
@@ -342,7 +366,7 @@ def run(logger):
 
 		interpreter = threading.Thread(target=qpi.run,args=(chip,nextQueue,packetQueue,experimentRunningEvent,runEvent,shutdownEvent,logger))
 		todoParser = threading.Thread(target=todo.run,args=(chip,nextQueue,packetQueue,experimentRunningEvent,runEvent,shutdownEvent,logger))
-		graveyardThread = threading.Thread(target=graveyardHandler,args(runEvent,shutdownEvent,logger))
+		graveyardThread = threading.Thread(target=graveyardHandler,args=(runEvent,shutdownEvent,logger))
 
 		logger.logSystem("Main: Starting up threads.")
 		interpreter.start() # Run the Interpreter
@@ -408,11 +432,17 @@ if __name__ == '__main__':
 	try:
 		import specialTasks
 		from time import strftime,gmtime
-		if 'fire' in dir(specialTasks):
-			specialTasks.fire()
+		methods_to_call = [ task for task in dir(specialTasks) if task.startswth('task_') and not task.startswith('__') ]
+		for method in methods_to_call:
+			try:
+				logger.logSystem('Attempting to call specialTasks.{}'.format(method))
+				getattr(specialTasks,method)() #run the method if it exists
+			except:
+				logger.logSystem('Failed to call specialTasks.{}'.format(method))
+
 		os.rename('specialTasks.py','../graveyard/specialTasks'+str(strftime("%Y%m%d-%H%M%S",gmtime()))+'.py')
 	except ImportError:
-		logger.logSystem("SpecialTasks: No special tasks to run on boot...")
+		logger.logSystem("SpecialTasks: There were no specialTasks to run on boot.")
 	except OSError:
 		logger.logSystem("SpecialTasks: Was not able to run special tasks or could not rename. (OSError)")
 	except Exception as e:
