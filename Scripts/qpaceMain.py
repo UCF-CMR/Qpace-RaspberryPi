@@ -7,6 +7,8 @@
 # This script is run at boot to initialize the system clock and then wait for interrupts.
 #TODO: Re-do comments/documentation
 
+ALLOW_SHUTDOWN = False
+
 import os
 import threading
 import time
@@ -254,7 +256,6 @@ def graveyardHandler(runEvent,shutdownEvent,logger):
 	previous_graveyard_size = 0
 
 	graveyard = {}
-
 	logger.logSystem('GraveKeeper: graveyardHandler started.')
 	try:
 		while not shutdownEvent.is_set():
@@ -355,44 +356,57 @@ def run(logger):
 		experimentRunningEvent = threading.Event()
 		runEvent = threading.Event()
 		shutdownEvent = threading.Event()
+		parserEmpty = threading.Event()
 		# Ensure these are in the state we want them in.
 		runEvent.set()
 		experimentRunningEvent.clear()
 		shutdownEvent.clear()
+		parserEmpty.clear()
 
 		# Initialize the nextQueue for WHATISNEXT operations
 		nextQueue = Queue(logger=logger,name='NextQueue')
 		packetQueue = Queue(logger=logger,name='PacketQueue')
 
+		# Initialize threads
 		interpreter = threading.Thread(target=qpi.run,args=(chip,nextQueue,packetQueue,experimentRunningEvent,runEvent,shutdownEvent,logger))
-		todoParser = threading.Thread(target=todo.run,args=(chip,nextQueue,packetQueue,experimentRunningEvent,runEvent,shutdownEvent,logger))
+		todoParser = threading.Thread(target=todo.run,args=(chip,nextQueue,packetQueue,experimentRunningEvent,runEvent,shutdownEvent,parserEmpty,logger))
 		graveyardThread = threading.Thread(target=graveyardHandler,args=(runEvent,shutdownEvent,logger))
 
 		logger.logSystem("Main: Starting up threads.")
 		interpreter.start() # Run the Interpreter
 		todoParser.start() # Run the TodoParser
-		graveyardThread.start()
+		graveyardThread.start() # Run the graveyard
 
 		# The big boy main loop. Good luck QPACE.
 		while True:
 			try:
 				time.sleep(.4)
+				if shutdownEvent.is_set():
+					break
 
-				# If the scripts aren't running then we have two options
-				if not (interpreter.isAlive() or todoParser.isAlive()):
-					# If we want to shutdown, then break out of the loop and shutdown.
-					if shutdownEvent.is_set():
-						break
-					else: # Otherwise, something must have happened....restart the Interpreter and TodoParser
-						logger.logSystem('Main: TodoParser and Interpreter are shutdown when they should not be. Restarting...')
-						interpreter = threading.Thread(target=qpi.run,args=(chip,nextQueue,packetQueue,experimentRunningEvent,runEvent,shutdownEvent,logger))
-						todoParser = threading.Thread(target=todo.run,args=(chip,nextQueue,packetQueue,experimentRunningEvent,runEvent,shutdownEvent,logger))
-						interpreter.start()
+				# Check the interpreter, restart if necessary. The Interpreter should always be running and never shutdown early.
+				if not interpreter.isAlive():
+					logger.logSystem("Main: Interpreter is shutdown when it should not be. Restarting...")
+					interpreter = threading.Thread(target=qpi.run,args=(chip,nextQueue,packetQueue,experimentRunningEvent,runEvent,shutdownEvent,logger))
+					interpreter.start()
+
+				# Check the TodoParser, restart it if necessary. The TodoParser is allowed to be shutdown early.
+				if not todoParser.isAlive():
+					if not parserEmpty.is_set():
+						logger.logSystem('Main: TodoParser is shutdown when it should not be. Restarting...')
+						todoParser = threading.Thread(target=todo.run,args=(chip,nextQueue,packetQueue,experimentRunningEvent,runEvent,shutdownEvent,parserEmpty,logger))
 						todoParser.start()
+
+				# Check the graveyard, restart it if necessary. The graveyard shouldn't be shutdown but it doesn't really matter
+				if not graveyardThread.isAlive():
+					logger.logSystem('Main: Graveyard is shutdown when it should not be. Restarting...')
+					graveyardThread = threading.Thread(target=graveyardHandler,args=(runEvent,shutdownEvent,logger))
+					graveyardThread.start()
+
 			except KeyboardInterrupt:
 				shutdownEvent.set()
 
-		logger.logSystem("Main: The Interpreter and TodoParser have exited.")
+		logger.logSystem("Main: Main loop has been closed.")
 	except BufferError as err:
 		#TODO Alert the WTC of the problem and/or log it and move on
 		#TODO figure out what we actually want to do.
@@ -413,7 +427,7 @@ def run(logger):
 	graveyardThread.join()
 
 
-	if False: #TODO: Change to True for release
+	if ALLOW_SHUTDOWN:
 		if REBOOT_ON_EXIT:
 			logger.logSystem('Main: Rebooting RaspberryPi...')
 			os.system('sudo reboot') # reboot

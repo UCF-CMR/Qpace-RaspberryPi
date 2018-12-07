@@ -272,7 +272,7 @@ def updateTodoFile(todo_list,logger):
 		return False
 	return True
 
-def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent,logger):
+def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent,parserEmpty,logger):
 	"""
 	Method to handle the todo parser when running it. This allows the parser to be used when calling
 	it from another module.
@@ -293,7 +293,6 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent,logg
 	-------
 	None
 	"""
-
 	logger.logSystem("TodoParser: Starting <{}>".format(TODO_FILE_PATH))
 	try:
 		todo_list = getTodoList(logger)
@@ -314,6 +313,7 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent,logg
 				#os.remove(TODO_FILE_PATH) # Do we want to delete the file or just leave it alone
 		else:
 			logger.logSystem("TodoParser: Todo list is not populated.")
+			parserEmpty.set()
 	except InterruptedError as interrupt:
 		logger.logSystem("TodoParser: Interrupted.")
 

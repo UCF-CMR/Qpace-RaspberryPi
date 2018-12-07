@@ -40,7 +40,7 @@ class Logger():
 
     def __init__(self):
         self._boot = False
-        #Create the filename. Read how many files are of the same type 'error_' or 'system_' and then find the highest counter value there.
+        # Create the filename. Count up from that number. The highest number is the latest log.
         fileList = [int(x.replace('.log','')) for x in os.listdir('../logs/') if x.endswith('.log')]
         if fileList:
             self.counter = max(fileList) + 1
