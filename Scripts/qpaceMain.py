@@ -13,6 +13,7 @@ import os
 import threading
 import time
 import datetime
+import json # Used for the graveyard
 
 import qpaceLogger
 import qpaceExperiment as exp
@@ -252,11 +253,11 @@ def graveyardHandler(runEvent,shutdownEvent,logger):
 	GRAVEYARD_DAYS = 0#30 # Days
 	GRAVEYARD_MINUTES = .2 # Minutes
 	GRAVEYARD_PATH = '../graveyard/' # Make sure to include the ending slash.
+	GRAVEYARD_LEDGER = '../data/misc/grave.ledger'
 
 	previous_graveyard_size = 0
 
-	graveyard = {}
-	logger.logSystem('GraveKeeper: graveyardHandler started.')
+	logger.logSystem('GraveKeeper: Starting...')
 	try:
 		while not shutdownEvent.is_set():
 			# wait for GRAVEYARD_SLEEP seconds and then continue. if we need to shutdown, backout and do so.
@@ -265,6 +266,8 @@ def graveyardHandler(runEvent,shutdownEvent,logger):
 				raise StopIteration()
 
 			runEvent.wait() # Also wait here if we need to wait.
+
+
 			#logger.logSystem('GraveKeeper: Checking for ghosts... (Graveyard size: {})'.format(len(graveyard)))
 			# Check for the ghosts (files in the graveyard that need to be removed)
 			# Remove the ghosts
@@ -272,38 +275,66 @@ def graveyardHandler(runEvent,shutdownEvent,logger):
 			def updateGraveyard():
 				try:
 					return os.listdir(GRAVEYARD_PATH)
-				except FileNotFoundError as e:
+				except Exception as e:
 					logger.logError("GraveKeeper: There's no graveyard to manage.",e)
 					return None
 
+			def createLedger():
+				try:
+					with open(GRAVEYARD_LEDGER,'w') as f:
+						f.write('{}')
+				except Exception as e:
+					logger.logError('GraveKeeper: Encountered an error when creating the ledger and cannot recover. Exiting...',e)
+					raise StopIteration()
 			currentGraveyard = updateGraveyard()
 			if currentGraveyard is not None:
 				try:
-					# Add files that are in the graveyard now OR delete them if they are too old.
-					for ghost in currentGraveyard:
-						if ghost in graveyard:
-							# Check the timings and remove it if necessary
-							# If the time of that file is older than GRAVEYARD_DAYS days ago... delete it!
-							if graveyard[ghost] < (datetime.datetime.now() - datetime.timedelta(days=GRAVEYARD_DAYS,minutes=GRAVEYARD_MINUTES)):
-								try:
-									logger.logSystem('GraveKeeper: Deleted {}'.format(ghost))
-									os.remove('{}{}'.format(GRAVEYARD_PATH,ghost))
-								except: pass
-						else: # If it's not in the graveyard, add it.
-							logger.logSystem('GraveKeeper: File added. <{}>'.format(ghost))
-							graveyard[ghost] = datetime.datetime.now()
+					with open(GRAVEYARD_LEDGER, 'r+') as f:
+						graveyard = json.loads(f.read())
+						# Add files that are in the graveyard now OR delete them if they are too old.
+						for ghost in currentGraveyard:
+							if ghost in graveyard:
+								time_of_death = datetime.datetime.strptime(graveyard[ghost],'%Y%m%d%H%M%S') # Get the time that the file was added to the graveyard
+								# Check the timings and remove it if necessary
+								# If the time of that file is older than GRAVEYARD_DAYS days ago... delete it!
+								if time_of_death < (datetime.datetime.now() - datetime.timedelta(days=GRAVEYARD_DAYS,minutes=GRAVEYARD_MINUTES)):
+									try:
+										logger.logSystem('GraveKeeper: Deleted {}'.format(ghost))
+										os.remove('{}{}'.format(GRAVEYARD_PATH,ghost))
+									except: pass
+							else: # If it's not in the graveyard, add it.
+								logger.logSystem('GraveKeeper: Added {}'.format(ghost))
+								graveyard[ghost] = datetime.datetime.now().strftime('%Y%m%d%H%M%S')
+						f.seek(0)
+						f.truncate()
+						f.write(json.dumps(graveyard))
+				except FileNotFoundError as e:
+					logger.logError('GraveKeeper: Could not open the ledger. Attempting to create a new one at {}.'.format(GRAVEYARD_LEDGER),e)
+					createLedger()
+				except json.decoder.JSONDecodeError as e:
+					logger.logError('GraveKeeper: JSON error. Attempting to create a new ledger.',e)
+					createLedger()
 				except Exception as e:
 					logger.logError('GraveKeeper: Could not add a ghost to the graveyard.',e)
 
 			currentGraveyard = updateGraveyard()
 			if currentGraveyard is not None:
 				try:
-					# Remove files that shouldn't be in the map anymore.
-					graveyardCopy = dict(graveyard) # Python doesn't like modifying iterables
-					for ghost in graveyardCopy:
-						if not ghost in currentGraveyard:
-							logger.logSystem('GraveKeeper: Forgot about <{}>'.format(ghost))
-							del graveyard[ghost]
+					with open(GRAVEYARD_LEDGER, 'r+') as f:
+						graveyard = json.loads(f.read())
+						# Remove files that shouldn't be in the map anymore.
+						graveyardCopy = dict(graveyard) # Python doesn't like modifying iterables
+						for ghost in graveyardCopy:
+							if not ghost in currentGraveyard:
+								logger.logSystem('GraveKeeper: Forgot about <{}>'.format(ghost))
+								del graveyard[ghost]
+						f.seek(0)
+						f.truncate()
+						f.write(json.dumps(graveyard))
+				except FileNotFoundError as e:
+					logger.logError('GraveKeeper: Could not open the ledger. <{}>'.format(GRAVEYARD_LEDGER),e)
+				except json.decoder.JSONDecodeError as e:
+					logger.logError('GraveKeeper: JSON error. Can not remove items from the list in ledger.',e)
 				except Exception as e:
 					logger.logError('GraveKeeper: Could not remove ghosts from the graveyard.',e)
 
