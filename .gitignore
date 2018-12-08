@@ -26,3 +26,5 @@ logs/error_*.*
 **/BOOTTIME
 graveyard/
 
+# Don't include the todo list. It's not necessary to include
+**/todo.txt

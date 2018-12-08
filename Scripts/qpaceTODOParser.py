@@ -19,7 +19,7 @@ import qpaceExperimentParser as exp
 import qpacePiCommands as cmd
 from qpaceStates import QPCONTROL
 
-TODO_PATH = "/home/pi/data/text/"
+TODO_PATH = "../data/text/"
 TODO_FILE = "todo.txt"
 TODO_FILE_PATH = TODO_PATH + TODO_FILE
 TODO_TEMP = "todo_temp.tmp"
@@ -53,7 +53,8 @@ def getTodoList(logger):
 			for task in task_list:
 				# Convert every string to uppercase and then add it to the todo_list
 				todo_list.append(task.split(" "))
-
+	except FileNotFoundError:
+		logger.logSystem('TodoParser: There is not todo file found at {}'.format(TODO_FILE_PATH))
 	except OSError as e:
 		# Couldn't open the todo file. Send an error to the error log.
 		logger.logError("TodoParser: Could not open todo file for reading.", e)
@@ -104,11 +105,12 @@ def sortTodoList(todo_list,logger):
 				#Create a date time from the string
 				todo_list[i][0] = datetime.strptime(todo_list[i][0],"%Y%m%d-%H%M%S")
 			except (ValueError,TypeError) as e:
-				logger.logSystem("TodoParser: An item has an invalid time format and will be removed from the queue.", "Removed: {}".format(todo_list[i]))
+				logger.logSystem("TodoParser: An item has an invalid time format and will be removed from the queue.", "TodoParser: Removed <{}>".format(todo_list[i]))
 				del todo_list[i]
 			else:
 				i+=1
 		todo_list.sort() # Python will sort a 2D list based off the first argument of each nested list in ascending order.
+		updateTodoFile(todo_list,logger)
 	return todo_list
 
 def _processTask(chip,task,experimentEvent,runEvent,nextQueue,logger):
@@ -300,7 +302,7 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent,pars
 			# We will assume the todo-list is NOT sorted, and sort it.
 			sortTodoList(todo_list,logger)
 			if chip is not None:
-				todo_list = executeTodoList(chip,nextQueue,todo_list,shutdownEvent,experimentEvent,logger)
+				todo_list = executeTodoList(chip,nextQueue,todo_list,shutdownEvent,experimentEvent,runEvent,logger)
 
 			if todo_list:
 				logger.logSystem("TodoParser: The TodoParser has terminated early. Updating the todo file.")
@@ -309,7 +311,8 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent,pars
 				else:
 					logger.logError("TodoParser: Encountered a problem when trying to update the todo file!")
 			else:
-				logger.logSystem("TodoParser: Finished execution", TODO_FILE_PATH)
+				logger.logSystem("TodoParser: Finished execution.")
+				parserEmpty.set()
 				#os.remove(TODO_FILE_PATH) # Do we want to delete the file or just leave it alone
 		else:
 			logger.logSystem("TodoParser: Todo list is not populated.")
