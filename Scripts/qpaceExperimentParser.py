@@ -132,10 +132,10 @@ def run(filename, isRunningEvent, runEvent,logger,nextQueue):
 									if not exp.wtc_request('SOLOFF',nextQueue):
 										logger.logSystem('ExpParser: The WTC denied turning off the steppers.')
 								if stepperRequest:
-								 	if not exp.wtc_request('STEPOFF',nextQueue):
+									if not exp.wtc_request('STEPOFF',nextQueue):
 										logger.logSystem('ExpParser: The WTC denied turning off the steppers.')
 
-								logMessage = 'ExpParser: Ending an Experiment. Execution time: {} seconds.'.format((experimentStartTime - datetime.datetime.now()).seconds)
+								logMessage = 'ExpParser: Ending an Experiment. Execution time: {} seconds.'.format((datetime.datetime.now() - experimentStartTime).seconds)
 								logger.logSystem(logMessage)
 								experimentLog.write('{}\n'.format(logMessage))
 								if experimentLog:
@@ -164,16 +164,16 @@ def run(filename, isRunningEvent, runEvent,logger,nextQueue):
 									group = None
 								elif instruction[1] == 'SOLENOID':
 									who = 'solenoid'
-									group = exp.PINGROUP.solenoid
+									group = expModule.PINGROUP.solenoid
 								elif instruction[1] == 'STEPPER':
 									who = 'stepper'
-									group = exp.PINGROUP.stepper
+									group = expModule.PINGROUP.stepper
 								elif instruction[1] == 'LED':
 									who = 'LED'
-									group = exp.PINGROUP.led
+									group = expModule.PINGROUP.led
 								elif instruction[1] == 'GOPRO':
 									who = 'GoPro'
-									group = exp.PINGROUP.gopro
+									group = expModule.PINGROUP.gopro
 
 								logMessage = 'ExpParser: Resetting {} pins to their defaults.'.format(who)
 								logger.logSystem(logMessage)
@@ -221,19 +221,19 @@ def run(filename, isRunningEvent, runEvent,logger,nextQueue):
 									logger.logSystem(logMessage)
 									experimentLog.write('{}\n'.format(logMessage))
 									if instruction[1] == 'ON':
-										if not exp.read(exp.PIN.GOPPWR):
+										if not exp.read(expModule.PIN.GOPPWR):
 											exp.gopro_on()
 									elif instruction[1] == 'OFF':
-										if exp.read(exp.PIN.GOPPWR):
-											exp.reset(exp.PINGROUP.gopro)
+										if exp.read(expModule.PIN.GOPPWR):
+											exp.reset(expModule.PINGROUP.gopro)
 									elif instruction[1] == 'START':
-										if exp.read(exp.PIN.GOPPWR) and not isRecording:
+										if exp.read(expModule.PIN.GOPPWR) and not isRecording:
 											exp.press_capture()
 									elif instruction[1] == 'STOP':
-										if exp.read(exp.PIN.GOPPWR) and isRecording:
+										if exp.read(expModule.PIN.GOPPWR) and isRecording:
 											exp.press_capture()
 									elif instruction[1] == 'TRANSFER':
-										if exp.read(exp.PIN.GOPPWR):
+										if exp.read(expModule.PIN.GOPPWR):
 											exp.goProTransfer()
 									duration = (startTime - datetime.datetime.now()).seconds
 									logMessage = 'ExpControl: GoPro done. This took {} seconds.'.format(duration)
@@ -269,11 +269,11 @@ def run(filename, isRunningEvent, runEvent,logger,nextQueue):
 								if len(instruction) > 2:
 									group = []
 									if instruction[1].find('X') is not -1:
-										group.push(exp.PIN.SOLX)
+										group.append(expModule.PIN.SOLX)
 									if instruction[1].find('Y') is not -1:
-										group.push(exp.PIN.SOLY)
+										group.append(expModule.PIN.SOLY)
 									if instruction[1].find('Z') is not -1:
-										group.push(exp.PIN.SOLZ)
+										group.append(expModule.PIN.SOLZ)
 									group = tuple(group)
 
 									if 'OVERRIDE' in instruction:
@@ -304,7 +304,7 @@ def run(filename, isRunningEvent, runEvent,logger,nextQueue):
 	except StopIteration as e:
 		logger.logSystem('ExpParser: Aborted the experiment. It appears as if we got denied by the WTC. {}'.format(str(e)))
 	except Exception as e:
-		logger.logError('ExpParser: Aborted the experiment. Error: {}'.format(e.__class__,e)
+		logger.logError('ExpParser: Aborted the experiment. Error: {}'.format(e.__class__),e)
 	finally:
 		# Catch case for if END is not provided.
 		if isRunningEvent.is_set():

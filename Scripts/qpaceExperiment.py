@@ -60,16 +60,16 @@ class Stepper():
 	nextState = 0
 
 	@staticmethod
-	def forward():
-		put(PIN.STPENA, Stepper.rotationStates[Stepper.nextState%4][0])
-		put(PIN.STPENB, Stepper.rotationStates[Stepper.nextState%4][1])
+	def forward(action):
+		action.put(PIN.STPENA, Stepper.rotationStates[Stepper.nextState%4][0])
+		action.put(PIN.STPENB, Stepper.rotationStates[Stepper.nextState%4][1])
 		Stepper.nextState += 1
 
 	@staticmethod
-	def reverse():
+	def reverse(action):
 		Stepper.nextState -= 2 # subtract 2 from the NEXT state to figure out the previous state
-		put(PIN.STPENA, Stepper.rotationStates[Stepper.nextState%4][0])
-		put(PIN.STPENB, Stepper.rotationStates[Stepper.nextState%4][1])
+		action.put(PIN.STPENA, Stepper.rotationStates[Stepper.nextState%4][0])
+		action.put(PIN.STPENB, Stepper.rotationStates[Stepper.nextState%4][1])
 		Stepper.nextState += 1
 
 class Action():
@@ -408,11 +408,11 @@ class Action():
 		if qturn > 0:
 			# Multiply * 4 because we are doing qTurns
 			for i in range(0, qturn*multiplier):
-				Stepper.forward()
+				Stepper.forward(self)
 				time.sleep(delay)
 		else:
 			for i in range(0, -qturn*multiplier): #qturn is already negative so make it positive
-				Stepper.reverse()
+				Stepper.reverse(self)
 				time.sleep(delay)
 		time.sleep(3)
 
