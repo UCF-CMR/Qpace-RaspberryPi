@@ -63,7 +63,7 @@ def run(filename, isRunningEvent, runEvent,logger,nextQueue):
 	comment_tuple = ('#','//') # These are what will be used to have comments in the profile.
 	logLocation = '/home/pi/logs/'
 	expLocation = '/home/pi/data/exp/'
-	experimentStartTime = None
+	experimentStartTime = datetime.datetime.now() # Just in case the parser gets invoked on an empty file, seed the start time.
 	experimentLog = None
 	isRecording = False
 	try:
@@ -115,7 +115,7 @@ def run(filename, isRunningEvent, runEvent,logger,nextQueue):
 						if(instruction[0] == 'START'):
 							# Start an experiment if one hasn't started yet.
 							if isRunningEvent.is_set():
-								raise StopIteration('ExpParser: An experiment is already running.')
+								raise StopIteration('ExpParser: Attempted a start, but an experiment is already running. "{}" by {}'.format(filename,author))
 							experimentStartTime= datetime.datetime.now()
 							author = ' '.join(instruction[1:]) or 'Unknown'
 							experimentLog = open('{}exp_{}_{}.qpe'.format(logLocation,experimentStartTime.strftime('%Y%m%d-%H%M%S'),author),'w')
@@ -125,21 +125,7 @@ def run(filename, isRunningEvent, runEvent,logger,nextQueue):
 							experimentLog.write('{}\n'.format(logMessage))
 						elif(instruction[0] == 'END' or instruction[0] == 'EXIT'):
 							# End the experiment if one is running.
-							if isRunningEvent.is_set():
-								isRunningEvent.clear()
-
-								if solenoidRequest:
-									if not exp.wtc_request('SOLOFF',nextQueue):
-										logger.logSystem('ExpParser: The WTC denied turning off the steppers.')
-								if stepperRequest:
-									if not exp.wtc_request('STEPOFF',nextQueue):
-										logger.logSystem('ExpParser: The WTC denied turning off the steppers.')
-
-								logMessage = 'ExpParser: Ending an Experiment. Execution time: {} seconds.'.format((datetime.datetime.now() - experimentStartTime).seconds)
-								logger.logSystem(logMessage)
-								experimentLog.write('{}\n'.format(logMessage))
-								if experimentLog:
-									experimentLog.close()
+							break
 						elif(instruction[0] == 'INIT'):
 							if isRunningEvent.is_set():
 								# Initialize an Experiment.
@@ -235,7 +221,7 @@ def run(filename, isRunningEvent, runEvent,logger,nextQueue):
 									elif instruction[1] == 'TRANSFER':
 										if exp.read(expModule.PIN.GOPPWR):
 											exp.goProTransfer()
-									duration = (startTime - datetime.datetime.now()).seconds
+									duration = (datetime.datetime.now() - startTime).seconds
 									logMessage = 'ExpControl: GoPro done. This took {} seconds.'.format(duration)
 									logger.logSystem(logMessage)
 									experimentLog.write('{}\n'.format(logMessage))
@@ -306,10 +292,23 @@ def run(filename, isRunningEvent, runEvent,logger,nextQueue):
 	except Exception as e:
 		logger.logError('ExpParser: Aborted the experiment. Error: {}'.format(e.__class__),e)
 	finally:
-		# Catch case for if END is not provided.
+		# Clean up and close out all nicely.
 		if isRunningEvent.is_set():
 			isRunningEvent.clear()
+
+			if solenoidRequest:
+				if not exp.wtc_request('SOLOFF',nextQueue):
+					logger.logSystem('ExpParser: The WTC denied turning off the steppers.')
+			if stepperRequest:
+				if not exp.wtc_request('STEPOFF',nextQueue):
+					logger.logSystem('ExpParser: The WTC denied turning off the steppers.')
+
+			logMessage = 'ExpParser: Ending an Experiment. Execution time: {} seconds.'.format((datetime.datetime.now() - experimentStartTime).seconds)
+			logger.logSystem(logMessage)
+			experimentLog.write('{}\n'.format(logMessage))
 		if experimentLog:
 			experimentLog.close()
+
+		exp.reset()
 
 		logger.logSystem("ExpParser: Closing ExpParser and returning to normal function...")
