@@ -284,15 +284,15 @@ def run(filename, isRunningEvent, runEvent,logger,nextQueue):
 
 									if len(group)>0:
 										if instruction[2] == 'TAP':
-											exp.solenoid_tap(group[0])
+											exp.solenoid_tap(group)
 										elif instruction[2] == 'RUN':
 											if len(instruction) >= 5:
-												exp.solenoid_run(group[0],int(instruction[3]),int(instruction[4]),override=override)
+												exp.solenoid_run(group,int(instruction[3]),int(instruction[4]),override=override)
 										elif instruction[2] == 'RAMP':
 											if len(instruction) == 5:
-												exp.solenoid_ramp(group[0],int(instruction[3]),int(instruction[4]),override=override)
+												exp.solenoid_ramp(group,int(instruction[3]),int(instruction[4]),override=override)
 											elif len(instruction) == 6:
-												exp.solenoid_ramp(group[0],int(instruction[3]),int(instruction[4]),int(instruction[5]),override=override)
+												exp.solenoid_ramp(group,int(instruction[3]),int(instruction[4]),int(instruction[5]),override=override)
 
 					except StopIteration as e:
 						logger.logSystem(str(e))

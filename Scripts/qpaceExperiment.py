@@ -439,10 +439,10 @@ class Action():
 			hz = 12
 
 		period = 1/hz
-		for pinSelect in range(duration/period):
-			self.put(solenoidPins[pinSelect%len(solenoidPins)],0) # turn the solenoid on
+		for pinSelect in range(int(duration//period)):
+			self.put(solenoidPins[pinSelect%len(solenoidPins)],1) # turn the solenoid on
 			time.sleep(period/2)
-			self.put(solenoidPins[pinSelect%len(solenoidPins)],1) # turn the solenoid off
+			self.put(solenoidPins[pinSelect%len(solenoidPins)],0) # turn the solenoid off
 			time.sleep(period/2)
 
 		self.reset(PINGROUP.solenoid)
@@ -461,9 +461,9 @@ class Action():
 		pinSelect = 0
 		for i in range(granularity):
 			#print("HZ:",1/(2*((start_period/2) + (diff_period/granularity)*i)))
-			self.put(solenoidPins[pinSelect%len(solenoidPins)],0) # turn the solenoid on
+			self.put(solenoidPins[pinSelect%len(solenoidPins)],1) # turn the solenoid on
 			time.sleep((start_period/2) + (diff_period/granularity)*i)
-			self.put(solenoidPins[pinSelect%len(solenoidPins)],1) # turn the solenoid off
+			self.put(solenoidPins[pinSelect%len(solenoidPins)],0) # turn the solenoid off
 			time.sleep((start_period/2) + (diff_period/granularity)*i)
 			pinSelect += 1
 
@@ -472,9 +472,9 @@ class Action():
 	def solenoid_tap(self,solenoidPins, hz=12):
 		period = 1/hz # 12 hz (max speed)
 		for pin in solenoidPins:
-			self.put(pin,0) # turn the solenoid on
+			self.put(pin,1) # turn the solenoid on
 			time.sleep(period/2)
-			self.put(pin,1) # turn the solenoid off
+			self.put(pin,0) # turn the solenoid off
 			time.sleep(period/2)
 
 		self.reset(PINGROUP.solenoid)
