@@ -505,7 +505,6 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent, log
 			break
 	logger.logSystem("Interpreter: Starting cleanup for shutdown.")
 
-	chip.close()
 	if gpio:
 		callback.cancel()
 		gpio.stop()

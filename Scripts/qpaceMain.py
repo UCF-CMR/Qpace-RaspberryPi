@@ -454,10 +454,14 @@ def run(logger):
 				#TODO Alert the WTC of the problem and/or log it and move on
 				#TODO figure out what we actually want to do.
 				logger.logError("Main: There is a problem with running threads.", err)
+
 			except BufferError as err:
 				logger.logError("Main: Something went wrong when reading the buffer of the WTC.", err)
 		except Exception as err:
 			logger.logError('Main: Something went wrong in the main loop!',err)
+		finally:
+			# Close the chip if issues arise OR we need to exit the main loop.
+			chip.close()
 
 
 	# If we've reached this point, just shutdown.
@@ -465,9 +469,10 @@ def run(logger):
 	if gpio:
 		gpio.stop()
 	shutdownEvent.set()
-	interpreter.join()
-	todoParser.join()
-	graveyardThread.join()
+
+	if interpreter.ident is not None: interpreter.join()
+	if todoParser.ident is not None: todoParser.join()
+	if graveyardThread.ident is not None: graveyardThread.join()
 
 
 	if ALLOW_SHUTDOWN:
