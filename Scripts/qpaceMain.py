@@ -28,8 +28,10 @@ try:
 	gpio = pigpio.pi()
 except:
 	gpio = None
+
 REBOOT_ON_EXIT = False
-CONN_ATTEMPT_MAX = 5 # 5 attempts to connect to WTC via SC16IS750
+CONN_ATTEMPT_MAX = 3 # 5 attempts to connect to WTC via SC16IS750
+THREAD_ATTEMPT_MAX = 3 # 5 attempts to restart threads, otherwise don't restart. When all have reached max, shutdown.
 def initWTCConnection():
 	"""
 	This function Initializes and returns the SC16IS750 object to interact with the registers.
@@ -266,7 +268,7 @@ def graveyardHandler(runEvent,shutdownEvent,logger):
 				raise StopIteration()
 
 			runEvent.wait() # Also wait here if we need to wait.
-
+			logger.logSystem('GraveKeeper: Hunting for ghosts.')
 
 			#logger.logSystem('GraveKeeper: Checking for ghosts... (Graveyard size: {})'.format(len(graveyard)))
 			# Check for the ghosts (files in the graveyard that need to be removed)
@@ -408,30 +410,38 @@ def run(logger):
 		todoParser.start() # Run the TodoParser
 		graveyardThread.start() # Run the graveyard
 
+
+		interpreterAttempts = 0
+		todoParserAttempts = 0
+		graveyardAttempts = 0
 		# The big boy main loop. Good luck QPACE.
 		while True:
 			try:
-				time.sleep(.4)
+				time.sleep(.35)
 				if shutdownEvent.is_set():
 					break
 
 				# Check the interpreter, restart if necessary. The Interpreter should always be running and never shutdown early.
-				if not interpreter.isAlive():
-					logger.logSystem("Main: Interpreter is shutdown when it should not be. Restarting...")
+				if not interpreter.isAlive() and interpreterAttempts < THREAD_ATTEMPT_MAX:
+					logger.logSystem("Main: Interpreter is shutdown when it should not be. Attempt {} at restart.".format(interpreterAttempts))
 					interpreter = threading.Thread(target=qpi.run,args=(chip,nextQueue,packetQueue,experimentRunningEvent,runEvent,shutdownEvent,logger))
 					interpreter.start()
+					interpreterAttempts += 1
 
 				# Check the TodoParser, restart it if necessary. The TodoParser is allowed to be shutdown early.
-				if not todoParser.isAlive() and not parserEmpty.is_set():
-					logger.logSystem('Main: TodoParser is shutdown when it should not be. Restarting...')
+				if not todoParser.isAlive() and not parserEmpty.is_set() and todoParserAttempts < THREAD_ATTEMPT_MAX:
+					logger.logSystem('Main: TodoParser is shutdown when it should not be.  Attempt {} at restart.'.format(interpreterAttempts))
 					todoParser = threading.Thread(target=todo.run,args=(chip,nextQueue,packetQueue,experimentRunningEvent,runEvent,shutdownEvent,parserEmpty,logger))
 					todoParser.start()
+					todoParserAttempts += 1
 
 				# Check the graveyard, restart it if necessary. The graveyard shouldn't be shutdown but it doesn't really matter
-				if not graveyardThread.isAlive():
-					logger.logSystem('Main: Graveyard is shutdown when it should not be. Restarting...')
+				if not graveyardThread.isAlive() and graveyardAttempts < THREAD_ATTEMPT_MAX:
+					logger.logSystem('Main: Graveyard is shutdown when it should not be.  Attempt {} at restart.'.format(interpreterAttempts))
 					graveyardThread = threading.Thread(target=graveyardHandler,args=(runEvent,shutdownEvent,logger))
 					graveyardThread.start()
+					graveyardAttempts += 1
+
 
 			except KeyboardInterrupt:
 				shutdownEvent.set()
@@ -479,10 +489,10 @@ if __name__ == '__main__':
 		methods_to_call = [ task for task in dir(specialTasks) if task.startswth('task_') and not task.startswith('__') ]
 		for method in methods_to_call:
 			try:
-				logger.logSystem('Attempting to call specialTasks.{}'.format(method))
+				logger.logSystem('Attempting to call <specialTasks.{}>'.format(method))
 				getattr(specialTasks,method)() #run the method if it exists
 			except:
-				logger.logSystem('Failed to call specialTasks.{}'.format(method))
+				logger.logSystem('Failed to call <specialTasks.{}>'.format(method))
 
 		os.rename('specialTasks.py','../graveyard/specialTasks'+str(strftime("%Y%m%d-%H%M%S",gmtime()))+'.py')
 	except ImportError:
