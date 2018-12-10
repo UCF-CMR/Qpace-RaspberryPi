@@ -5,9 +5,6 @@
 # University of Central Florida
 #
 # This script is run at boot to initialize the system clock and then wait for interrupts.
-#TODO: Re-do comments/documentation
-
-ALLOW_SHUTDOWN = False
 
 import os
 import threading
@@ -29,6 +26,7 @@ try:
 except:
 	gpio = None
 
+ALLOW_SHUTDOWN = False
 REBOOT_ON_EXIT = False
 CONN_ATTEMPT_MAX = 3 # 5 attempts to connect to WTC via SC16IS750
 THREAD_ATTEMPT_MAX = 3 # 5 attempts to restart threads, otherwise don't restart. When all have reached max, shutdown.
@@ -373,89 +371,94 @@ def run(logger):
 			time.sleep(1)
 			logger.logSystem('Interpeter: Connection could not be made to the SC16IS750. Attempt {}'.format(connectionAttempts))
 		if connectionAttempts > CONN_ATTEMPT_MAX:
-			welp_oh_no = 'Interpreter: Could not connect to SC17IS750. Max attemptes reached: {}'.format(connectionAttempts)
-			logger.logSystem(welp_oh_no)
-			raise ConnectionError(welp_oh_no)
+			logger.logSystem('Interpreter: Could not connect to SC17IS750. Max attemptes reached: {}'.format(connectionAttempts))
 
 
 
-	#chip.byte_write(SC16IS750.REG_THR, ord(identity)) # Send the identity to the WTC
-	#TODO Implement identity on the WTC
-	try:
-		# Begin running the rest of the code for the Pi.
-		logger.logSystem("Main: Starting QPACE...")
-		# Create a threading.Event to determine if an experiment is running or not.
-		# Or if we are doing something and should wait until it's done.
-		experimentRunningEvent = threading.Event()
-		runEvent = threading.Event()
-		shutdownEvent = threading.Event()
-		parserEmpty = threading.Event()
-		# Ensure these are in the state we want them in.
-		runEvent.set()
-		experimentRunningEvent.clear()
-		shutdownEvent.clear()
-		parserEmpty.clear()
 
-		# Initialize the nextQueue for WHATISNEXT operations
-		nextQueue = Queue(logger=logger,name='NextQueue')
-		packetQueue = Queue(logger=logger,name='PacketQueue')
+	if chip is not None:
+		try:
+			# Begin running the rest of the code for the Pi.
+			logger.logSystem("Main: Starting QPACE...")
+			# Create a threading.Event to determine if an experiment is running or not.
+			# Or if we are doing something and should wait until it's done.
+			experimentRunningEvent = threading.Event()
+			runEvent = threading.Event()
+			shutdownEvent = threading.Event()
+			parserEmpty = threading.Event()
+			# Ensure these are in the state we want them in.
+			runEvent.set()
+			experimentRunningEvent.clear()
+			shutdownEvent.clear()
+			parserEmpty.clear()
 
-		# Initialize threads
-		interpreter = threading.Thread(target=qpi.run,args=(chip,nextQueue,packetQueue,experimentRunningEvent,runEvent,shutdownEvent,logger))
-		todoParser = threading.Thread(target=todo.run,args=(chip,nextQueue,packetQueue,experimentRunningEvent,runEvent,shutdownEvent,parserEmpty,logger))
-		graveyardThread = threading.Thread(target=graveyardHandler,args=(runEvent,shutdownEvent,logger))
+			# Initialize the nextQueue for WHATISNEXT operations
+			nextQueue = Queue(logger=logger,name='NextQueue')
+			packetQueue = Queue(logger=logger,name='PacketQueue')
 
-		logger.logSystem("Main: Starting up threads.")
-		interpreter.start() # Run the Interpreter
-		todoParser.start() # Run the TodoParser
-		graveyardThread.start() # Run the graveyard
+			# Initialize threads
+			interpreter = threading.Thread(target=qpi.run,args=(chip,nextQueue,packetQueue,experimentRunningEvent,runEvent,shutdownEvent,logger))
+			todoParser = threading.Thread(target=todo.run,args=(chip,nextQueue,packetQueue,experimentRunningEvent,runEvent,shutdownEvent,parserEmpty,logger))
+			graveyardThread = threading.Thread(target=graveyardHandler,args=(runEvent,shutdownEvent,logger))
+
+			logger.logSystem("Main: Starting up threads.")
+			interpreter.start() # Run the Interpreter
+			todoParser.start() # Run the TodoParser
+			graveyardThread.start() # Run the graveyard
 
 
-		interpreterAttempts = 0
-		todoParserAttempts = 0
-		graveyardAttempts = 0
-		# The big boy main loop. Good luck QPACE.
-		while True:
+			interpreterAttempts = 0
+			todoParserAttempts = 0
+			graveyardAttempts = 0
+			# The big boy main loop. Good luck QPACE.
+			while True:
+				try:
+					time.sleep(.35)
+					if shutdownEvent.is_set():
+						break
+
+					# Check the interpreter, restart if necessary. The Interpreter should always be running and never shutdown early.
+					if not interpreter.isAlive() and interpreterAttempts < THREAD_ATTEMPT_MAX:
+						logger.logSystem("Main: Interpreter is shutdown when it should not be. Attempt {} at restart.".format(interpreterAttempts + 1))
+						interpreter = threading.Thread(target=qpi.run,args=(chip,nextQueue,packetQueue,experimentRunningEvent,runEvent,shutdownEvent,logger))
+						interpreter.start()
+						interpreterAttempts += 1
+
+					# Check the TodoParser, restart it if necessary. The TodoParser is allowed to be shutdown early.
+					if not todoParser.isAlive() and not parserEmpty.is_set() and todoParserAttempts < THREAD_ATTEMPT_MAX:
+						logger.logSystem('Main: TodoParser is shutdown when it should not be.  Attempt {} at restart.'.format(todoParserAttempts + 1))
+						todoParser = threading.Thread(target=todo.run,args=(chip,nextQueue,packetQueue,experimentRunningEvent,runEvent,shutdownEvent,parserEmpty,logger))
+						todoParser.start()
+						todoParserAttempts += 1
+
+					# Check the graveyard, restart it if necessary. The graveyard shouldn't be shutdown but it doesn't really matter
+					if not graveyardThread.isAlive() and graveyardAttempts < THREAD_ATTEMPT_MAX:
+						logger.logSystem('Main: Graveyard is shutdown when it should not be.  Attempt {} at restart.'.format(graveyardAttempts + 1))
+						graveyardThread = threading.Thread(target=graveyardHandler,args=(runEvent,shutdownEvent,logger))
+						graveyardThread.start()
+						graveyardAttempts += 1
+
+					if interpreterAttempts + todoParserAttempts + graveyardAttempts == THREAD_ATTEMPT_MAX * 3:
+						welp_oh_no = "Main: All threads are closed and could not be started. Exiting."
+						logger.logSystem(welp_oh_no)
+						logger.logError(welp_oh_no)
+						raise RuntimeError(welp_oh_no)
+
+
+				except KeyboardInterrupt:
+					shutdownEvent.set()
+
+			logger.logSystem("Main: Main loop has been closed.")
+		except RuntimeError as err:
 			try:
-				time.sleep(.35)
-				if shutdownEvent.is_set():
-					break
+				#TODO Alert the WTC of the problem and/or log it and move on
+				#TODO figure out what we actually want to do.
+				logger.logError("Main: There is a problem with running threads.", err)
+			except BufferError as err:
+				logger.logError("Main: Something went wrong when reading the buffer of the WTC.", err)
+		except Exception as err:
+			logger.logError('Main: Something went wrong in the main loop!',err)
 
-				# Check the interpreter, restart if necessary. The Interpreter should always be running and never shutdown early.
-				if not interpreter.isAlive() and interpreterAttempts < THREAD_ATTEMPT_MAX:
-					logger.logSystem("Main: Interpreter is shutdown when it should not be. Attempt {} at restart.".format(interpreterAttempts))
-					interpreter = threading.Thread(target=qpi.run,args=(chip,nextQueue,packetQueue,experimentRunningEvent,runEvent,shutdownEvent,logger))
-					interpreter.start()
-					interpreterAttempts += 1
-
-				# Check the TodoParser, restart it if necessary. The TodoParser is allowed to be shutdown early.
-				if not todoParser.isAlive() and not parserEmpty.is_set() and todoParserAttempts < THREAD_ATTEMPT_MAX:
-					logger.logSystem('Main: TodoParser is shutdown when it should not be.  Attempt {} at restart.'.format(todoParserAttempts))
-					todoParser = threading.Thread(target=todo.run,args=(chip,nextQueue,packetQueue,experimentRunningEvent,runEvent,shutdownEvent,parserEmpty,logger))
-					todoParser.start()
-					todoParserAttempts += 1
-
-				# Check the graveyard, restart it if necessary. The graveyard shouldn't be shutdown but it doesn't really matter
-				if not graveyardThread.isAlive() and graveyardAttempts < THREAD_ATTEMPT_MAX:
-					logger.logSystem('Main: Graveyard is shutdown when it should not be.  Attempt {} at restart.'.format(graveyardAttempts))
-					graveyardThread = threading.Thread(target=graveyardHandler,args=(runEvent,shutdownEvent,logger))
-					graveyardThread.start()
-					graveyardAttempts += 1
-
-
-			except KeyboardInterrupt:
-				shutdownEvent.set()
-
-		logger.logSystem("Main: Main loop has been closed.")
-	except BufferError as err:
-		#TODO Alert the WTC of the problem and/or log it and move on
-		#TODO figure out what we actually want to do.
-		logger.logError("Main: Something went wrong when reading the buffer of the WTC.", err)
-
-	except ConnectionError as err:
-		#TODO Alert the WTC of the problem and/or log it and move on
-		#TODO figure out what we actually want to do.
-		logger.logError("Main: There is a problem with the connection to the WTC", err)
 
 	# If we've reached this point, just shutdown.
 	logger.logSystem("Main: Cleaning up and closing out...")
