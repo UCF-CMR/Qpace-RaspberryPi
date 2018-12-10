@@ -430,14 +430,14 @@ def run(logger):
 
 				# Check the TodoParser, restart it if necessary. The TodoParser is allowed to be shutdown early.
 				if not todoParser.isAlive() and not parserEmpty.is_set() and todoParserAttempts < THREAD_ATTEMPT_MAX:
-					logger.logSystem('Main: TodoParser is shutdown when it should not be.  Attempt {} at restart.'.format(interpreterAttempts))
+					logger.logSystem('Main: TodoParser is shutdown when it should not be.  Attempt {} at restart.'.format(todoParserAttempts))
 					todoParser = threading.Thread(target=todo.run,args=(chip,nextQueue,packetQueue,experimentRunningEvent,runEvent,shutdownEvent,parserEmpty,logger))
 					todoParser.start()
 					todoParserAttempts += 1
 
 				# Check the graveyard, restart it if necessary. The graveyard shouldn't be shutdown but it doesn't really matter
 				if not graveyardThread.isAlive() and graveyardAttempts < THREAD_ATTEMPT_MAX:
-					logger.logSystem('Main: Graveyard is shutdown when it should not be.  Attempt {} at restart.'.format(interpreterAttempts))
+					logger.logSystem('Main: Graveyard is shutdown when it should not be.  Attempt {} at restart.'.format(graveyardAttempts))
 					graveyardThread = threading.Thread(target=graveyardHandler,args=(runEvent,shutdownEvent,logger))
 					graveyardThread.start()
 					graveyardAttempts += 1
