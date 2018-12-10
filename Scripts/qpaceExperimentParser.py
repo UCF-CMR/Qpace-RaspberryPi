@@ -86,13 +86,13 @@ def run(filename, isRunningEvent, runEvent,logger,nextQueue):
 			# If we want the solenoids, let's request them. Failure to enable will abort the experiment.
 			if solenoidRequest:
 				logger.logSystem('ExpParser: WTC...may I have the solenoids please?')
-				if not exp.wtc_request('SOLON'):
+				if not exp.wtc_request('SOLON',nextQueue):
 					raise StopIteration('WTC denied access to the solenoids.')
 
 			# If we want the steppers, let's request them. Failure to enable will abort the experiment.
 			if stepperRequest:
 				logger.logSystem('ExpParser: WTC...may I have the steppers please?')
-				if not exp.wtc_request('STEPON'):
+				if not exp.wtc_request('STEPON',nextQueue):
 					raise StopIteration('WTC denied access to the steppers.')
 
 
@@ -109,7 +109,7 @@ def run(filename, isRunningEvent, runEvent,logger,nextQueue):
 				instruction = instruction.upper().split()
 				runEvent.wait() # If we should be waiting, then wait.
 
-				if instrution:
+				if instruction:
 					# Begin interpreting the instructions that matter.
 					try:
 						if(instruction[0] == 'START'):
@@ -127,15 +127,19 @@ def run(filename, isRunningEvent, runEvent,logger,nextQueue):
 							# End the experiment if one is running.
 							if isRunningEvent.is_set():
 								isRunningEvent.clear()
-								if experimentLog:
-									experimentLog.close()
 
-								if not exp.wtc_request('SOLOFF') or not exp.wtc_request('STEPOFF'):
-									logger.logSystem('ExpParser: The WTC denied turning off the steppers or solenoids.')
+								if solenoidRequest:
+									if not exp.wtc_request('SOLOFF',nextQueue):
+										logger.logSystem('ExpParser: The WTC denied turning off the steppers.')
+								if stepperRequest:
+								 	if not exp.wtc_request('STEPOFF',nextQueue):
+										logger.logSystem('ExpParser: The WTC denied turning off the steppers.')
 
 								logMessage = 'ExpParser: Ending an Experiment. Execution time: {} seconds.'.format((experimentStartTime - datetime.datetime.now()).seconds)
 								logger.logSystem(logMessage)
 								experimentLog.write('{}\n'.format(logMessage))
+								if experimentLog:
+									experimentLog.close()
 						elif(instruction[0] == 'INIT'):
 							if isRunningEvent.is_set():
 								# Initialize an Experiment.
@@ -300,7 +304,7 @@ def run(filename, isRunningEvent, runEvent,logger,nextQueue):
 	except StopIteration as e:
 		logger.logSystem('ExpParser: Aborted the experiment. It appears as if we got denied by the WTC. {}'.format(str(e)))
 	except Exception as e:
-		logger.logError('ExpParser: Aborted the experiment. Error.',e)
+		logger.logError('ExpParser: Aborted the experiment. Error: {}'.format(e.__class__,e)
 	finally:
 		# Catch case for if END is not provided.
 		if isRunningEvent.is_set():

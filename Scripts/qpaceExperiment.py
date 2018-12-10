@@ -500,7 +500,7 @@ class Action():
 		while response is qp['PENDING'] or response is None: # None implies timeout
 			if pendingCount > pendingMAXCount:
 				return False
-			NextQueue.enqueue(request)
+			nextQueue.enqueue(request)
 			response = self.queue.waitForResponse(timeout)
 			pendingCount += 1
 

@@ -95,7 +95,7 @@ class Queue():
 		self.suppress = suppressLog
 		self.response = None
 		self.logger=logger
-		logger.logSystem('{}: Initializing...'.format(name))
+		self.logger.logSystem('{}: Initializing...'.format(name))
 
 	def isEmpty(self):
 		""" Check to see if the queue is empty."""
@@ -119,7 +119,7 @@ class Queue():
 			else:
 				logMessage = "'{}'".format(item)
 
-			logger.logSystem("{}: Adding {} to the queue.".format(self.name,logMessage))
+			self.logger.logSystem("{}: Adding {} to the queue.".format(self.name,logMessage))
 
 		if item in states.QPCONTROL:
 			item = states.QPCONTROL[item]
@@ -151,7 +151,7 @@ class Queue():
 					logMessage = 'data (len:{}) [{}]'.format(len(item),item[:10])
 				else:
 					logMessage = "'{}'".format(item)
-				logger.logSystem("{}: Removed item from queue: {}".format(self.name,logMessage))
+				self.logger.logSystem("{}: Removed item from queue: {}".format(self.name,logMessage))
 
 
 			if self.isEmpty():
@@ -180,19 +180,19 @@ class Queue():
 				 infinite wait is possible. The queue must be able to be dequeued for this wait to
 				 exit properly. To counter this, a timeout is set.
 		"""
-		logger.logSystem("{}: Entered a wait. pop={}, timeout={}".format(self.name,popN,str(timeout)))
+		self.logger.logSystem("{}: Entered a wait. pop={}, timeout={}".format(self.name,popN,str(timeout)))
 		try:
 			# Wait until the queue is empty.
 			while not self.isEmpty():
 				if not self.cv.wait(timeout):
-					logger.logSystem('{}: Wait timed out. Exiting wait.'.format(self.name))
+					self.logger.logSystem('{}: Wait timed out. Exiting wait.'.format(self.name))
 					# After the wait time, let's just continue going. Something held up.
 					return None
 			# pop the number of resposes we want off the back and then return them.
-			logger.logSystem('{}: Wait completed.'.format(self.name))
+			self.logger.logSystem('{}: Wait completed.'.format(self.name))
 			return None
 		except RuntimeError as e:
-			logger.logError("{}: Lock was not aquired for wait".format(self.name),e)
+			self.logger.logError("{}: Lock was not aquired for wait".format(self.name),e)
 			return None # The lock was not aquired for some reason.
 
 	def blockWithResponse(self,response,timeout=WAIT_TIME):
@@ -201,7 +201,7 @@ class Queue():
 		Adds response to self.response; until self.response is null, this will block for a certain time
 		until a timeout.
 		"""
-		logger.logSystem("{}: Adding a response. '{}' must be read before continuing... Will wait {} seconds before removing the response".format(self.name,response,timeout))
+		self.logger.logSystem("{}: Adding a response. '{}' must be read before continuing... Will wait {} seconds before removing the response".format(self.name,response,timeout))
 		try:
 			self.response = response
 			pollingDelay = .5
@@ -209,15 +209,15 @@ class Queue():
 			counter = 0
 			while True:
 				if self.response is None:
-					logger.logSystem("{}: Response was read... continuing on.".format(self.name))
+					self.logger.logSystem("{}: Response was read... continuing on.".format(self.name))
 					break
 				if counter >= fragments:
-					logger.logSystem("{}: Response was not read: Timeout!".format(self.name))
+					self.logger.logSystem("{}: Response was not read: Timeout!".format(self.name))
 					break
 				time.sleep(pollingDelay)
 				counter+=1
 		except:
-			logger.logError("{}: Was not able to wait for response to be read.".format(self.name))
+			self.logger.logError("{}: Was not able to wait for response to be read.".format(self.name))
 
 	def waitForResponse(self,timeout=WAIT_TIME):
 		"""
@@ -225,17 +225,17 @@ class Queue():
 		reads response from self.response; until self.response is not null, this will block for a certain time
 		until a timeout.
 		"""
-		logger.logSystem("{}: Someone is waiting for the response to be read. (Timeout={})".format(self.name,timeout))
+		self.logger.logSystem("{}: Someone is waiting for the response to be read. (Timeout={})".format(self.name,timeout))
 		try:
 			pollingDelay = .5
 			fragments = timeout/pollingDelay
 			counter = 0
 			while True:
 				if self.response is not None:
-					logger.logSystem("{}: Response was found... continuing on. Response: {}".format(self.name,self.response))
+					self.logger.logSystem("{}: Response was found... continuing on. Response: {}".format(self.name,self.response))
 					break
 				if counter >= fragments:
-					logger.logSystem("{}: Response was not read: Timeout!".format(self.name))
+					self.logger.logSystem("{}: Response was not read: Timeout!".format(self.name))
 					break
 				time.sleep(pollingDelay)
 				counter+=1
@@ -243,7 +243,7 @@ class Queue():
 			self.response = None
 			return response
 		except:
-			logger.logError("{}: Was not able to wait for response to be read.".format(self.name))
+			self.logger.logError("{}: Was not able to wait for response to be read.".format(self.name))
 
 	def clearResponse(self):
 		self.resposne = None
