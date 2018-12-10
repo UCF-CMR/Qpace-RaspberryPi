@@ -1,0 +1,10 @@
+START TEST_NO_CASE_SENSITIVE
+# The following should work fine
+Init
+delay 500
+led off
+delay 250
+led on
+solenoid x tap
+cleanup
+end

@@ -1,0 +1,4 @@
+START TEST_ERROR_NO_END
+INIT
+DELAY 500
+# This is where the end WOULD go, but we've forgotten it. Oh no.

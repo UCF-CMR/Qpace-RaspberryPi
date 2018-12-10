@@ -1,0 +1,30 @@
+START TEST_GOPRO_REC_AND_TRANS
+RESET
+# Turn the LED on and record for 5 seconds.
+LED ON
+DELAY 100
+GOPRO ON
+GOPRO START
+DELAY 5
+GOPRO STOP
+# Turn off all the pins and signal to a watcher that the transfer will happen soon.
+CLEANUP
+DELAY 500
+LED ON
+DELAY 50
+LED OFF
+DELAY 50
+LED ON
+DELAY 50
+LED OFF
+DELAY 50
+LED ON
+# Turn on the gopro and transfer the data.
+GOPRO ON
+DELAY 1000
+GOPRO TRANSFER
+DELAY 500
+# Turn off the led when done.
+LED OFF
+CLEANUP
+END

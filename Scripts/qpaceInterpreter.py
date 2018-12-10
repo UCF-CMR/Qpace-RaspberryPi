@@ -393,11 +393,12 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent, log
 			byte = int.from_bytes(packetData,byteorder='little')
 			print('Read from WTC: ', byte)
 			if len(packetData) == 4:
-				logger.logSystem('PseudoSM: Configuring the timestamp.',str(byte))
+				logger.logSystem('PseudoSM: Configuring the timestamp.')
 				os.system("sudo date -s '@" + str(byte) +"'")
 				chip.block_write(SC16IS750.REG_THR,packetData)
 				configureTimestamp = False
 				logger.setBoot()
+				logger.logSystem('Timestamp: {}'.format(str(byte)))
 			elif byte in qpStates.values():
 				# The byte was found in the list of QPCONTROLs
 				if byte == qpStates['NOOP']:

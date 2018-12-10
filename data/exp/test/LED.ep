@@ -1,0 +1,15 @@
+START TEST_LED
+# Reset the pins
+RESET
+# Toggle the LED on and off 
+LED ON
+DELAY 300
+LED OFF
+DELAY 400
+LED ON
+DELAY 300
+LED OFF
+# Reset the pins
+CLEANUP
+# End the experiment
+END
