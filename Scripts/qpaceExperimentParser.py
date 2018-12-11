@@ -98,7 +98,7 @@ def run(filename, isRunningEvent, runEvent,logger,nextQueue):
 
 			# At this point the solenoids and steppers should be enabled. NOW we can do some science!
 			logger.logSystem('ExpParser: Experiment is ready to begin. Time to do science!')
-
+			author = 'Unknown'
 			# Begin interpreting the experiment.
 			for line in inputLines:
 				# Remove comments from the instructions.
@@ -115,9 +115,9 @@ def run(filename, isRunningEvent, runEvent,logger,nextQueue):
 						if(instruction[0] == 'START'):
 							# Start an experiment if one hasn't started yet.
 							if isRunningEvent.is_set():
-								raise StopIteration('ExpParser: Attempted a start, but an experiment is already running. "{}" by {}'.format(filename,author))
-							experimentStartTime= datetime.datetime.now()
+								raise StopIteration('ExpParser: Attempted a start, but an experiment is already running by {}'.format(author))
 							author = ' '.join(instruction[1:]) or 'Unknown'
+							experimentStartTime= datetime.datetime.now()
 							experimentLog = open('{}exp_{}_{}.qpe'.format(logLocation,experimentStartTime.strftime('%Y%m%d-%H%M%S'),author),'w')
 							isRunningEvent.set()
 							logMessage = 'ExpParser: Starting Experiment "{}" written by {}.'.format(filename,author)
@@ -281,7 +281,7 @@ def run(filename, isRunningEvent, runEvent,logger,nextQueue):
 												exp.solenoid_ramp(group,int(instruction[3]),int(instruction[4]),int(instruction[5]),override=override)
 
 					except StopIteration as e:
-						logger.logSystem(str(e))
+						raise e
 
 	# Output to the logger here.
 	except FileNotFoundError:
@@ -307,7 +307,8 @@ def run(filename, isRunningEvent, runEvent,logger,nextQueue):
 
 			logMessage = 'ExpParser: Ending an Experiment. Execution time: {} seconds.'.format((datetime.datetime.now() - experimentStartTime).seconds)
 			logger.logSystem(logMessage)
-			experimentLog.write('{}\n'.format(logMessage))
+			if experimentLog:
+				experimentLog.write('{}\n'.format(logMessage))
 		if experimentLog:
 			experimentLog.close()
 

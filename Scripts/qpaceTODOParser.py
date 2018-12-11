@@ -22,7 +22,8 @@ from qpaceStates import QPCONTROL
 TODO_PATH = "../data/text/"
 TODO_FILE = "todo.txt"
 TODO_FILE_PATH = TODO_PATH + TODO_FILE
-TODO_TEMP = "todo_temp.tmp"
+TODO_TEMP = "todo.tmp"
+GRAVEYARD_PATH = '../graveyard/'
 EXPERIMENT_DELTA = 600 # SECONDS
 
 WTC_IRQ = 7
@@ -111,7 +112,7 @@ def sortTodoList(todo_list,logger):
 			else:
 				i+=1
 		todo_list.sort() # Python will sort a 2D list based off the first argument of each nested list in ascending order.
-		updateTodoFile(todo_list,logger)
+		#updateTodoFile(todo_list,logger)
 	return todo_list
 
 def _processTask(chip,task,experimentEvent,runEvent,nextQueue,logger):
@@ -141,7 +142,7 @@ def _processTask(chip,task,experimentEvent,runEvent,nextQueue,logger):
 		---------
 		Rev. 1.1 - 4/10/2018 Minh Pham (Added code execution to tasks.)
 	"""
-	logger.logSystem("TodoParser: Beginning execution of a task.", str(task[1:]))
+	logger.logSystem("TodoParser: Beginning execution of a task. {}".format(str(task[1:])))
 	currentTask = task[1].upper()
 	try:
 		if currentTask == "EXPERIMENT":
@@ -152,7 +153,6 @@ def _processTask(chip,task,experimentEvent,runEvent,nextQueue,logger):
 			# Run an experiment file from the experiment directory
 			logger.logSystem("TodoParser: Running an experiment.", task[2]) # Placeholder
 			parserThread = threading.Thread(name='experimentParser',target=exp.run, args=(task[2],experimentEvent,runEvent,logger,nextQueue))
-			experimentEvent.set()
 			parserThread.start()
 
 		elif currentTask == "BACKUP":  #Back up a file
@@ -178,7 +178,7 @@ def _processTask(chip,task,experimentEvent,runEvent,nextQueue,logger):
 				logger.logError('TodoParser: The task encountered an error.',e)
 				return False # It failed.
 		elif currentTask == 'LOG':
-			logger.logSystem('TodoParserLog: {}'.format(' '.join(task[1:])))
+			logger.logSystem('TodoParserLog: {}'.format(' '.join(task[2:])))
 		else:
 			logger.logSystem("TodoParser: Unknown task!", str(task[1:]))
 	except ValueError as err:
@@ -229,7 +229,7 @@ def executeTodoList(chip,nextQueue,todo_list, shutdownEvent, experimentEvent, ru
 			elif wait_time < -timeDelta: # If the wait_time is negative, but also less than then the time delta then we need to trash that task.
 				raise TimeoutError()
 		except TimeoutError:
-			logger.logSystem('TodoParser: The timeDelta for {} is passed so it will not be run <{}>.'.format(todo_list[0]))
+			logger.logSystem('TodoParser: The timeDelta for {} is passed so it will not be run <{}>.'.format(todo_list[0][1],todo_list[0]))
 			todo_list.pop(0) # If we can't run it, then remove it from the list.
 		except Exception as e:
 			logger.logSystem('TodoParser: There is a problem executing {}. It will be removed from the list. Exception: {}'.format(str(todo_list[0][1]),str(e)))
@@ -278,8 +278,8 @@ def updateTodoFile(todo_list,logger):
 				line[0] = line[0].strftime("%Y%m%d-%H%M%S")
 				tempTodo.write(" ".join(line)+"\n")
 		# Try to change the name of the temp file. Delete the old file.
-		# TODO do we want to archive the old todo file or just let it die?
-		os.remove(TODO_FILE_PATH)
+		os.rename(TODO_FILE_PATH,GRAVEYARD_PATH+TODO_FILE+datetime.datetime.now().strftime('%Y%m%d-%H%M%S'))
+		time.sleep(1)
 		os.rename(TODO_PATH+TODO_TEMP, TODO_FILE_PATH)
 	except (OSError, PermissionError) as e:
 		logger.logError("TodoParser: Could not record new todo list.", e)
@@ -328,7 +328,6 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent,pars
 			else:
 				logger.logSystem("TodoParser: Finished execution.")
 				parserEmpty.set()
-				#os.remove(TODO_FILE_PATH) # Do we want to delete the file or just leave it alone
 		else:
 			logger.logSystem("TodoParser: Todo list is not populated.")
 			parserEmpty.set()
