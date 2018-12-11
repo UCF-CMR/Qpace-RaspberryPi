@@ -479,7 +479,7 @@ class Action():
 
 		self.reset(PINGROUP.solenoid)
 
-	def wtc_request(self,request,nextQueue,pendingTimeout=MAX_PENDING_DELTA,timeout=5):
+	def wtc_request(self,request,pendingTimeout=MAX_PENDING_DELTA,timeout=5):
 		"""
 		Adds a request to the NextQueue and waits for a response. There is a timeout though!
 
@@ -496,11 +496,11 @@ class Action():
 
 		pendingMAXCount = pendingTimeout // timeout
 		pendingCount = 0
-		response = None
+		response = qp['PENDING']
 		while response is qp['PENDING']:# or response is None: # None implies timeout
 			if pendingCount > pendingMAXCount:
 				return False
-			nextQueue.enqueue(request)
+			self.queue.enqueue(request)
 			response = self.queue.waitForResponse(timeout)
 			pendingCount += 1
 

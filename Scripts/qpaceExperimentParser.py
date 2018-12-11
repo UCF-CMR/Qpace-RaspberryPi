@@ -85,14 +85,14 @@ def run(filename, isRunningEvent, runEvent,logger,nextQueue):
 
 			# If we want the solenoids, let's request them. Failure to enable will abort the experiment.
 			if solenoidRequest:
-				logger.logSystem('ExpParser: WTC...may I have the solenoids please?')
-				if not exp.wtc_request('SOLON',nextQueue):
+				logger.logSystem('ExpParser: WTC... may I have the solenoids please?')
+				if not exp.wtc_request('SOLON'):
 					raise StopIteration('WTC denied access to the solenoids.')
 
 			# If we want the steppers, let's request them. Failure to enable will abort the experiment.
 			if stepperRequest:
-				logger.logSystem('ExpParser: WTC...may I have the steppers please?')
-				if not exp.wtc_request('STEPON',nextQueue):
+				logger.logSystem('ExpParser: WTC... may I have the steppers please?')
+				if not exp.wtc_request('STEPON'):
 					raise StopIteration('WTC denied access to the steppers.')
 
 
@@ -290,7 +290,7 @@ def run(filename, isRunningEvent, runEvent,logger,nextQueue):
 		logger.logError("ExpParser: Could not open experiment file at {}. {}".format(str(expLocation + filename),str(e)))
 
 	except StopIteration as e:
-		logger.logSystem('ExpParser: Aborted the experiment. It appears as if we got denied by the WTC. {}'.format(str(e)))
+		logger.logSystem('ExpParser: Aborted the experiment. {}'.format(str(e)))
 	except Exception as e:
 		logger.logError('ExpParser: Aborted the experiment. Error: {}'.format(e.__class__),e)
 	finally:
@@ -299,10 +299,10 @@ def run(filename, isRunningEvent, runEvent,logger,nextQueue):
 			isRunningEvent.clear()
 
 			if solenoidRequest:
-				if not exp.wtc_request('SOLOFF',nextQueue):
+				if not exp.wtc_request('SOLOFF'):
 					logger.logSystem('ExpParser: The WTC denied turning off the steppers.')
 			if stepperRequest:
-				if not exp.wtc_request('STEPOFF',nextQueue):
+				if not exp.wtc_request('STEPOFF'):
 					logger.logSystem('ExpParser: The WTC denied turning off the steppers.')
 
 			logMessage = 'ExpParser: Ending an Experiment. Execution time: {} seconds.'.format((datetime.datetime.now() - experimentStartTime).seconds)
