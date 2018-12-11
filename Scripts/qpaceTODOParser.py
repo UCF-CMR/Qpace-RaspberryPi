@@ -142,41 +142,48 @@ def _processTask(chip,task,experimentEvent,runEvent,nextQueue,logger):
 	"""
 	logger.logSystem("TodoParser: Beginning execution of a task.", str(task[1:]))
 	currentTask = task[1].upper()
-	if currentTask == "EXPERIMENT":
-		# If experimentEvent exists and is not set, then let's run an experiment.
-		if experimentEvent is None or not experimentEvent.is_set():
-			return False # If experimentEvent does not exist or is set, return False to know there is a failure.
+	try:
+		if currentTask == "EXPERIMENT":
+			# If experimentEvent exists and is not set, then let's run an experiment.
+			if experimentEvent is None or experimentEvent.is_set():
+				raise StopIteration('experimentEvent is None or experimentEvent is set.') # If experimentEvent does not exist or is set, return False to know there is a failure.
 
-		# Run an experiment file from the experiment directory
-		logger.logSystem("TodoParser: Running an experiment.", task[2]) # Placeholder
-		parserThread = threading.Thread(name='experimentParser',target=exp.run, args=(task[2],experimentEvent,runEvent,logger,nextQueue))
-		experimentEvent.set()
-		parserThread.start()
+			# Run an experiment file from the experiment directory
+			logger.logSystem("TodoParser: Running an experiment.", task[2]) # Placeholder
+			parserThread = threading.Thread(name='experimentParser',target=exp.run, args=(task[2],experimentEvent,runEvent,logger,nextQueue))
+			experimentEvent.set()
+			parserThread.start()
 
-	elif currentTask == "BACKUP":  #Back up a file
+		elif currentTask == "BACKUP":  #Back up a file
 
-		logger.logSystem("Attempting to create a backup.",task[2],task[3]) # Placeholder
-		copy(task[2],task[3]) #Copy the file from task[2] to task[3]
-	elif currentTask == "REPORT":  #Get the status
-		logger.logSystem("TodoParser: Saving status to file.")
-		cmd.Command.saveStatus(None,None,None)
-	elif currentTask == 'COMPRESS': # Compress a file
-		try:
-			import tarfile
-			# The name of the new file will be whatever was input, but since the path could be long
-			# create the {}.tar.gz at the filename. Since it could be a directory with a /
-			# look for the 2nd to last / and then slice it. Then remove and trailing /'s
-			newFile = task[2][task[2].rfind('/',o,len(task[2])-1):].replace('/','')
-			tarDir = '../data/tar/{}.tar.gz'.format(newFile)
-			with tarfile.open(tarDir, "w:gz") as tar:
-				tar.add(task[2], arcname=os.path.basename(task[2]))
-		except ImportError as e:
-			logger.logSystem('TodoParser: The task could not be completed due to an import error.')
-		except Exception as e:
-			logger.logError('TodoParser: The task encountered an error.',e)
-			return False # It failed.
-	else:
-		logger.logSystem("TodoParser: Unknown task!", str(task[1:]))
+			logger.logSystem("Attempting to create a backup.",task[2],task[3]) # Placeholder
+			copy(task[2],task[3]) #Copy the file from task[2] to task[3]
+		elif currentTask == "REPORT":  #Get the status
+			logger.logSystem("TodoParser: Saving status to file.")
+			cmd.Command.saveStatus(None,None,None)
+		elif currentTask == 'COMPRESS': # Compress a file
+			try:
+				import tarfile
+				# The name of the new file will be whatever was input, but since the path could be long
+				# create the {}.tar.gz at the filename. Since it could be a directory with a /
+				# look for the 2nd to last / and then slice it. Then remove and trailing /'s
+				newFile = task[2][task[2].rfind('/',o,len(task[2])-1):].replace('/','')
+				tarDir = '../data/tar/{}.tar.gz'.format(newFile)
+				with tarfile.open(tarDir, "w:gz") as tar:
+					tar.add(task[2], arcname=os.path.basename(task[2]))
+			except ImportError as e:
+				logger.logSystem('TodoParser: The task could not be completed due to an import error.')
+			except Exception as e:
+				logger.logError('TodoParser: The task encountered an error.',e)
+				return False # It failed.
+		elif currentTask == 'LOG':
+			logger.logSystem('TodoParserLog: {}'.format(' '.join(task[1:])))
+		else:
+			logger.logSystem("TodoParser: Unknown task!", str(task[1:]))
+	except ValueError as err:
+		logger.logSystem('TodoParser(ValueError): The task could not be completed. <{}>'.format(task))
+	except StopIteration as err:
+		logger.logSystem('TodoParser: Task aborted. {}'.format(str(err)))
 
 	return True # If we reach here, assume everything was a success.
 
