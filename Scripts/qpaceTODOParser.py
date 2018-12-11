@@ -51,7 +51,8 @@ def getTodoList(logger):
 		with open(TODO_FILE_PATH, 'r') as todofile:
 			task_list = todofile.readlines()
 			for task in task_list:
-				# Convert every string to uppercase and then add it to the todo_list
+				task = task.replace('\n','')
+				# Add every string to the todo_list
 				todo_list.append(task.split(" "))
 	except FileNotFoundError:
 		logger.logSystem('TodoParser: There is not todo file found at {}'.format(TODO_FILE_PATH))
@@ -105,7 +106,7 @@ def sortTodoList(todo_list,logger):
 				#Create a date time from the string
 				todo_list[i][0] = datetime.strptime(todo_list[i][0],"%Y%m%d-%H%M%S")
 			except (ValueError,TypeError) as e:
-				logger.logSystem("TodoParser: An item has an invalid time format and will be removed from the queue.", "TodoParser: Removed <{}>".format(todo_list[i]))
+				logger.logSystem("TodoParser: Removed an item due to invalid time format. <{}>".format(todo_list[i]))
 				del todo_list[i]
 			else:
 				i+=1
@@ -168,7 +169,7 @@ def _processTask(chip,task,experimentEvent,runEvent,nextQueue,logger):
 				# create the {}.tar.gz at the filename. Since it could be a directory with a /
 				# look for the 2nd to last / and then slice it. Then remove and trailing /'s
 				newFile = task[2][task[2].rfind('/',o,len(task[2])-1):].replace('/','')
-				tarDir = '../data/tar/{}.tar.gz'.format(newFile)
+				tarDir = '../data/backup/{}.tar.gz'.format(newFile)
 				with tarfile.open(tarDir, "w:gz") as tar:
 					tar.add(task[2], arcname=os.path.basename(task[2]))
 			except ImportError as e:
@@ -218,6 +219,7 @@ def executeTodoList(chip,nextQueue,todo_list, shutdownEvent, experimentEvent, ru
 	if experimentEvent is None:
 		experimentEvent = threading.Event()
 	while todo_list and not shutdownEvent.is_set():
+		todo_list = list(todo_list)
 		# How many seconds until our next task?
 		try:
 			runEvent.wait() # If we should be holding, do the hold.
@@ -225,23 +227,28 @@ def executeTodoList(chip,nextQueue,todo_list, shutdownEvent, experimentEvent, ru
 			if wait_time < 0 and wait_time > -timeDelta: # If the wait_time ends up being negative, but we're within' the delta, just start the task.
 				wait_time = 1
 			elif wait_time < -timeDelta: # If the wait_time is negative, but also less than then the time delta then we need to trash that task.
-				raise TimeoutError("The timeDelta was passed so the item could not be run.")
+				raise TimeoutError()
+		except TimeoutError:
+			logger.logSystem('TodoParser: The timeDelta for {} is passed so it will not be run <{}>.'.format(todo_list[0]))
+			todo_list.pop(0) # If we can't run it, then remove it from the list.
 		except Exception as e:
 			logger.logSystem('TodoParser: There is a problem executing {}. It will be removed from the list. Exception: {}'.format(str(todo_list[0][1]),str(e)))
-			todo_list = todo_list.pop(0) # If there is a problem determining when to execute, remove it from the list
+			todo_list.pop(0) # If there is a problem determining when to execute, remove it from the list
 		else:
 			# Wait until it's time to run our next task. If the time has already passed wait a second and then do it.
-			logger.logSystem("TodoParser: Waiting {} seconds for {}.".format(str(wait_time),str(todo_list[0][1])))
+			logger.logSystem("TodoParser: Waiting {} seconds for task: {}.".format(str(wait_time),str(todo_list[0][1])))
 			# Wait for wait_time seconds but also check the shutdownEvent every second.
-			for i in range(wait_time):
+			sleep_time = 0.35 #seconds to sleep.
+			for i in range(ceil(wait_time//sleep_time)): # Get the proper number if iterations to sleep.
 				if shutdownEvent.is_set():
 					return todo_list
-				time.sleep(.35)
+				time.sleep(sleep_time)
+			runEvent.wait() # Pause if we need to wait for something.
 			# run the next item on the todolist.
 			taskCompleted = _processTask(chip,todo_list[0],experimentEvent,runEvent,nextQueue,logger)
 			if taskCompleted:
-				logger.logSystem("TodoParser: Task completed.",str(todo_list[0]))
-				todo_list = todo_list.pop(0) # pop the first item off the list.
+				logger.logSystem("TodoParser: Task completed.")
+				todo_list.pop(0) # pop the first item off the list.
 
 	return todo_list
 
@@ -264,8 +271,9 @@ def updateTodoFile(todo_list,logger):
 		None!
 	"""
 	try:
+		todo_copy = list(todo_list)
 		with open(TODO_PATH + TODO_TEMP,"w") as tempTodo:
-			for line in todo_list:
+			for line in todo_copy:
 				# Convert the datetime object back to a string for writing
 				line[0] = line[0].strftime("%Y%m%d-%H%M%S")
 				tempTodo.write(" ".join(line)+"\n")
