@@ -497,7 +497,7 @@ class Action():
 		pendingMAXCount = pendingTimeout // timeout
 		pendingCount = 0
 		response = None
-		while response is qp['PENDING'] or response is None: # None implies timeout
+		while response is qp['PENDING']:# or response is None: # None implies timeout
 			if pendingCount > pendingMAXCount:
 				return False
 			nextQueue.enqueue(request)

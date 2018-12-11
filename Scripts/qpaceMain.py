@@ -249,7 +249,7 @@ class Queue():
 		self.resposne = None
 
 def graveyardHandler(runEvent,shutdownEvent,logger):
-	GRAVEYARD_SLEEP = 7#1800 # Seconds    Every 30 minutes
+	GRAVEYARD_SLEEP = 1800 # Seconds    Every 30 minutes
 	GRAVEYARD_DAYS = 0#30 # Days
 	GRAVEYARD_MINUTES = .2 # Minutes
 	GRAVEYARD_PATH = '../graveyard/' # Make sure to include the ending slash.

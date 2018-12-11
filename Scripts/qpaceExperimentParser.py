@@ -75,9 +75,9 @@ def run(filename, isRunningEvent, runEvent,logger,nextQueue):
 			# Look for SOLENOID or STEPPER. If we see that, we'll need to ask for them to turn on.
 			for line in inputLines:
 				instruction = line.upper().split()[0]
-				if instruction is 'SOLENOID':
+				if instruction == 'SOLENOID':
 					solenoidRequest = True
-				elif instruction is 'STEPPER':
+				elif instruction == 'STEPPER':
 					stepperRequest = True
 
 				if solenoidRequest and stepperRequest:
@@ -284,6 +284,8 @@ def run(filename, isRunningEvent, runEvent,logger,nextQueue):
 						logger.logSystem(str(e))
 
 	# Output to the logger here.
+	except FileNotFoundError:
+		logger.logSystem("ExpParser: The experiment '{}' does not exist.".format(filename))
 	except IOError as e:
 		logger.logError("ExpParser: Could not open experiment file at {}. {}".format(str(expLocation + filename),str(e)))
 
