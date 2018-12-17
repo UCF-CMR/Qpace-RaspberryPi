@@ -6,7 +6,6 @@
 #
 # Handler for encoding and decoding packets for file transfer.
 
-import qpaceLogger as qpLog
 from qpacePiCommands import *
 import qpaceInterpreter as interp
 import tstSC16IS750 as SC16IS750
@@ -15,6 +14,7 @@ from time import sleep
 from datetime import datetime,timedelta
 from math import ceil
 import os
+
 
 
 
@@ -142,6 +142,14 @@ class DataPacket():
 	def send(self,chip):
 		chip.block_write(SC16IS750.REG_THR, self.build())
 
+class DummyPacket(DataPacket):
+	def __init__(self):
+		self.data=b"\x00"*118
+		self.opcode = b'DUMMY'
+		self.rid = 0
+	def build(self):
+		return self.rid + self.opcode + self.data
+
 class XTEAPacket():
 	pass
 
@@ -170,7 +178,7 @@ class ChunkPacket():
 				ChunkPacket.complete = True
 
 		else:
-			self.logger.logSytem([["ChunkPacket: Attempted to push when complete..."]])
+			self.logger.logSytem("ChunkPacket: Attempted to push when complete...")
 			ChunkPacket.complete = True
 
 
@@ -262,7 +270,12 @@ class Transmitter():
 					except IndexError:
 						# IndexError when we don't have enough packets for the current set of acknoledgements
 						# This is fine though, raise a StopIteration up one level to exit
-						raise StopIteration("All done!")
+
+						if i == self.packetsPerAck:
+							raise StopIteration("All done!")
+						else:
+							packet = DummyPacket()
+							packet.send(self.chip)
 				sleep(self.delayPerTransmit/1000)
 				print('HANDSHAKE')
 				#TODO work out handshake with packets
@@ -390,6 +403,20 @@ class Scaffold():
 			offset = pid * Scaffold.determineDataSize()
 			scaffoldData = scaffoldData[:offset] + newData + scaffoldData[offset:]
 			scaffold.write(scaffoldData)
+
+	@staticmethod
+	def fileChecksum(filename):
+		try:
+			with open(filename, 'rb') as data:
+				fileBytes = data.read()
+				checksum = 0x811C9DC5 # 32-Bit FNV Offset Basis
+				for byte in fileBytes:
+					checksum ^= byte
+					checksum *= 0x1000193 # 32-Bit FNV Prime
+				checksum &= 0xFFFFFFFF
+				return checksum.to_bytes(4,byteorder='big')
+		except Exception as error:
+			self.logger.logError("An exception was thrown in file checksum.", err)
 
 	@staticmethod
 	def finish(information):
