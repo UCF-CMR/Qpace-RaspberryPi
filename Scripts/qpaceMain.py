@@ -10,15 +10,27 @@ import os
 import threading
 import time
 import datetime
+import pathlib
 import json # Used for the graveyard
+try:
+	import qpaceLogger
+except:
+	class Logger():
+		def __init__(self):
+			pass
+		def logSystem(self,*stuff):
+			pass
+	qpaceLogger = Logger()
 
-import qpaceLogger
-import qpaceExperiment as exp
-import qpaceInterpreter as qpi
-import qpaceTODOParser as todo
-import tstSC16IS750 as SC16IS750
-#import SC16IS750
-import qpaceStates as states
+try:
+	import qpaceExperiment as exp
+	import qpaceInterpreter as qpi
+	import qpaceTODOParser as todo
+	import tstSC16IS750 as SC16IS750
+	#import SC16IS750
+	import qpaceStates as states
+except:
+	pass
 
 try:
 	import pigpio
@@ -341,6 +353,42 @@ def graveyardHandler(runEvent,shutdownEvent,logger):
 	except StopIteration:
 		logger.logSystem('GraveKeeper: Shutting down...')
 
+def healthCheck(logger):
+	#logger.logSystem('HealthCheck: Beginning health check to ensure all directories and files exist.')
+
+	scriptList = ('qpaceExperiment.py','qpaceExperimentParser.py','qpaceFileHandler.py','qpaceInterpreter.py','qpaceLogger.py','qpaceMain.py',
+					'qpacePiCommands.py','qpaceStates.py', 'qpaceTODOParser.py', 'SC16IS750.py')
+	importantPaths = ('../graveyard/grave.ledger')
+	importantDir = ('../data','../data/exp','../data/misc','../data/pic','../data/text','../data/video',
+					'../graveyard', '../logs', '../Scripts', '../temp')
+	paths = []
+	directories = []
+	files = []
+	for path,dirlist,filelist in os.walk('..'):
+		paths += [path]
+		directories += dirlist
+		files += filelist
+
+	criticalNotFound = []
+	for script in scriptList:
+		if script not in files:
+			criticalNotFound.append(script)
+
+	for dir in importantDir:
+		if dir not in paths:
+			logger.logSystem('HealthCheck: Can not find {}. Creating it...'.format(dir))
+			try:
+				os.makedirs(dir,exist_ok=True)
+			except:
+				logger.logSystem('HealthCheck: Failed to create {}'.format(dir))
+				return False
+
+	if criticalNotFound:
+		logger.logSystem('HealthCheck: Fatal. Can not find {}.'.format(criticalNotFound))
+		return False
+	return True
+
+
 def run(logger):
 	"""
 	Main loop for QPACE. All the magic happens here.
@@ -491,32 +539,38 @@ def run(logger):
 if __name__ == '__main__':
 	time.sleep(1)
 	logger = qpaceLogger.Logger()
-	logger.logSystem("Main: Initializing GPIO pins to default states.")
-	exp.Action(logger).reset()
-	time.sleep(.5)
 
-	# Attempt to run specialTasks.
-	try:
-		import specialTasks
-		from time import strftime,gmtime
-		# If there is a method there that starts with 'task_' then that method is a special task.
-		methods_to_call = [ task for task in dir(specialTasks) if task.startswith('task_') and not task.startswith('__') ]
-		if not methods_to_call:
-			logger.logSystem('SpecialTasks: SpecialTasks existed, but there are no tasks to run.')
-		else:
-			for method in methods_to_call:
-				try:
-					logger.logSystem('Attempting to call <specialTasks.{}>'.format(method))
-					getattr(specialTasks,method)() #run the method if it exists
-				except:
-					logger.logSystem('Failed to call <specialTasks.{}>'.format(method))
+	if healthCheck(logger):
+		logger.logSystem('HealthCheck: Complete. QPACE is GO.')
+		logger.logSystem("Main: Initializing GPIO pins to default states.")
+		exp.Action(logger).reset()
+		time.sleep(.5)
 
-		os.rename('specialTasks.py','../graveyard/specialTasks'+str(strftime("%Y%m%d-%H%M%S",gmtime()))+'.py')
-	except ImportError:
-		logger.logSystem("SpecialTasks: There were no specialTasks to run on boot.")
-	except OSError:
-		logger.logSystem("SpecialTasks: Was not able to run special tasks or could not rename. (OSError)")
-	except Exception as e:
-		logger.logSystem("SpecialTasks: Got an exception. {}".format(str(e)))
-	# Main script.
-	run(logger)
+
+		# Attempt to run specialTasks.
+		try:
+			import specialTasks
+			from time import strftime,gmtime
+			# If there is a method there that starts with 'task_' then that method is a special task.
+			methods_to_call = [ task for task in dir(specialTasks) if task.startswith('task_') and not task.startswith('__') ]
+			if not methods_to_call:
+				logger.logSystem('SpecialTasks: SpecialTasks existed, but there are no tasks to run.')
+			else:
+				for method in methods_to_call:
+					try:
+						logger.logSystem('Attempting to call <specialTasks.{}>'.format(method))
+						getattr(specialTasks,method)() #run the method if it exists
+					except:
+						logger.logSystem('Failed to call <specialTasks.{}>'.format(method))
+
+			os.rename('specialTasks.py','../graveyard/specialTasks'+str(strftime("%Y%m%d-%H%M%S",gmtime()))+'.py')
+		except ImportError:
+			logger.logSystem("SpecialTasks: There were no specialTasks to run on boot.")
+		except OSError:
+			logger.logSystem("SpecialTasks: Was not able to run special tasks or could not rename. (OSError)")
+		except Exception as e:
+			logger.logSystem("SpecialTasks: Got an exception. {}".format(str(e)))
+		# Main script.
+		run(logger)
+	else:
+		logger.logSystem('HealthCheck: Failed. Aborting QPACE.')
