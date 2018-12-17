@@ -466,15 +466,20 @@ def run(logger):
 
 	# If we've reached this point, just shutdown.
 	logger.logSystem("Main: Cleaning up and closing out...")
+
+	# Reset all the pins one last time
+	exp.Action(logger).reset()
+	# if we need to close out pigpio, do it
 	if gpio:
 		gpio.stop()
+	# Ensure that all threads see it's time to shutdown.
 	shutdownEvent.set()
-
+	# If the thread has ever been started before, make sure we join it and wait until it ends
 	if interpreter.ident is not None: interpreter.join()
 	if todoParser.ident is not None: todoParser.join()
 	if graveyardThread.ident is not None: graveyardThread.join()
 
-
+	# If we want the pi to shutdown automattically, then do so.
 	if ALLOW_SHUTDOWN:
 		if REBOOT_ON_EXIT:
 			logger.logSystem('Main: Rebooting RaspberryPi...')
@@ -494,13 +499,17 @@ if __name__ == '__main__':
 	try:
 		import specialTasks
 		from time import strftime,gmtime
-		methods_to_call = [ task for task in dir(specialTasks) if task.startswth('task_') and not task.startswith('__') ]
-		for method in methods_to_call:
-			try:
-				logger.logSystem('Attempting to call <specialTasks.{}>'.format(method))
-				getattr(specialTasks,method)() #run the method if it exists
-			except:
-				logger.logSystem('Failed to call <specialTasks.{}>'.format(method))
+		# If there is a method there that starts with 'task_' then that method is a special task.
+		methods_to_call = [ task for task in dir(specialTasks) if task.startswith('task_') and not task.startswith('__') ]
+		if not methods_to_call:
+			logger.logSystem('SpecialTasks: SpecialTasks existed, but there are no tasks to run.')
+		else:
+			for method in methods_to_call:
+				try:
+					logger.logSystem('Attempting to call <specialTasks.{}>'.format(method))
+					getattr(specialTasks,method)() #run the method if it exists
+				except:
+					logger.logSystem('Failed to call <specialTasks.{}>'.format(method))
 
 		os.rename('specialTasks.py','../graveyard/specialTasks'+str(strftime("%Y%m%d-%H%M%S",gmtime()))+'.py')
 	except ImportError:

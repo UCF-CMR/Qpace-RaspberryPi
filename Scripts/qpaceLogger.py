@@ -10,7 +10,7 @@
 
 import os
 import datetime
-from time import strftime,gmtime
+from time import strftime,gmtime,time
 
 class Errors():
     error_count = 0
@@ -115,7 +115,7 @@ class Logger():
 
         """
         try:
-            timestamp = strftime("%Y%m%d-%H%M%S",gmtime()) if self._boot else 'TIME IS NOT SET'
+            timestamp = strftime("%Y%m%d-%H%M%S",gmtime()) if self._boot else str(round(time()))
             if exception is not None:
                 description += ' {}'.format(str(exception.args))
             Errors.inc()
@@ -142,7 +142,7 @@ class Logger():
 
         """
         try:
-            timestamp = strftime("%Y%m%d-%H%M%S",gmtime()) if self._boot else 'TIME IS NOT SET'
+            timestamp = strftime("%Y%m%d-%H%M%S",gmtime()) if self._boot else str(round(time()))
             return self.logData('Sys',timestamp,*data)
         except Exception as e:
             Logger.LOG_ATTEMPTS += 1

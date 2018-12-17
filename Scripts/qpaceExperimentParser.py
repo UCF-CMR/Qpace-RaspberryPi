@@ -295,23 +295,26 @@ def run(filename, isRunningEvent, runEvent,logger,nextQueue):
 		logger.logError('ExpParser: Aborted the experiment. Error: {}'.format(e.__class__),e)
 	finally:
 		# Clean up and close out all nicely.
-		if isRunningEvent.is_set():
+		if isRecording: # Ensure the gopro isn't recording anymore
+			exp.press_capture()
+
+		if isRunningEvent.is_set(): # Ensure we are no longer running an experiment
 			isRunningEvent.clear()
 
 			if solenoidRequest:
-				if not exp.wtc_request('SOLOFF'):
+				if not exp.wtc_request('SOLOFF'): # Request to turn off the solenoids
 					logger.logSystem('ExpParser: The WTC denied turning off the steppers.')
 			if stepperRequest:
-				if not exp.wtc_request('STEPOFF'):
+				if not exp.wtc_request('STEPOFF'): # REquest to turn off the steppers
 					logger.logSystem('ExpParser: The WTC denied turning off the steppers.')
 
 			logMessage = 'ExpParser: Ending an Experiment. Execution time: {} seconds.'.format((datetime.datetime.now() - experimentStartTime).seconds)
 			logger.logSystem(logMessage)
 			if experimentLog:
 				experimentLog.write('{}\n'.format(logMessage))
-		if experimentLog:
+		if experimentLog: # Close the experiment Log
 			experimentLog.close()
 
-		exp.reset()
+		exp.reset() # Reset all the pins
 
 		logger.logSystem("ExpParser: Closing ExpParser and returning to normal function...")
