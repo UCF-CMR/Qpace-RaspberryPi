@@ -107,6 +107,29 @@ def sendBytesToCCDR(chip,sendData):
 		return True
 	return False
 
+def generateChecksum(self,data):
+	"""
+	Generates a FNV checksum on the packet data
+
+	Parameters
+	----------
+	data - bytes - use this to do the checksum on.
+
+	Returns
+	-------
+	the 4 byte checksum
+
+	Raises
+	------
+	Any exception gets popped up the stack.
+	"""
+	checksum = 0x811C9DC5 # 32-Bit FNV Offset Basis
+	for byte in data:
+		checksum ^= byte
+		checksum *= 0x1000193 # 32-Bit FNV Prime
+	checksum &= 0xFFFFFFFF
+	return checksum.to_bytes(4,byteorder='big')
+
 class CMDPacket():
 	"""
 	Reason for Implementation
@@ -178,30 +201,6 @@ class CMDPacket():
 		"""
 		pass
 
-	@classmethod
-	def generateChecksum(self,data):
-		"""
-		Generates a FNV checksum on the packet data
-
-		Parameters
-		----------
-		data - bytes - use this to do the checksum on.
-
-		Returns
-		-------
-		the 4 byte checksum
-
-		Raises
-		------
-		Any exception gets popped up the stack.
-		"""
-		checksum = 0x811C9DC5 # 32-Bit FNV Offset Basis
-		for byte in data:
-			checksum ^= byte
-			checksum *= 0x1000193 # 32-Bit FNV Prime
-		checksum &= 0xFFFFFFFF
-		return checksum.to_bytes(4,byteorder='big')
-
 	def build(self):
 		"""
 		Creates the packet from all the indiviual pieces of data.
@@ -220,7 +219,7 @@ class CMDPacket():
 		"""
 		if self.packetData == None:
 			self.packetData=b' ' * 118
-		return bytes([self.routing]) + self.opcode.encode('ascii') + self.packetData + CMDPacket.generateChecksum(self.packetData)
+		return bytes([self.routing]) + self.opcode.encode('ascii') + self.packetData + generateChecksum(self.packetData)
 
 class PrivilegedPacket(CMDPacket):
 	"""
@@ -611,7 +610,7 @@ class Command():
 		Possibly depreciated. To be implemented if not.
 		"""
 		pass
-		
+
 	def manual(chip,cmd,args):
 		print('NOTHING HAS BEEN WRITTEN FOR THE "MANUAL" METHOD.')
 

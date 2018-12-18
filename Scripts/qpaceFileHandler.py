@@ -6,7 +6,7 @@
 #
 # Handler for encoding and decoding packets for file transfer.
 
-from qpacePiCommands import *
+from  qpacePiCommands import generateChecksum
 import qpaceInterpreter as interp
 import tstSC16IS750 as SC16IS750
 #import SC16IS750
@@ -15,10 +15,7 @@ from datetime import datetime,timedelta
 from math import ceil
 import os
 
-
-
-
-class DataPacket():
+class DataPacket(Packet):
 	"""
 	Packet structure for QPACE:
 	---------------------------------------------------------------------
@@ -124,7 +121,7 @@ class DataPacket():
 		data += DataPacket.padding_byte * padding
 		self.paddingSize = padding
 		packet = self.rid.to_bytes(1,byteorder='big') + self.opcode + self.pid.to_bytes(4,byteorder='big') + data
-		packet += CMDPacket.generateChecksum(packet)
+		packet += generateChecksum(packet)
 		print('PACKET TO SEND LEN:', len(packet))
 		# After constructing the packet's contents, pad the end of the packet until we reach the max size.
 		return packet
@@ -240,7 +237,11 @@ class Transmitter():
 		self.lastPacket = lastPacket if lastPacket > firstPacket else None
 		self.route = route
 		self.filesize = os.path.getsize(pathname)
-		self.checksum = b'CKSM' #TODO figure out the checksum stuff
+
+		def getFileChecksum(path):
+
+
+		self.checksum =  #TODO figure out the checksum stuff
 
 		# if useFEC:
 		# 	self.data_size = (DataPacket.max_size - DataPacket.header_size) // 3

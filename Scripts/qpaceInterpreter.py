@@ -17,7 +17,7 @@ except:
 	pass
 import time
 import datetime
-from  qpacePiCommands import *
+from  qpacePiCommands import generateChecksum
 import tstSC16IS750 as SC16IS750
 import SC16IS750
 import qpaceLogger as qpLog
@@ -315,7 +315,7 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent, log
 		elif fieldData['TYPE'] == 'NORM':
 			# return True,fieldData
 			packetString = bytes([fieldData['route']]) + fieldData['opcode'] + fieldData['information']
-			isValid = fieldData['route'] in (ROUTES.PI1ROUTE, ROUTES.PI2ROUTE,ROUTES.DEVELOPMENT) and fieldData['checksum'] == CMDPacket.generateChecksum(packetString)
+			isValid = fieldData['route'] in (ROUTES.PI1ROUTE, ROUTES.PI2ROUTE,ROUTES.DEVELOPMENT) and fieldData['checksum'] == generateChecksum(packetString)
 		return isValid, fieldData
 
 	def WTCRXBufferHandler(gpio,level,tick):
