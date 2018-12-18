@@ -17,7 +17,7 @@ except:
 	print("Unable to import RPi.GPIO")
 	pass
 
-GoProDirectory = '/home/pi/gopro/DCIM/100GOPRO/'
+GoProDirectory = '/home/pi/gopro/DCIM/101GOPRO/'
 MountPoint = '/home/pi/gopro'
 SavePoint = '/home/pi/data/vid/'
 MAX_PENDING_DELTA = 300 # in seconds
@@ -80,9 +80,9 @@ class Action():
 	def __init__(self,logger=None,queue=None):
 		if logger is None:
 			class DummyLogger():
-				def logSystem(*x): print('System: {}'.format(x))
-				def logError(*x): print('Error:  {}'.format(x))
-				def logData(*x): print('Data:   {}'.format(x))
+				def logSystem(self,*x): print('System: {}'.format(x))
+				def logError(self,*x): print('Error:  {}'.format(x))
+				def logData(self,*x): print('Data:   {}'.format(x))
 			logger = DummyLogger()
 		if queue is None:
 			class DummyQueue():
@@ -266,7 +266,7 @@ class Action():
 		"""
 		if not self.GoProIsOn:
 			self.gopro_mode()
-			time.sleep(1.75)
+			time.sleep(2.25)
 
 
 	def gopro_off(self):

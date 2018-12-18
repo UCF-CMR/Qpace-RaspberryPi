@@ -312,6 +312,8 @@ class SC16IS750:
         return (value == byte,value)
 
     def byte_write(self,reg,data):
+        if data is None:
+            data = 0
         if reg in register_file:
             try:
                 register_file[reg] += data
@@ -326,7 +328,8 @@ class SC16IS750:
             print("Writing to WTC: ", data)
 
     def block_write(self,reg,data):
-
+        if data is None:
+            data = 0
         if reg in register_file:
             try:
                 register_file[reg] += data

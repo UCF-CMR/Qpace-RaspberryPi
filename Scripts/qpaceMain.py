@@ -151,10 +151,10 @@ class Queue():
 
 	def dequeue(self):
 		"""
-		Remove an item from the queue.
+		Remove an item from the queue. If empty, return None
 		"""
 		if self.isEmpty():
-			return []
+			return None
 		else:
 			item =  self.internalQueue.pop(0)
 
@@ -200,7 +200,7 @@ class Queue():
 					self.logger.logSystem('{}: Wait timed out. Exiting wait.'.format(self.name))
 					# After the wait time, let's just continue going. Something held up.
 					return None
-			# pop the number of resposes we want off the back and then return them.
+			# pop the number of responses we want off the back and then return them.
 			self.logger.logSystem('{}: Wait completed.'.format(self.name))
 			return None
 		except RuntimeError as e:
@@ -258,7 +258,7 @@ class Queue():
 			self.logger.logError("{}: Was not able to wait for response to be read.".format(self.name))
 
 	def clearResponse(self):
-		self.resposne = None
+		self.response = None
 
 def graveyardHandler(runEvent,shutdownEvent,logger):
 	GRAVEYARD_SLEEP = 1800 # Seconds    Every 30 minutes
@@ -355,11 +355,13 @@ def graveyardHandler(runEvent,shutdownEvent,logger):
 
 def healthCheck(logger):
 	#logger.logSystem('HealthCheck: Beginning health check to ensure all directories and files exist.')
-
-	scriptList = ('qpaceExperiment.py','qpaceExperimentParser.py','qpaceFileHandler.py','qpaceInterpreter.py','qpaceLogger.py','qpaceMain.py',
+	# Important scripts. If one of them are missing, then abort.
+	criticalFiles = ('qpaceExperiment.py','qpaceExperimentParser.py','qpaceFileHandler.py','qpaceInterpreter.py','qpaceLogger.py','qpaceMain.py',
 					'qpacePiCommands.py','qpaceStates.py', 'qpaceTODOParser.py', 'SC16IS750.py')
+	# Paths/files that must exist for proper operation. Create them if necessary. Non-critical
 	importantPaths = ('../graveyard/grave.ledger')
-	importantDir = ('../data','../data/exp','../data/misc','../data/pic','../data/text','../data/video',
+	# Directories that must exist for proper operation. Create them if necessary. Critical to have, but can be created at runtime.
+	importantDir = ('../data','../data/exp','../data/misc','../data/pic','../data/text','../data/vid',
 					'../graveyard', '../logs', '../Scripts', '../temp')
 	paths = []
 	directories = []
@@ -370,9 +372,9 @@ def healthCheck(logger):
 		files += filelist
 
 	criticalNotFound = []
-	for script in scriptList:
-		if script not in files:
-			criticalNotFound.append(script)
+	for crit in criticalFiles:
+		if crit not in files:
+			criticalNotFound.append(crit)
 
 	for dir in importantDir:
 		if dir not in paths:

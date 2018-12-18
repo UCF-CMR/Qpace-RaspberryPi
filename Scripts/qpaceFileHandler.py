@@ -154,7 +154,7 @@ class XTEAPacket():
 	pass
 
 class ChunkPacket():
-	TIMEDELAYDELTA = 5 # in seconds
+	TIMEDELAYDELTA = 1.5 # in seconds
 	chunks = []
 	complete = False
 	lastInputTime = None
@@ -166,11 +166,8 @@ class ChunkPacket():
 	def push(self,data):
 		if not ChunkPacket.complete:
 			if ChunkPacket.lastInputTime is not None and (datetime.now() - ChunkPacket.lastInputTime) > timedelta(seconds = ChunkPacket.TIMEDELAYDELTA):
-				ChunkPacket.chunks[:] = [] # reset the chunks.
-				ChunkPacket.lastInputTime = None # reset the timer.
-			else:
-				# Set when this chunk was received for testing later.
-				ChunkPacket.lastInputTime = datetime.now()
+				ChunkPacket.chunks[:] = [] # reset the chunks..
+			ChunkPacket.lastInputTime = datetime.now()
 			ChunkPacket.chunks.append(data)
 			#Acknowledge WTC with chunk number
 			self.chip.byte_write(SC16IS750.REG_THR,0x60 + len(ChunkPacket.chunks)) # Defined by WTC state machine
@@ -189,7 +186,7 @@ class ChunkPacket():
 			for chunk in ChunkPacket.chunks:
 				#print('<',len(chunk),'>',chunk)
 				packet += chunk
-			if len(packet) != DataPacket.max_size: self.logger.logSystem("Packet is not {} bytes! It is {} bytes!".format(str(DataPacket.max_size),str(len(packet))) ,str(packet))
+			if len(packet) != DataPacket.max_size: self.logger.logSystem("Packet is not {} bytes! It is {} bytes!".format(str(DataPacket.max_size),str(len(packet))) ,str(packet)[50:])
 			ChunkPacket.chunks[:] = [] #reset chunks to empty
 			ChunkPacket.complete = False #reset copmlete to False
 			ChunkPacket.lastInputTime = None # reset the timer.

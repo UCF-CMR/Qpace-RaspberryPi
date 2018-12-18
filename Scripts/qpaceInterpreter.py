@@ -361,8 +361,7 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent, log
 		"""
 		if response in qps.QPCONTROL:
 			chip.byte_write(SC16IS750.REG_THR,qps.QPCONTROL[response])
-		else:
-
+		elif response is not None:
 			if isinstance(response,int):
 				response = bytes([response])
 			chip.write(response)
@@ -400,6 +399,7 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent, log
 				logger.setBoot()
 				logger.logSystem('Timestamp: {}'.format(str(byte)))
 			elif byte in qpStates.values():
+				logger.logSystem('PseudoSM: State receieved: {}'.format(hex(byte)))
 				# The byte was found in the list of QPCONTROLs
 				if byte == qpStates['NOOP']:
 					logger.logSystem('PseudoSM: NOOP.')
@@ -430,19 +430,26 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent, log
 						response = chip.byte_read(SC16IS750.REG_RHR)
 						wtc_respond('DONE') # Always respond with done for an "ACCEPTED or PENDING"
 						# THIS IS A BLOCKING CALL
-						NextQueue.blockWithResponse(response,timeout=5) # Blocking until the response is read or timeout.
+
+						nextQueue.blockWithResponse(response,timeout=5) # Blocking until the response is read or timeout.
 					if not nextQueue.isEmpty():
 						nextQueue.dequeue() # After "waiting" for the bytes, dequeue the items.
 
 				elif byte == qpStates['NEXTPACKET']:
-					wtc_respond(packetQueue.dequeue())
+					nextPacket = packetQueue.dequeue()
+					if nextPacket:
+						wtc_respond(nextPacket)
+					else:
+						wtc_respond(fh.DummyPacket().build())
 
 				elif byte == qpStates['BUFFERFULL']:
 					# If we get a BUFFERFULL, there's nothing really we need to do at this point.
 					# Just don't do anything.
 					wtc_respond('DONE')
+
 				else:
-					logger.logSystem('PseudoSM: State existed for {} but a method is not written for it.'.format(str(byte)))
+
+					logger.logSystem('PseudoSM: State existed for {} but a method is not written for it.'.format(hex(byte)))
 		else:
 			return packetData, configureTimestamp # Return the data if it's not actually a control character.
 
