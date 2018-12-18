@@ -28,17 +28,17 @@ class PIN():
 	-------------------------
 	Pin handler class. Each class variable is an alias for the pin assignment.
 	"""
-	GOPPWR = 19
-	GOPBUT = 13
-	GOPCAP = 15
-	GOPDEN = 40
-	LEDPWR = 23
-	STPEN  = 33
-	STPENA = 29
-	STPENB = 21
-	SOLX   = 37 # Side opposite to stepper.
-	SOLY   = 35
-	SOLZ   = 31
+	GOPPWR = 19 # Gopro power. No longer used.
+	GOPBUT = 13 # Gopro Mode button.
+	GOPCAP = 15 # Gopro Capture button.
+	GOPDEN = 40 # Gopro data enable. High implies USB plugged in
+	LEDPWR = 23 # LED Power
+	STPEN  = 33	# Stepper motor enable. No longer used
+	STPENA = 29 # Stepper coil A
+	STPENB = 21 # Stepper coil B
+	SOLX   = 37 # Solinoid for the X plane. Side opposite to stepper.
+	SOLY   = 35 # Solinoid for the Y plane.
+	SOLZ   = 31 # Solinoid for the Z plane.
 
 class PINGROUP():
 	"""
@@ -46,9 +46,9 @@ class PINGROUP():
 	-------------------------
 	Tuples that represent functional groups of the pins.
 	"""
-	gopro = (PIN.GOPPWR,PIN.GOPBUT,PIN.GOPCAP,PIN.GOPDEN)
+	gopro = (PIN.GOPBUT,PIN.GOPCAP,PIN.GOPDEN)#,PIN.GOPPWR)
 	solenoid = (PIN.SOLX,PIN.SOLY,PIN.SOLZ)
-	stepper = (PIN.STPEN,PIN.STPENA,PIN.STPENB)
+	stepper = (PIN.STPENA,PIN.STPENB)#,PIN.STPEN)
 	led = (PIN.LEDPWR,)
 
 class Stepper():
@@ -74,6 +74,8 @@ class Stepper():
 		Stepper.nextState += 1
 
 class Action():
+
+	GoProIsOn = False
 
 	def __init__(self,logger=None,queue=None):
 		if logger is None:
@@ -227,19 +229,19 @@ class Action():
 				GPIO.setup(PIN.SOLZ, GPIO.OUT, initial=0)				#Solenoid 3
 			elif pingroup == PINGROUP.stepper:
 				#Stepper pin setup
-				GPIO.setup(PIN.STPEN, GPIO.OUT, initial=1)				#Step Enable
+				#GPIO.setup(PIN.STPEN, GPIO.OUT, initial=1)				#Step Enable
 				GPIO.setup(PIN.STPENA, GPIO.OUT, initial=0)				#Step A Enable
 				GPIO.setup(PIN.STPENB, GPIO.OUT, initial=0)				#Step B Enable
 			elif pingroup == PINGROUP.gopro:
 				#GoPro pin setup
-				GPIO.setup(PIN.GOPPWR, GPIO.OUT, initial=0)				#Power
+				#GPIO.setup(PIN.GOPPWR, GPIO.OUT, initial=0)				#Power
 				GPIO.setup(PIN.GOPBUT, GPIO.OUT, initial=1)				#On Button
 				GPIO.setup(PIN.GOPCAP, GPIO.OUT, initial=1)				#Capture Button
 				GPIO.setup(PIN.GOPDEN, GPIO.OUT, initial=0)
 
-	def gopro_on(self):
+	def gopro_mode(self):
 		"""
-		Turn on the GoPro
+		Press the mode button
 
 		Parameters
 		----------
@@ -254,10 +256,27 @@ class Action():
 		Any exception gets popped up the stack.
 
 		"""
-		self.high(PIN.GOPPWR) #Active High
-		time.sleep(3)
-		self.flip(PIN.GOPBUT,delay=1)
-		time.sleep(5)
+		#self.high(PIN.GOPPWR) #Active High
+		#time.sleep(3)
+		self.flip(PIN.GOPBUT,delay=.75)
+
+	def gopro_on(self):
+		"""
+		Turn the Gopro on
+		"""
+		if not self.GoProIsOn:
+			self.gopro_mode()
+			time.sleep(1.75)
+
+
+	def gopro_off(self):
+		"""
+		Turn off the GoPro
+
+		"""
+		if self.GoProIsOn:
+			self.flip(PIN.GOPBUT,delay=2)
+			time.sleep(1.75)
 
 	def press_capture(self):
 		"""

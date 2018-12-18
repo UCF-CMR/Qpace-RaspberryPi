@@ -144,7 +144,7 @@ class DataPacket():
 
 class DummyPacket(DataPacket):
 	def __init__(self):
-		self.data=b"\x00"*118
+		self.data=DataPacket.padding_byte*118
 		self.opcode = b'DUMMY'
 		self.rid = 0
 	def build(self):
