@@ -282,8 +282,9 @@ class Transmitter():
 		lastPacketPaddingSize = packet.paddingSize
 		#When it's done it needs to send a DONE packet
 		allDone = TransmitCompletePacket(self.pathname,self.checksum,self.expected_packets,self.route,paddingUsed=lastPacketPaddingSize)
-		allDone.send(self.chip)
+		self.packetQueue.enqueue(allDone)
 		DataPacket.last_id = 0
+		
 
 	def getPacketData(self):
 		packetData = []

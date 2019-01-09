@@ -21,7 +21,7 @@ from  qpacePiCommands import generateChecksum
 import tstSC16IS750 as SC16IS750
 import SC16IS750
 import qpaceLogger as qpLog
-import qpaceStates as states
+import qpaceControl as states
 import qpaceFileHandler as fh
 
 qpStates = states.QPCONTROL
@@ -158,6 +158,7 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent, log
 	configureTimestamp = False
 
 	cmd.packetQueue = packetQueue # set the packet queue so we can append packets.
+	cmd.nextQueue = nextQueue
 
 	def splitPacket(packetData):
 		"""

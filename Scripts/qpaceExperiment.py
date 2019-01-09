@@ -493,7 +493,7 @@ class Action():
 		a lot of pendings, then back out and assume denied.
 		"""
 		try:
-			from qpaceStates import QPCONTROL as qp
+			from qpaceControl import QPCONTROL as qp
 		except ImportError:
 			return False
 

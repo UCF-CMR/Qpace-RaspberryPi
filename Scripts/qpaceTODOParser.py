@@ -17,7 +17,7 @@ import threading
 import qpaceLogger as qpLog
 import qpaceExperimentParser as exp
 import qpacePiCommands as cmd
-from qpaceStates import QPCONTROL
+from qpaceControl import QPCONTROL
 
 TODO_PATH = "../data/text/"
 TODO_FILE = "todo.txt"

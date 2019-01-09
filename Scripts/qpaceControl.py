@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# qpaceStates.py by Jonathan Kessluk
+# qpaceControl.py by Jonathan Kessluk
 # 9-2-2018, Rev. 2
 # Q-Pace project, Center for Microgravity Research
 # University of Central Florida

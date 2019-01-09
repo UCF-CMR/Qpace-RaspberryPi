@@ -16,7 +16,7 @@ import random
 import tarfile
 #from qpaceInterpreter import *
 import qpaceLogger as qpLog
-import qpaceStates as qps
+import qpaceControl as qps
 
 
 CMD_DEFAULT_TIMEOUT = 5 #seconds
@@ -415,9 +415,11 @@ class Command():
 	-------------------------
 	Handler class for all commands. These will be invoked from the Interpreter.
 	"""
-	def __init__(self,packetQueue=None):
+	def __init__(self,packetQueue=None,nextQueue=none):
 		self._packetQueue = packetQueue
+		self._nextQueue = nextQueue
 
+	# Getters and Setters for self.packetQueue
 	@property
 	def packetQueue(self):
 		return self._packetQueue
@@ -425,6 +427,15 @@ class Command():
 	@packetQueue.setter
 	def packetQueue(self,queue):
 		self._packetQueue = queue
+
+	# Getters and Setters for self.nextQueue
+	@property
+	def nextQueue(self):
+		return self._nextQueue
+
+	@nextQueue.setter
+	def nextQueue(self,queue):
+		self._nextQueue = queue
 
 	class UploadRequest():
 		"""
@@ -572,7 +583,7 @@ class Command():
 		pass
 	def dlFile(self,chip,cmd,args):
 		"""
-		Create a Transmitter instance and transmit a file packet by packet to the WTC for Ground.
+		Create a mitter instance and transmit a file packet by packet to the WTC for Ground.
 		"""
 		import qpaceFileHandler as qfh
 		qfh.DataPacket.last_id = 0
@@ -600,6 +611,8 @@ class Command():
 										packetQueue = self._packetQueue
 									)
 		transmitter.run()
+		self._nextQueue.enqueue('SENDPACKET') # taken from qpaceControl
+
 
 	def upReq(self,chip,cmd,args):
 		"""
@@ -632,7 +645,7 @@ class Command():
 		This can only be done if an experiment is NOT running.
 		"""
 		import qpaceExperiment as exp
-		import qpaceStates as qps
+		import qpaceControl as qps
 		import SC16IS750
 		print("running experiment")
 		exp.pinInit()

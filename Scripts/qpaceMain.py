@@ -28,7 +28,7 @@ try:
 	import qpaceTODOParser as todo
 	import tstSC16IS750 as SC16IS750
 	#import SC16IS750
-	import qpaceStates as states
+	import qpaceControl as states
 except:
 	pass
 
@@ -145,7 +145,6 @@ class Queue():
 		"""
 		if self.isEmpty():
 			return []
-
 		else:
 			return self.internalQueue[0]
 
@@ -357,7 +356,7 @@ def healthCheck(logger):
 	#logger.logSystem('HealthCheck: Beginning health check to ensure all directories and files exist.')
 	# Important scripts. If one of them are missing, then abort.
 	criticalFiles = ('qpaceExperiment.py','qpaceExperimentParser.py','qpaceFileHandler.py','qpaceInterpreter.py','qpaceLogger.py','qpaceMain.py',
-					'qpacePiCommands.py','qpaceStates.py', 'qpaceTODOParser.py', 'SC16IS750.py')
+					'qpacePiCommands.py','qpaceControl.py', 'qpaceTODOParser.py', 'SC16IS750.py')
 	# Paths/files that must exist for proper operation. Create them if necessary. Non-critical
 	importantPaths = ('../graveyard/grave.ledger')
 	# Directories that must exist for proper operation. Create them if necessary. Critical to have, but can be created at runtime.
@@ -488,6 +487,7 @@ def run(logger):
 						graveyardThread.start()
 						graveyardAttempts += 1
 
+					# If all the threads have tried to start and they couln't then just thrown an exception and leave. there's not point to life anymore.
 					if interpreterAttempts + todoParserAttempts + graveyardAttempts == THREAD_ATTEMPT_MAX * 3:
 						welp_oh_no = "Main: All threads are closed and could not be started. Exiting."
 						logger.logSystem(welp_oh_no)
@@ -500,13 +500,10 @@ def run(logger):
 
 			logger.logSystem("Main: Main loop has been closed.")
 		except RuntimeError as err:
-			try:
-				#TODO Alert the WTC of the problem and/or log it and move on
-				#TODO figure out what we actually want to do.
-				logger.logError("Main: There is a problem with running threads.", err)
+			#TODO Alert the WTC of the problem and/or log it and move on
+			#TODO figure out what we actually want to do.
+			logger.logError("Main: There is a problem with running threads.", err)
 
-			except BufferError as err:
-				logger.logError("Main: Something went wrong when reading the buffer of the WTC.", err)
 		except Exception as err:
 			logger.logError('Main: Something went wrong in the main loop!',err)
 		finally:
