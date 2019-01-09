@@ -197,9 +197,8 @@ class DownloadRequest():
 
 class TransmitCompletePacket(DataPacket):
 	def __init__(self, pathname, checksum, pid,rid,paddingUsed = 0):
-		data = b' '
 		temp = [checksum, paddingUsed.to_bytes(1,byteorder='big'), pathname.encode('ascii')[pathname.rfind('/')+1:]]
-		data = data.join(temp)
+		data = b' '.join(temp)
 		# if useFEC:
 		# 	data += (36 - len(data)) * b'\x04' if len(data) < 36 else b''
 		# 	data = data[:36] # only get the first 116 chars. Defined by the packet document
@@ -227,7 +226,8 @@ class Transmitter():
 				delayPerTransmit = 	Relay.delayPerTransmit_DEFAULT,
 				firstPacket = 		Relay.firstPacket_DEFAULT,
 				lastPacket = 		Relay.lastPacket_DEFAULT,
-				xtea = 				Relay.xtea_DEFAULT):
+				xtea = 				Relay.xtea_DEFAULT,
+				packetQueue =		None):
 		self.chip = chip
 		self.pathname = pathname
 		# self.useFEC = useFEC
@@ -237,11 +237,12 @@ class Transmitter():
 		self.lastPacket = lastPacket if lastPacket > firstPacket else None
 		self.route = route
 		self.filesize = os.path.getsize(pathname)
+		self.packetQueue = packetQueue
 
-		def getFileChecksum(path):
-
-
-		self.checksum =  #TODO figure out the checksum stuff
+		try:
+			self.checksum = generateChecksum(open(pathname,'rb').read())
+		except:
+			self.checksum = b'NONE' #TODO should we just not send the file? I don't think so.
 
 		# if useFEC:
 		# 	self.data_size = (DataPacket.max_size - DataPacket.header_size) // 3
@@ -264,7 +265,7 @@ class Transmitter():
 					try:
 						pid = (ackCount * self.packetsPerAck + i) + self.firstPacket
 						packet = DataPacket(packetData[pid], pid, self.route)
-						packet.send(self.chip)
+						self.packetQueue.enqueue(packet) #TODO ADD PACKET TO BUFFER
 					except IndexError:
 						# IndexError when we don't have enough packets for the current set of acknoledgements
 						# This is fine though, raise a StopIteration up one level to exit
@@ -273,12 +274,8 @@ class Transmitter():
 							raise StopIteration("All done!")
 						else:
 							packet = DummyPacket()
-							packet.send(self.chip)
-				sleep(self.delayPerTransmit/1000)
-				print('HANDSHAKE')
-				#TODO work out handshake with packets
-				#TODO this is where the handshake will go.
-				#TODO we will WAIT here for the acknowledgement. Once we get it, continue on.
+							self.packetQueue.enqueue(packet)
+				# sleep(self.delayPerTransmit/1000) # handled by wtc?
 		except StopIteration as e:
 			#StopIteration to stop iterating :) we are done here.
 			print(e)
@@ -326,7 +323,7 @@ class Receiver():
 		self.lastPacket = lastPacket if lastPacket > firstPacket else None
 		self.route = route
 		self.expected_packets = expected_packets
-		self.checksum = b'CKSM' #TODO figure out the checksum stuff
+		self.checksum = b'Do we even need this? Confused a little?' #TODO should we just not send the file? I don't think so.
 
 		# if useFEC:
 		# 	self.data_size = (DataPacket.max_size - DataPacket.header_size) // 3
@@ -403,20 +400,6 @@ class Scaffold():
 			scaffold.write(scaffoldData)
 
 	@staticmethod
-	def fileChecksum(filename):
-		try:
-			with open(filename, 'rb') as data:
-				fileBytes = data.read()
-				checksum = 0x811C9DC5 # 32-Bit FNV Offset Basis
-				for byte in fileBytes:
-					checksum ^= byte
-					checksum *= 0x1000193 # 32-Bit FNV Prime
-				checksum &= 0xFFFFFFFF
-				return checksum.to_bytes(4,byteorder='big')
-		except Exception as error:
-			self.logger.logError("An exception was thrown in file checksum.", err)
-
-	@staticmethod
 	def finish(information):
 		if Command.UploadRequest.isActive():
 			information = information.split(b' ')
@@ -425,7 +408,7 @@ class Scaffold():
 			filename = information[2][:information[2].find(DataPacket.padding_byte)].decode('ascii')
 			filename += '.scaffold'
 
-			print('---FINISH UP---')
+			self.logger.systemLog()
 			print('Checksum:', checksum)
 			print('paddingUsed:',paddingUsed)
 			print('filename:', filename)

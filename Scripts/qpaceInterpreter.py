@@ -42,19 +42,20 @@ class ROUTES():
 	DEVELOPMENT = 0x54 #'T'
 
 # Add commands to the map. Format is "String to recognize for command" : function name
+cmd = Command() # Creates an instance for the Command class so we can pass the packetQueue into it.
 COMMANDS = {
-	b'STATS': 		Command.status,
-	b'ls': 			Command.directoryListingSet,
-	b'dl': 			Command.directoryList,
-	b'mv': 			Command.move,
-	b'tb': 			Command.tarExtract,
-	b'tc':			Command.tarCreate,
-	b'DOWNR': 		Command.dlReq,
-	b'DWNLD': 		Command.dlFile,
-	b'up': 			Command.upReq,
+	b'STATS': 		cmd.status,
+	b'ls': 			cmd.directoryListingSet,
+	b'dl': 			cmd.directoryList,
+	b'mv': 			cmd.move,
+	b'tb': 			cmd.tarExtract,
+	b'tc':			cmd.tarCreate,
+	b'DOWNR': 		cmd.dlReq,
+	b'DWNLD': 		cmd.dlFile,
+	b'up': 			cmd.upReq,
 	#b'Upload File': Command.upFile, #TODO ????
-	b'MANUL': 		Command.manual,
-	b'MANUL':		Command.dil # TODO: Remove when real things are available to be done. ALTHOUGH it could stay. I don't see any reason why not.
+	b'MANUL': 		cmd.manual,
+	b'MANUL':		cmd.dil # TODO: Remove when real things are available to be done. ALTHOUGH it could stay. I don't see any reason why not.
 }
 
 class LastCommand():
@@ -156,6 +157,8 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent, log
 
 	configureTimestamp = False
 
+	cmd.packetQueue = packetQueue # set the packet queue so we can append packets.
+
 	def splitPacket(packetData):
 		"""
 		Takes a string of packet data and splits it up into a dictionary of fields.
@@ -233,7 +236,7 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent, log
 			else:
 				fh.Scaffold.construct(fieldData['pid'],fieldData['information'])
 
-		#TODO Remove for real!!!
+		#TODO Remove for flight!!!
 		if not Command.UploadRequest.isActive():
 			print('UPLOAD REQUEST NOT MADE ACTIVE')
 

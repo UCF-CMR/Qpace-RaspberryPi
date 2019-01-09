@@ -415,6 +415,17 @@ class Command():
 	-------------------------
 	Handler class for all commands. These will be invoked from the Interpreter.
 	"""
+	def __init__(self,packetQueue=None):
+		self._packetQueue = packetQueue
+
+	@property
+	def packetQueue(self):
+		return self._packetQueue
+
+	@packetQueue.setter
+	def packetQueue(self,queue):
+		self._packetQueue = queue
+
 	class UploadRequest():
 		"""
 		Reason for Implementation
@@ -494,19 +505,19 @@ class Command():
 			"""
 			return Command.UploadRequest.received
 
-	def status(chip,cmd,args):
+	def status(self,chip,cmd,args):
 		"""
 		Create a StatusPacket and respond with the response packet.
 		"""
 		StatusPacket(chip=chip).respond()
-	def directoryListingSet(chip,cmd,args):
+	def directoryListingSet(self,chip,cmd,args):
 		"""
 		Create a DirectoryListingPacket and respond with the response packet.
 		"""
 		pathname = args.split(' ')[0]
 		tag = "AA"
 		DirectoryListingPacket(chip=chip,pathname=pathname,tag=tag).respond()
-	def directoryList(chip,cmd,args):
+	def directoryList(self,chip,cmd,args):
 		"""
 
 		Create a SendDirectoryList packet and respond with the response packet.
@@ -514,7 +525,7 @@ class Command():
 		pathname = args.split(' ')[0]
 		tag = "AA"
 		SendDirectoryList(chip=chip,pathname=pathname,tag=tag).respond()
-	def move(chip,cmd,args):
+	def move(self,chip,cmd,args):
 		"""
 		Move a file from one location to another.
 		Create a MoveFilePacket and respond with the response packet.
@@ -524,7 +535,7 @@ class Command():
 		pathToNewFile = args[1]
 		tag = 'AA'
 		MoveFilePacket(chip=chip,originalFile=originalFile,pathToNewFile=pathToNewFile,tag=tag).respond()
-	def tarExtract(chip,cmd,args):
+	def tarExtract(self,chip,cmd,args):
 		"""
 		Extract a Tar file.
 		Create a TarBallFilePacket and respond with the response packet.
@@ -539,7 +550,7 @@ class Command():
 			os.remove(tempdir + filename)
 		except:pass
 		TarBallFilePacket(chip=chip,tag=tag).respond()
-	def tarCreate(chip,cmd,args):
+	def tarCreate(self,chip,cmd,args):
 		"""
 		Create a compressed Tar.
 		Create a TarBallFilePacket and respond with the response packet.
@@ -554,12 +565,12 @@ class Command():
 		with tarfile.open(tarDir, "w:gz") as tar:
 			tar.add(args[0], arcname=os.path.basename(args[0]))
 		TarBallFilePacket(chip=chip,tag=tag).respond()
-	def dlReq(chip,cmd,args):
+	def dlReq(self,chip,cmd,args):
 		"""
 		Create a DownloadRequestPacket and respond with the response packet.
 		"""
 		pass
-	def dlFile(chip,cmd,args):
+	def dlFile(self,chip,cmd,args):
 		"""
 		Create a Transmitter instance and transmit a file packet by packet to the WTC for Ground.
 		"""
@@ -585,11 +596,12 @@ class Command():
 										delayPerTransmit = msdelay,
 										firstPacket = start,
 										lastPacket = end,
-										xtea = False
+										xtea = False,
+										packetQueue = self._packetQueue
 									)
 		transmitter.run()
 
-	def upReq(chip,cmd,args):
+	def upReq(self,chip,cmd,args):
 		"""
 		We have received an Upload Request. Figure out the necessary information and
 		make an UploadRequest active by calling UploadRequest.set()
@@ -605,16 +617,16 @@ class Command():
 		print('FNM:',filename)
 		Command.UploadRequest.set(pak=totPak,filename=filename)
 
-	def upFile(chip,cmd,args):
+	def upFile(self,chip,cmd,args):
 		"""
 		Possibly depreciated. To be implemented if not.
 		"""
 		pass
 
-	def manual(chip,cmd,args):
+	def manual(self,chip,cmd,args):
 		print('NOTHING HAS BEEN WRITTEN FOR THE "MANUAL" METHOD.')
 
-	def dil(chip,cmd,args,runningExperiment=None):
+	def dil(self,chip,cmd,args,runningExperiment=None):
 		"""
 		Special command for DEBUG mainly. Used to manually affect the instruments of the experiment module.
 		This can only be done if an experiment is NOT running.
@@ -635,7 +647,7 @@ class Command():
 
 		print("DONE :D :D :D")
 
-	def immediateShutdown(chip,cmd,args):
+	def immediateShutdown(self,chip,cmd,args):
 		"""
 		Initiate the shutdown proceedure on the pi and then shut it down. Will send a status to the WTC
 		The moment before it actually shuts down.
@@ -654,7 +666,7 @@ class Command():
 		Popen(["sudo", "halt"],shell=True) #os.system('sudo halt')
 		raise SystemExit # Close the interpreter and clean up the buffers before reboot happens.
 
-	def immediateReboot(chip,cmd,args):
+	def immediateReboot(self,chip,cmd,args):
 		"""
 		Initiate the reboot proceedure on the pi and then reboot it. Will send a status to the WTC
 		the moment before it actually reboots.
@@ -673,7 +685,7 @@ class Command():
 		Popen(["sudo", "reboot"],shell=True) #os.system('sudo reboot')
 		raise SystemExit # Close the interpreter and clean up the buffers before reboot happens.
 
-	def getStatus():
+	def getStatus(self):
 
 		logger.logSystem("Attempting to get the status of the Pi")
 		identity = 0
@@ -742,7 +754,7 @@ class Command():
 		return text_to_write.format(identity,boot,last_command,last_command_when,last_command_from,commands_executed,cpu,cpu_temp,
 								uptime,ram_tot,ram_used,ram_free,disk_total,disk_free)
 
-	def saveStatus(chip,cmd,args):
+	def saveStatus(self,chip,cmd,args):
 		"""
 		Create a text file with status items and then send that file.
 		Invokes sendFile
