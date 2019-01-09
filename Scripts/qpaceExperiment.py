@@ -238,44 +238,27 @@ class Action():
 				GPIO.setup(PIN.GOPBUT, GPIO.OUT, initial=1)				#On Button
 				GPIO.setup(PIN.GOPCAP, GPIO.OUT, initial=1)				#Capture Button
 				GPIO.setup(PIN.GOPDEN, GPIO.OUT, initial=0)
+				gopro_off(True) # Flip the data enable to ensure that the gopro is off.
 
-	def gopro_mode(self):
-		"""
-		Press the mode button
-
-		Parameters
-		----------
-		None
-
-		Returns
-		-------
-		Void
-
-		Raises
-		------
-		Any exception gets popped up the stack.
-
-		"""
-		#self.high(PIN.GOPPWR) #Active High
-		#time.sleep(3)
-		self.flip(PIN.GOPBUT,delay=.75)
 
 	def gopro_on(self):
 		"""
 		Turn the Gopro on
 		"""
 		if not self.GoProIsOn:
-			self.gopro_mode()
-			time.sleep(2.25)
+			self.flip(PIN.GOPBUT,delay=2.33)
+			time.sleep(1.75)
 
 
-	def gopro_off(self):
+	def gopro_off(self,forceOff=False):
 		"""
 		Turn off the GoPro
 
 		"""
-		if self.GoProIsOn:
-			self.flip(PIN.GOPBUT,delay=2)
+		if forceOff:
+			self.flip(PIN.GOPDEN,delay=2.33)
+		elif self.GoProIsOn:
+			self.flip(PIN.GOPBUT,delay=2.33)
 			time.sleep(1.75)
 
 	def press_capture(self):
