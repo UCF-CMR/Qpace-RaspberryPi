@@ -29,8 +29,8 @@ try:
 	import tstSC16IS750 as SC16IS750
 	#import SC16IS750
 	import qpaceControl as states
-except:
-	pass
+except Exception as e:
+	raise SystemExit('There was a problem importing critical modules on line 25 of qpaceMain.py:',e)
 
 try:
 	import pigpio
@@ -212,6 +212,8 @@ class Queue():
 		Adds response to self.response; until self.response is null, this will block for a certain time
 		until a timeout.
 		"""
+		if type(response) is int:
+			response = hex(response)
 		self.logger.logSystem("{}: Adding a response. '{}' must be read before continuing... Will wait {} seconds before removing the response".format(self.name,response,timeout))
 		try:
 			self.response = response

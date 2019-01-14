@@ -23,12 +23,12 @@ QPCONTROL = {
 	"SENDPACKET":	  0x20,	# Added to queue. Implies the pi would like to send data.
 	"NEXTPACKET":	  0x21,	# Sent by WTC. Asks for next packet.
 	"BUFFERFULL":	  0x22,	# Sent by WTC. Implies the buffer is full.
-
 	"TIMESTAMP":      0x42, # WTC Send the timestamp
 	"WHATISNEXT":     0x4A, # WTC Where do we go from here?
-	"SHUTDOWN":       0x46, # WTC Shutdown now!
+
 
 	#Specific QPACE States. Some of these may be the same as above states.
+	"SHUTDOWN":       0x46, # WTC Shutdown now!
 	"IDLE":			  0x48, # WTC may send the Pi packets. The pi has no intentions. Could be running an experiment.
 	"REBOOT":		  0x49, # Informing the WTC that the Pi is about to reboot.
 

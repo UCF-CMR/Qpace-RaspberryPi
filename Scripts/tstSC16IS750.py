@@ -232,8 +232,8 @@ class SC16IS750:
             self.shutdownEvent = threading.Event()
             self.shutdownEvent.clear()
             def readHandler():
-
-                print('ReadHandler running.')
+                register_file['rhr'] = b''
+                print('ReadHandler running')
                 fileDescriptor = open('inputSC16IS750.txt','wb+')
                 while not self.shutdownEvent.is_set():
                     time.sleep(.15)
@@ -245,30 +245,35 @@ class SC16IS750:
                         gpio = False
                     if (gpio and length > 1) or length > 0:
                         buf = fileDescriptor.read()
-                        if buf[-1] == b'\n':
+
+                        if buf[-1] == b'\n' or buf[-1] == 10:
                             buf = buf[:-1]
                         fileDescriptor.seek(0)
                         fileDescriptor.truncate()
                         if buf != b'':
-                            #register_file[REG_RHR] += buf
-                            self.packetBuffer.append(buf)
+                            register_file['rhr'] = buf
+                        try:
+                            from qpaceInterpreter import packetBuffer
+                            packetBuffer.append(register_file['rhr'])
+                        except Exception as e:
+                            print('Exception in ReadHandler:', e)
                 fileDescriptor.close()
                 print('readHandler shutting down...')
 
             def bufferHandler():
-
+                register_file['thr'] = b''
                 print('BufferHandler running')
                 attempts = 0
                 while not self.shutdownEvent.is_set():
                     time.sleep(.15)
-                    if isinstance(register_file[REG_THR],int):
-                        register_file[REG_THR] = bytes([register_file[REG_THR]])
-                    length = len(register_file[REG_THR])
+                    if isinstance(register_file['thr'],int):
+                        register_file['thr'] = bytes([register_file['thr']])
+                    length = len(register_file['thr'])
                     if length > 0:
                         fileDescriptor = open('outputSC16IS750.txt','ab')
-                        fileDescriptor.write(register_file[REG_THR][:length])#+b'\x0a')
+                        fileDescriptor.write(register_file['thr'][:length])#+b'\x0a')
                         #if length == 128
-                        register_file[REG_THR] = register_file[REG_THR][length:]
+                        register_file['thr'] = register_file['thr'][length:]
                         fileDescriptor.close()
                 print('BufferHandler shutting down...')
             self.bufferHandler = threading.Thread(target=bufferHandler,args=())
@@ -314,6 +319,9 @@ class SC16IS750:
     def byte_write(self,reg,data):
         if data is None:
             data = 0
+        if reg == 0:
+            reg = 'thr'
+            register_file['thr'] = b''
         if reg in register_file:
             try:
                 register_file[reg] += data
@@ -325,12 +333,16 @@ class SC16IS750:
         else:
             register_file[reg] = data
         if reg == 0:
-            print("Writing to WTC: ", data)
+            print("Writing to WTC(byte): ", hex(data) if type(data) is int else data)
 
     def block_write(self,reg,data):
         if data is None:
             data = 0
+        if reg == 0:
+            reg = 'thr'
+            register_file['thr'] = b''
         if reg in register_file:
+
             try:
                 register_file[reg] += data
             except TypeError:
@@ -341,22 +353,25 @@ class SC16IS750:
         else:
             register_file[reg] = data
         if reg == 0:
-            print('Writing to WTC: ', data)
+            print('Writing to WTC(block): ', hex(data) if type(data) is int else data)
 
     def write(self,data):
         self.block_write(0,data)
 
     def byte_read(self, reg):
-        print('byte read')
         register_file[REG_RXLVL] = len(register_file[REG_RHR])
+        if reg == 0:
+            reg = 'rhr'
         try:
             if isinstance(register_file[reg],bytes):
-                print("REGFI(b): ", register_file[reg][0])
+                #print("REGFI(b): ", register_file[reg][0])
                 value = register_file[reg][0]
+                print('from {} byte_read: {}'.format(reg,hex(value)))
                 register_file[reg] = register_file[reg][1:]
                 return value
             else:
-                print('REGFI:',register_file[reg])
+                #print('REGFI:',register_file[reg])
+                print('from {} byte_read: {}'.format(reg,hex(register_file[reg])))
                 return register_file[reg]
         except KeyError:
             return 0

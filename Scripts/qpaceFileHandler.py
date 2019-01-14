@@ -15,7 +15,7 @@ from datetime import datetime,timedelta
 from math import ceil
 import os
 
-class DataPacket(Packet):
+class DataPacket():#Packet):
 	"""
 	Packet structure for QPACE:
 	---------------------------------------------------------------------
@@ -143,7 +143,7 @@ class DummyPacket(DataPacket):
 	def __init__(self):
 		self.data=DataPacket.padding_byte*118
 		self.opcode = b'DUMMY'
-		self.rid = 0
+		self.rid = b'\x00'
 	def build(self):
 		return self.rid + self.opcode + self.data
 
@@ -284,7 +284,7 @@ class Transmitter():
 		allDone = TransmitCompletePacket(self.pathname,self.checksum,self.expected_packets,self.route,paddingUsed=lastPacketPaddingSize)
 		self.packetQueue.enqueue(allDone)
 		DataPacket.last_id = 0
-		
+
 
 	def getPacketData(self):
 		packetData = []

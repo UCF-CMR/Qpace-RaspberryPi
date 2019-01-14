@@ -11,13 +11,15 @@
 # and if they are packets it will direct them to the packet directory and then decode it.
 #TODO: Re-do comments/documentation
 
+
+
 try:
 	import pigpio
 except:
 	pass
 import time
 import datetime
-from  qpacePiCommands import generateChecksum
+from  qpacePiCommands import generateChecksum, Command
 import tstSC16IS750 as SC16IS750
 import SC16IS750
 import qpaceLogger as qpLog
@@ -25,7 +27,8 @@ import qpaceControl as states
 import qpaceFileHandler as fh
 
 qpStates = states.QPCONTROL
-WHATISNEXT_WAIT = 15 #in seconds
+WHATISNEXT_WAIT = 2 #in seconds
+packetBuffer = [] #TODO Possibly remove for flight. Not really an issue used for debugging
 # Routing ID defined in packet structure document
 class ROUTES():
 	"""
@@ -156,6 +159,9 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent, log
 		gpio = None
 
 	configureTimestamp = False
+
+	global packetBuffer #TODO Possibly remove for flight. Not really an issue used for debugging
+	packetBuffer = []
 
 	cmd.packetQueue = packetQueue # set the packet queue so we can append packets.
 	cmd.nextQueue = nextQueue
@@ -341,7 +347,7 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent, log
 		"""
 		packetData = chip.block_read(SC16IS750.REG_RHR,chip.byte_read(SC16IS750.REG_RXLVL))
 		print("Data came in: ", packetData)
-		chip.packetBuffer.append(packetData)
+		packetBuffer.append(packetData)
 		# Manual testing. Remove for real test.
 		#testData = b'\x01MANUL====\x00' + b'Q'*93 +b'EE======' + b'\x00'*12
 		#packetData = testData + CMDPacket.generateChecksum(testData)
@@ -363,8 +369,8 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent, log
 		------
 		Any exception gets popped up the stack.
 		"""
-		if response in qps.QPCONTROL:
-			chip.byte_write(SC16IS750.REG_THR,qps.QPCONTROL[response])
+		if response in qpStates:
+			chip.byte_write(SC16IS750.REG_THR,qpStates[response])
 		elif response is not None:
 			if isinstance(response,int):
 				response = bytes([response])
@@ -394,7 +400,7 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent, log
 		# Start looking at a pseduo state machine so WTC code doesn't need to change
 		if len(packetData) == 1 or (len(packetData) == 4 and configureTimestamp):
 			byte = int.from_bytes(packetData,byteorder='little')
-			print('Read from WTC: ', byte)
+			print('Read from WTC: ', hex(byte))
 			if len(packetData) == 4:
 				logger.logSystem('PseudoSM: Configuring the timestamp.')
 				os.system("sudo date -s '@" + str(byte) +"'")
@@ -427,14 +433,14 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent, log
 				elif byte == qpStates['WHATISNEXT']:
 					next = nextQueue.peek()
 					if not next:
-						next = qpStates['IDLE']
+						next = 'IDLE'
 					wtc_respond(next) # Respond with what the Pi would like the WTC to know.
 					# Wait for a response from the WTC.
+					logger.logSystem('PseudoSM: Waiting {}s for a response from WTC'.format(WHATISNEXT_WAIT))
 					if waitForBytesFromCCDR(chip,1,timeout=WHATISNEXT_WAIT): # Wait for 15s for a response from the WTC
 						response = chip.byte_read(SC16IS750.REG_RHR)
 						wtc_respond('DONE') # Always respond with done for an "ACCEPTED or PENDING"
 						# THIS IS A BLOCKING CALL
-
 						nextQueue.blockWithResponse(response,timeout=5) # Blocking until the response is read or timeout.
 					if not nextQueue.isEmpty():
 						nextQueue.dequeue() # After "waiting" for the bytes, dequeue the items.
@@ -473,11 +479,11 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent, log
 			chunkPacket = fh.ChunkPacket(chip,logger)
 			runEvent.wait() # Mutex for the run
 			time.sleep(.25)  # wait for a moment
-			while(len(chip.packetBuffer)>0): # If there is data in the buffer
+			while(len(packetBuffer)>0): # If there is data in the buffer
 				runEvent.wait() # Mutex for running.
 				if shutdownEvent.is_set():
 					raise StopIteration('Shutdown was set. The buffer will be dropped.')
-				packetData = chip.packetBuffer.pop(0) # Get that input
+				packetData = packetBuffer.pop(0) # Get that input
 
 				# Determine if the data is a control character or not.
 				packetData, configureTimestamp = pseudoStateMachine(packetData,configureTimestamp,nextQueue)

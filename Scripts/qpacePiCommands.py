@@ -415,7 +415,7 @@ class Command():
 	-------------------------
 	Handler class for all commands. These will be invoked from the Interpreter.
 	"""
-	def __init__(self,packetQueue=None,nextQueue=none):
+	def __init__(self,packetQueue=None,nextQueue=None):
 		self._packetQueue = packetQueue
 		self._nextQueue = nextQueue
 
