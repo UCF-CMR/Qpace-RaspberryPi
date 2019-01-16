@@ -252,11 +252,11 @@ class SC16IS750:
                         fileDescriptor.truncate()
                         if buf != b'':
                             register_file['rhr'] = buf
-                        try:
-                            from qpaceInterpreter import packetBuffer
-                            packetBuffer.append(register_file['rhr'])
-                        except Exception as e:
-                            print('Exception in ReadHandler:', e)
+                            try:
+                                from qpaceInterpreter import packetBuffer
+                                packetBuffer.append(register_file['rhr'])
+                            except Exception as e:
+                                print('Exception in ReadHandler:', e)
                 fileDescriptor.close()
                 print('readHandler shutting down...')
 
@@ -359,7 +359,7 @@ class SC16IS750:
         self.block_write(0,data)
 
     def byte_read(self, reg):
-        register_file[REG_RXLVL] = len(register_file[REG_RHR])
+        register_file[REG_RXLVL] = len(register_file['rhr'])
         if reg == 0:
             reg = 'rhr'
         try:
@@ -373,7 +373,8 @@ class SC16IS750:
                 #print('REGFI:',register_file[reg])
                 print('from {} byte_read: {}'.format(reg,hex(register_file[reg])))
                 return register_file[reg]
-        except KeyError:
+        except KeyError as e:
+            print(e)
             return 0
 
     def write_LCR(self, databits, stopbits, parity):
