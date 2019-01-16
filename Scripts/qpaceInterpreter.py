@@ -19,6 +19,7 @@ except:
 	pass
 import time
 import datetime
+import os
 from  qpacePiCommands import generateChecksum, Command
 import tstSC16IS750 as SC16IS750
 import SC16IS750
@@ -413,7 +414,7 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent, log
 				# The byte was found in the list of QPCONTROLs
 				if byte == qpStates['NOOP']:
 					logger.logSystem('PseudoSM: NOOP.')
-					wtc_respond('NOOP')
+					wtc_respond('DONE')
 				elif byte == qpStates['SHUTDOWN']:
 					logger.logSystem('PseudoSM: Shutdown was set!')
 					#nextQueue.enqueue('SHUTDOWN') # Just in case the interrupt is fired before shutting down.
@@ -453,12 +454,14 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent, log
 						wtc_respond(fh.DummyPacket().build())
 
 				elif byte == qpStates['BUFFERFULL']:
-					# If we get a BUFFERFULL, there's nothing really we need to do at this point.
-					# Just don't do anything.
 					wtc_respond('DONE')
-
+				elif byte == qpStates['ACCEPTED']:
+					wtc_respond('DONE')
+				elif byte == qpStates['DENIED']:
+					wtc_respond('DONE')
+				elif byte == qpStates['PENDING']:
+					wtc_respond('DONE')
 				else:
-
 					logger.logSystem('PseudoSM: State existed for {} but a method is not written for it.'.format(hex(byte)))
 		else:
 			return packetData, configureTimestamp # Return the data if it's not actually a control character.
