@@ -23,7 +23,6 @@ import os
 from  qpacePiCommands import generateChecksum, Command
 import tstSC16IS750 as SC16IS750
 import SC16IS750
-import qpaceLogger as qpLog
 import qpaceControl as states
 import qpaceFileHandler as fh
 
@@ -60,6 +59,7 @@ COMMANDS = {
 	#b'Upload File': Command.upFile, #TODO ????
 	b'MANUL': 		cmd.manual,
 	b'MANUL':		cmd.dil # TODO: Remove when real things are available to be done. ALTHOUGH it could stay. I don't see any reason why not.
+	b'PLZST':		cmd.immdiateShutdown
 }
 
 class LastCommand():
@@ -277,7 +277,7 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent, log
 			else:
 				logger.logSystem("Interpreter: Command Received!",command,str(arguments))
 				LastCommand.set(command, str(datetime.datetime.now()), fromWhom)
-				COMMANDS[fieldData['opcode']](chip,command,arguments) # Run the command
+				COMMANDS[fieldData['opcode']](chip,logger,command,arguments) # Run the command
 
 	def isValidTag(tag):
 		"""

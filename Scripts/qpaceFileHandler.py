@@ -272,9 +272,6 @@ class Transmitter():
 
 						if i == self.packetsPerAck:
 							raise StopIteration("All done!")
-						else:
-							packet = DummyPacket()
-							self.packetQueue.enqueue(packet)
 				# sleep(self.delayPerTransmit/1000) # handled by wtc?
 		except StopIteration as e:
 			#StopIteration to stop iterating :) we are done here.

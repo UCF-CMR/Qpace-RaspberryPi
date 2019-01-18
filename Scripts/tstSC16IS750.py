@@ -342,7 +342,6 @@ class SC16IS750:
             reg = 'thr'
             register_file['thr'] = b''
         if reg in register_file:
-
             try:
                 register_file[reg] += data
             except TypeError:

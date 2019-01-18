@@ -14,14 +14,13 @@ from time import strftime,gmtime,sleep
 import datetime
 import random
 import tarfile
-#from qpaceInterpreter import *
 import qpaceLogger as qpLog
 import qpaceControl as qps
 
 
 CMD_DEFAULT_TIMEOUT = 5 #seconds
 CMD_POLL_DELAY = .35 #seconds
-STATUSPATH = ''
+STATUSPATH = '/data/misc'
 
 UNAUTHORIZED = b'OKAY'
 
@@ -136,7 +135,10 @@ class CMDPacket():
 	-------------------------
 	This is a class dedicated to handling packets used in responding to commands from Ground.
 	"""
-	def __init__(self,chip,opcode):
+
+	data_size = 118 #Bytes
+
+	def __init__(self,chip,opcode,data):
 		"""
 		Constructor for CMDPacket.
 
@@ -155,7 +157,7 @@ class CMDPacket():
 		"""
 		self.routing = 0x00
 		self.opcode = opcode
-		self.packetData = None
+		self.packetData = data
 		self.chip = chip
 
 	def respond(self):
@@ -177,10 +179,7 @@ class CMDPacket():
 		"""
 		if self.packetData:
 			sendData = self.build()
-			print(sendData)
 			return sendBytesToCCDR(self.chip,sendData)
-		else:
-			return sendBytesToCCDR(self.chip,UNAUTHORIZED)
 
 	def isValid(self): #TODO Make sure the packet is not corrupted
 		"""
@@ -218,7 +217,10 @@ class CMDPacket():
 		Any exception gets popped up the stack.
 		"""
 		if self.packetData == None:
-			self.packetData=b' ' * 118
+			self.packetData=b' ' * self.data_size
+
+		if len(self.packetData) != self.data_size:
+			raise ValueError('Length of packetData is not equal to data_size {}!={}'.format(len(self.packetData),self.data_size))
 		return bytes([self.routing]) + self.opcode.encode('ascii') + self.packetData + generateChecksum(self.packetData)
 
 class PrivilegedPacket(CMDPacket):
@@ -227,7 +229,7 @@ class PrivilegedPacket(CMDPacket):
 	-------------------------
 	Class to handle all the Privileged packets with XTEA
 	"""
-	def __init__(self,chip,opcode,tag=None, cipherText = None):
+	def __init__(self,chip,opcode,tag=None, cipherText = None,plainText=None):
 		"""
 		Constructor for a PrivledgedPacket
 
@@ -250,9 +252,9 @@ class PrivilegedPacket(CMDPacket):
 		CMDPacket.__init__(self,opcode=opcode,chip=chip)
 
 		if cipherText:
-			self.packetData = PrivilegedPacket.decodeXTEA(cipherText)
+			self.packetData = cipherText
 		else:
-			self.packetData = None
+			self.packetData = PrivilegedPacket.encodeXTEA(plainText)
 
 	@staticmethod
 	def encodeXTEA(plainText):
@@ -296,118 +298,6 @@ class PrivilegedPacket(CMDPacket):
 				num = 55
 			retval.append(num)
 		return bytes(retval)
-
-class StatusPacket(CMDPacket):
-	"""
-	Reason for Implementation
-	-------------------------
-	Handler class for Status commands.
-	When constructed creates all the necessary payload data.
-	"""
-	def __init__(self,chip):
-		CMDPacket.__init__(self,chip=chip,opcode='STATS')
-		timestamp = datetime.datetime.now()
-		retval =  bytes([timestamp.month, timestamp.day, timestamp.year - 2000, timestamp.weekday(), timestamp.hour,timestamp.minute,timestamp.second])
-		status = b"DIL is go."
-		status += b':E(' + str(logger.Errors.get()).encode('ascii') + b'):' #Number of errors logged since last boot
-		status += b'M('+ b'' +b')' # status message TODO GET FIRST LINE OF 'STATUS'
-		retval += status + b' '*(111-len(status)) # 111 due to defined packet Structure
-		self.packetData = retval
-
-class DirectoryListingPacket(PrivilegedPacket):
-	"""
-	Reason for Implementation
-	-------------------------
-	Handler class for Directory Listing commands.
-	When constructed creates all the necessary payload data.
-	"""
-	def __init__(self,chip,pathname, tag):
-		self.pathname = pathname
-		PrivilegedPacket.__init__(self,chip=chip,opcode="NOOP*",tag=tag)
-		lenstr = str(len(os.listdir(pathname))) # Get the number of files/directories in this directory.
-		padding = " "*(94-len(lenstr)) #98 due to specification of packet structure
-		endPadding = b"\x00"*12 # 12 due to specification of packet structure
-		retVal = PrivilegedPacket.returnRandom(4)
-		retVal += (lenstr + padding + tag).encode('ascii')
-		retVal += PrivilegedPacket.returnRandom(6)
-		retVal += endPadding
-		self.packetData = retVal
-
-class SendDirectoryList(PrivilegedPacket):
-	"""
-	Reason for Implementation
-	-------------------------
-	Handler class for Send Directory commands.
-	When constructed creates all the necessary payload data.
-	"""
-	def __init__(self, chip, pathname, tag):
-		PrivilegedPacket.__init__(self,chip=chip,opcode="NOOP*", tag=tag)
-		self.pathname = pathname
-		filepath = '../temp/DirList'
-		try:
-			pathList = os.listdir(pathname)
-		except:
-			pathList = ["No such file or directory:'{}'".format(pathname)]
-		with open(filepath, "w") as filestore:
-			filestore.write("Timestamp: {}\n".format(strftime("%Y%m%d-%H%M%S",gmtime())))
-			for line in pathList:
-				filestore.write(line + '\n')
-		padding = " " * (94 - len(filepath))
-		retVal = PrivilegedPacket.returnRandom(4)
-		retVal += PrivilegedPacket.encodeXTEA((filepath + padding + tag).encode('ascii'))
-		retVal += PrivilegedPacket.returnRandom(18)
-		self.packetData = retVal
-
-class MoveFilePacket(PrivilegedPacket):
-	"""
-	Reason for Implementation
-	-------------------------
-	Handler class for Move File commands.
-	When constructed creates all the necessary payload data.
-	"""
-	def __init__(self, chip, originalFile, pathToNewFile, tag):
-		PrivilegedPacket.__init__(self,chip=chip,opcode="NOOP*",tag=tag)
-		try:
-			import shutil
-			shutil.move(originalFile, pathToNewFile)
-			exception = None
-			wasMoved = 'was'
-		except Exception as e:
-			exception = str(e)
-			wasMoved = 'was not'
-
-		filepath = '../data/MoveFile.log'
-		with open(filepath, "a+") as filestore:
-			timestamp = strftime("%Y%m%d-%H%M%S",gmtime())
-			filestore.write('[{}] {}: {} {} moved to {}\n'.format(timestamp, wasMoved=='was',originalFile, wasMoved, pathToNewFile))
-			if exception: filestore.write('[{}] {}\n'.format(timestamp,exception))
-		wasMoved = "{} {} moved.".format(originalFile, wasMoved)
-		padding = " " * (94 - len(wasMoved))
-		retVal = PrivilegedPacket.returnRandom(4)
-		retVal += PrivilegedPacket.encodeXTEA((wasMoved + padding + tag).encode('ascii'))
-		retVal += PrivilegedPacket.returnRandom(18)
-		self.packetData = retVal
-
-# class DownloadFileInit(CMDPacket):
-# 	def __init__(self,pathname, delay, packetsPerAck,start = 0,end = None):
-# 		CMDPacket.__init__('DWNLD')
-# 		self.pathname = pathname
-# 		self.firstPacket = start
-# 		self.lastPacket = end
-# 		self.delay = delay
-# 		self.packetsPerAck = packetsPerAck
-# 		# self.useFEC = useFEC
-
-class TarBallFilePacket(PrivilegedPacket):
-	"""
-	Reason for Implementation
-	-------------------------
-	Handler class for creating and extracting compressed files.
-	When constructed, creates all the necessary payload data.
-	"""
-	def __init__(self,chip,tag):
-		PrivilegedPacket.__init__(self,chip=chip,opcode="NOOP*",tag=tag)
-		self.packetData = PrivilegedPacket.returnRandom(118)
 
 class Command():
 	"""
@@ -516,27 +406,68 @@ class Command():
 			"""
 			return Command.UploadRequest.received
 
-	def status(self,chip,cmd,args):
+	def status(self,chip,logger,cmd,args):
 		"""
 		Create a StatusPacket and respond with the response packet.
 		"""
-		StatusPacket(chip=chip).respond()
-	def directoryListingSet(self,chip,cmd,args):
+		timestamp = datetime.datetime.now()
+		try:
+			import threading
+			thread = threading.Thread(target=self.saveStatus, args=(logger,timestamp))
+			thread.start()
+		except:
+			thread = None
+		data =  bytes([timestamp.month, timestamp.day, timestamp.year - 2000, timestamp.weekday(), timestamp.hour,timestamp.minute,timestamp.second])
+		status = b''
+		status += b'E(' + str(logger.Errors.get()).encode('ascii') + b'):' #Number of errors logged since last boot
+		status_file = str(timestamp) if thread else 'Save Failed' # Save the timestamp inwhich this status file will be saved as.
+		status += b'F('+ status_file.encode('ascii') +b')' # the File where the major status stuff should be being saved in.
+		data += status + b' '*(111-len(status)) # 111 due to defined packet Structure
+		CMDPacket(self,chip=chip,opcode='STATS',data=data).respond()
+		if thread:
+			thread.join() # Make sure we wait for the thread to close if it's still going.
+
+	def directoryListingSet(self,chip,logger,cmd,args):
 		"""
 		Create a DirectoryListingPacket and respond with the response packet.
 		"""
 		pathname = args.split(' ')[0]
 		tag = "AA"
-		DirectoryListingPacket(chip=chip,pathname=pathname,tag=tag).respond()
-	def directoryList(self,chip,cmd,args):
+
+		self.pathname = pathname
+		lenstr = str(len(os.listdir(pathname))) # Get the number of files/directories in this directory.
+		padding = " "*(94-len(lenstr)) #98 due to specification of packet structure
+		endPadding = b"\x00"*12 # 12 due to specification of packet structure
+		plainText = PrivilegedPacket.returnRandom(4)
+		plainText += (lenstr + padding + tag).encode('ascii')
+		plainText += PrivilegedPacket.returnRandom(6)
+		plainText += endPadding
+		PrivilegedPacket(self,chip=chip,opcode="NOOP*",tag=tag,plainText=plainText).respond()
+
+	def directoryList(self,chip,logger,cmd,args):
 		"""
 
 		Create a SendDirectoryList packet and respond with the response packet.
 		"""
 		pathname = args.split(' ')[0]
 		tag = "AA"
-		SendDirectoryList(chip=chip,pathname=pathname,tag=tag).respond()
-	def move(self,chip,cmd,args):
+		self.pathname = pathname
+		filepath = '../temp/DirList'
+		try:
+			pathList = os.listdir(pathname)
+		except:
+			pathList = ["No such file or directory:'{}'".format(pathname)]
+		with open(filepath, "w") as filestore:
+			filestore.write("Timestamp: {}\n".format(strftime("%Y%m%d-%H%M%S",gmtime())))
+			for line in pathList:
+				filestore.write(line + '\n')
+		padding = " " * (94 - len(filepath))
+		plainText = PrivilegedPacket.returnRandom(4)
+		plainText += (filepath + padding + tag).encode('ascii')
+		plainText += PrivilegedPacket.returnRandom(18)
+		PrivilegedPacket(self,chip=chip,opcode="NOOP*", tag=tag,plainText=plainText).respond()
+
+	def move(self,chip,logger,cmd,args):
 		"""
 		Move a file from one location to another.
 		Create a MoveFilePacket and respond with the response packet.
@@ -545,8 +476,28 @@ class Command():
 		originalFile = args[0]
 		pathToNewFile = args[1]
 		tag = 'AA'
-		MoveFilePacket(chip=chip,originalFile=originalFile,pathToNewFile=pathToNewFile,tag=tag).respond()
-	def tarExtract(self,chip,cmd,args):
+		try:
+			import shutil
+			shutil.move(originalFile, pathToNewFile)
+			exception = None
+			wasMoved = 'was'
+		except Exception as e:
+			exception = str(e)
+			wasMoved = 'was not'
+
+		filepath = '../data/MoveFile.log'
+		with open(filepath, "a+") as filestore:
+			timestamp = strftime("%Y%m%d-%H%M%S",gmtime())
+			filestore.write('[{}] {}: {} {} moved to {}\n'.format(timestamp, wasMoved=='was',originalFile, wasMoved, pathToNewFile))
+			if exception: filestore.write('[{}] {}\n'.format(timestamp,exception))
+		wasMoved = "{} {} moved.".format(originalFile, wasMoved)
+		padding = " " * (94 - len(wasMoved))
+		plainText = PrivilegedPacket.returnRandom(4)
+		plainText += (wasMoved + padding + tag).encode('ascii')
+		plainText += PrivilegedPacket.returnRandom(18)
+		PrivilegedPacket(self,chip=chip,opcode="NOOP*",tag=tag,plainText=plainText).respond()
+
+	def tarExtract(self,chip,logger,cmd,args):
 		"""
 		Extract a Tar file.
 		Create a TarBallFilePacket and respond with the response packet.
@@ -560,8 +511,11 @@ class Command():
 		try:
 			os.remove(tempdir + filename)
 		except:pass
-		TarBallFilePacket(chip=chip,tag=tag).respond()
-	def tarCreate(self,chip,cmd,args):
+		message = b'DONE'
+		plainText = message + PrivilegedPacket.returnRandom(CMDPacket.data_size - len(message))
+		PrivilegedPacket(self,chip=chip,opcode="NOOP*",tag=tag,plainText=plainText).respond()
+
+	def tarCreate(self,chip,logger,cmd,args):
 		"""
 		Create a compressed Tar.
 		Create a TarBallFilePacket and respond with the response packet.
@@ -575,13 +529,17 @@ class Command():
 		tarDir = '../data/misc/{}.tar.gz'.format(newFile)
 		with tarfile.open(tarDir, "w:gz") as tar:
 			tar.add(args[0], arcname=os.path.basename(args[0]))
+
+		plainText = tarDir.encode('ascii') + b' '*(CMDPacket.data_size - len(tarDir))
 		TarBallFilePacket(chip=chip,tag=tag).respond()
-	def dlReq(self,chip,cmd,args):
+
+	def dlReq(self,chip,logger,cmd,args):
 		"""
 		Create a DownloadRequestPacket and respond with the response packet.
 		"""
 		pass
-	def dlFile(self,chip,cmd,args):
+
+	def dlFile(self,chip,logger,cmd,args):
 		"""
 		Create a mitter instance and transmit a file packet by packet to the WTC for Ground.
 		"""
@@ -613,8 +571,7 @@ class Command():
 		transmitter.run()
 		self._nextQueue.enqueue('SENDPACKET') # taken from qpaceControl
 
-
-	def upReq(self,chip,cmd,args):
+	def upReq(self,chip,logger,cmd,args):
 		"""
 		We have received an Upload Request. Figure out the necessary information and
 		make an UploadRequest active by calling UploadRequest.set()
@@ -630,16 +587,16 @@ class Command():
 		print('FNM:',filename)
 		Command.UploadRequest.set(pak=totPak,filename=filename)
 
-	def upFile(self,chip,cmd,args):
+	def upFile(self,chip,logger,cmd,args):
 		"""
 		Possibly depreciated. To be implemented if not.
 		"""
 		pass
 
-	def manual(self,chip,cmd,args):
+	def manual(self,chip,logger,cmd,args):
 		print('NOTHING HAS BEEN WRITTEN FOR THE "MANUAL" METHOD.')
 
-	def dil(self,chip,cmd,args,runningExperiment=None):
+	def dil(self,chip,logger,cmd,args,runningExperiment=None):
 		"""
 		Special command for DEBUG mainly. Used to manually affect the instruments of the experiment module.
 		This can only be done if an experiment is NOT running.
@@ -660,7 +617,7 @@ class Command():
 
 		print("DONE :D :D :D")
 
-	def immediateShutdown(self,chip,cmd,args):
+	def immediateShutdown(self,chip,logger,cmd,args):
 		"""
 		Initiate the shutdown proceedure on the pi and then shut it down. Will send a status to the WTC
 		The moment before it actually shuts down.
@@ -675,30 +632,10 @@ class Command():
 		SystemExit - If the interpreter can even get to this point... Close the interpreter.
 		"""
 		logger.logSystem('CMD: Shutting down...')
-		sendBytesToCCDR(chip,b'SP') # SP = Shutdown Proceeding
 		Popen(["sudo", "halt"],shell=True) #os.system('sudo halt')
 		raise SystemExit # Close the interpreter and clean up the buffers before reboot happens.
 
-	def immediateReboot(self,chip,cmd,args):
-		"""
-		Initiate the reboot proceedure on the pi and then reboot it. Will send a status to the WTC
-		the moment before it actually reboots.
-
-		Parameters
-		----------
-		chip - SC16IS750 - an SC16IS75 object which handles the WTC Connection
-		cmd,args - string, array of args (seperated by ' ') - the actual command, the args for the command
-
-		Raises
-		------
-		SystemExit - If the interpreter can even get to this point... Close the interpreter.
-		"""
-		logger.logSystem('CMD: Rebooting...')
-		sendBytesToCCDR(chip,b'SP') # SP = Shutdown Proceeding
-		Popen(["sudo", "reboot"],shell=True) #os.system('sudo reboot')
-		raise SystemExit # Close the interpreter and clean up the buffers before reboot happens.
-
-	def getStatus(self):
+	def saveStatus(self,logger,timestamp = strftime("%Y%m%d-%H%M%S",gmtime())):
 
 		logger.logSystem("Attempting to get the status of the Pi")
 		identity = 0
@@ -764,33 +701,12 @@ class Command():
 						"RAM Free: {} bytes\n"  +\
 						"Disk total: {}\n"      +\
 						"Disk free: {}\n"
-		return text_to_write.format(identity,boot,last_command,last_command_when,last_command_from,commands_executed,cpu,cpu_temp,
+		text_to_write = text_to_write.format(identity,boot,last_command,last_command_when,last_command_from,commands_executed,cpu,cpu_temp,
 								uptime,ram_tot,ram_used,ram_free,disk_total,disk_free)
 
-	def saveStatus(self,chip,cmd,args):
-		"""
-		Create a text file with status items and then send that file.
-		Invokes sendFile
-
-		Accumulates the following data: CPU Usage, CPU Temp, IP Address, Pi Identity,
-										Last command received, Uptime, Running processes,
-										RAM Usage, Disk Space used, Disk space total,
-										Connected COM ports.
-		Parameters
-		----------
-		chip - SC16IS750 - an SC16IS750 object which handles the WTC Connection
-		cmd,args - string, array of args (seperated by ' ') - the actual command, the args for the command
-		"""
-
-		text_to_write = Command.getStatus()
 		logger.logSystem("saveStatus: Attempting to save the status to a file.")
-		timestamp = strftime("%Y%m%d-%H%M%S",gmtime())
 		try:
-			with open(STATUSPATH+'status_'+timestamp+'.txt','w') as statFile:
+			with open(STATUSPATH+'status_'+timestamp,'w') as statFile:
 				statFile.write(text_to_write)
 		except Exception as err:
 			logger.logError("There was a problem writing the status file.",err)
-			try:
-				with open(STATUSPATH+'status_'+timestamp+'.txt','w') as statFile:
-					statFile.write("Unable to write status file. {}".format(str(err)))
-			except:pass
