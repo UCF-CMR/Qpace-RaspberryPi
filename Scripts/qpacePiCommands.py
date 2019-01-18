@@ -423,7 +423,7 @@ class Command():
 		status_file = str(timestamp) if thread else 'Save Failed' # Save the timestamp inwhich this status file will be saved as.
 		status += b'F('+ status_file.encode('ascii') +b')' # the File where the major status stuff should be being saved in.
 		data += status + b' '*(111-len(status)) # 111 due to defined packet Structure
-		CMDPacket(self,chip=chip,opcode='STATS',data=data).respond()
+		CMDPacket(chip=chip,opcode='STATS',data=data).respond()
 		if thread:
 			thread.join() # Make sure we wait for the thread to close if it's still going.
 
@@ -442,7 +442,7 @@ class Command():
 		plainText += (lenstr + padding + tag).encode('ascii')
 		plainText += PrivilegedPacket.returnRandom(6)
 		plainText += endPadding
-		PrivilegedPacket(self,chip=chip,opcode="NOOP*",tag=tag,plainText=plainText).respond()
+		PrivilegedPacket(chip=chip,opcode="NOOP*",tag=tag,plainText=plainText).respond()
 
 	def directoryList(self,chip,logger,cmd,args):
 		"""
@@ -465,7 +465,7 @@ class Command():
 		plainText = PrivilegedPacket.returnRandom(4)
 		plainText += (filepath + padding + tag).encode('ascii')
 		plainText += PrivilegedPacket.returnRandom(18)
-		PrivilegedPacket(self,chip=chip,opcode="NOOP*", tag=tag,plainText=plainText).respond()
+		PrivilegedPacket(chip=chip,opcode="NOOP*", tag=tag,plainText=plainText).respond()
 
 	def move(self,chip,logger,cmd,args):
 		"""
@@ -495,7 +495,7 @@ class Command():
 		plainText = PrivilegedPacket.returnRandom(4)
 		plainText += (wasMoved + padding + tag).encode('ascii')
 		plainText += PrivilegedPacket.returnRandom(18)
-		PrivilegedPacket(self,chip=chip,opcode="NOOP*",tag=tag,plainText=plainText).respond()
+		PrivilegedPacket(chip=chip,opcode="NOOP*",tag=tag,plainText=plainText).respond()
 
 	def tarExtract(self,chip,logger,cmd,args):
 		"""
@@ -513,7 +513,7 @@ class Command():
 		except:pass
 		message = b'DONE'
 		plainText = message + PrivilegedPacket.returnRandom(CMDPacket.data_size - len(message))
-		PrivilegedPacket(self,chip=chip,opcode="NOOP*",tag=tag,plainText=plainText).respond()
+		PrivilegedPacket(chip=chip,opcode="NOOP*",tag=tag,plainText=plainText).respond()
 
 	def tarCreate(self,chip,logger,cmd,args):
 		"""
@@ -525,19 +525,25 @@ class Command():
 		# The name of the new file will be whatever was input, but since the path could be long
 		# create the {}.tar.gz at the filename. Since it could be a directory with a /
 		# look for the 2nd to last / and then slice it. Then remove and trailing /'s
-		newFile = args[0][args[0].rfind('/',o,len(args[0])-1):].replace('/','')
+		newFile = args[0][args[0].rfind('/') + 1:].replace('/','')
 		tarDir = '../data/misc/{}.tar.gz'.format(newFile)
 		with tarfile.open(tarDir, "w:gz") as tar:
 			tar.add(args[0], arcname=os.path.basename(args[0]))
 
 		plainText = tarDir.encode('ascii') + b' '*(CMDPacket.data_size - len(tarDir))
-		TarBallFilePacket(chip=chip,tag=tag).respond()
+		PrivilegedPacket(chip=chip,opcode='NOOP*',tag=tag,plainText=plainText).respond()
 
 	def dlReq(self,chip,logger,cmd,args):
 		"""
 		Create a DownloadRequestPacket and respond with the response packet.
 		"""
-		pass
+		path = args[4:].replace(' ','')
+		packet_estimate = (os.path.getsize(path)//114) + 1
+		data = packet_estimate.to_bytes(4,'big')
+		data += check_output(['ls','-la',path])
+		padding = CMDPacket.data_size - len(data)
+		data += b' ' * padding if padding > 0 else 0
+		CMDPacket(chip=chip,opcode='DOWNR',data=data).respond()
 
 	def dlFile(self,chip,logger,cmd,args):
 		"""
