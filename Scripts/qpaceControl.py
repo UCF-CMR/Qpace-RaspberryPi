@@ -8,34 +8,31 @@
 # been changed slightly.
 
 QPCONTROL = {
-	"NOOP":			  0x0F,
+	"NOOP":			  0x0F, # No-operation. Has no use. More like a "ping" than anything else
 
-	"STEPON":		  0x83,
-	"STEPOFF":		  0x84,
-	"SOLON":		  0x81,
-	"SOLOFF":		  0x82,
+	"STEPON":		  0x83, # Pi request for the Steppers to be turned on
+	"STEPOFF":		  0x84, # Pi request for the Steppers to be turned off
+	"SOLON":		  0x81, # Pi request for the Solenoids to be turned on
+	"SOLOFF":		  0x82,	# Pi request for the Solenoids to be turned off
 
-	"ACCEPTED":		  0x8A,
-	"DENIED":		  0x8B,
-	"PENDING":		  0x8C,
-	"DONE":			  0xAA, #used for end-of-transmission iff nothing should be sent back anyway
+	"ACCEPTED":		  0x8A, # Acts as a "TRUE" flag from the WTC to indicate that the Pi may do something
+	"DENIED":		  0x8B, # Acts as a "FALSE" flag from the WTC to indicate that the Pi may not do something
+	"PENDING":		  0x8C, # Acts as a flag that is neither TRUE nor FALSE from the WTC to indicate that the Pi must wait for a response.
+	"DONE":			  0xAA, # used as an end-of-transmission iff nothing should be sent back anyway
 
-	"SENDPACKET":	  0x20,	# Added to queue. Implies the pi would like to send data.
+	"SENDPACKET":	  0x20,	# Implies the pi would like to send data.
 	"NEXTPACKET":	  0x21,	# Sent by WTC. Asks for next packet.
-	"BUFFERFULL":	  0x22,	# Sent by WTC. Implies the buffer is full.
-	"TIMESTAMP":      0x42, # WTC Send the timestamp
-	"WHATISNEXT":     0x4A, # WTC Where do we go from here?
+	"BUFFERFULL":	  0x22,	# Sent by WTC. Implies the buffer is full. (Rev2 Pi ignores this message)
+	"WHATISNEXT":     0x4A, # WTC request to Pi to see if the Pi wants to do anything.
 
+	"TIMESTAMP":      0x42, # WTC request to set the timestamp of the Pi
+	"SHUTDOWN":       0x46, # WTC request to shutdown now! If sent from Pi, implies the Pi would like to shutdown.
+	"REBOOT":		  0x49, # WTC request to reboot now. If sent from Pi, implies the Pi would like to reboot.
+	"IDLE":			  0x48, # WTC may send the Pi packets. The pi has no intentions. Could be running an experiment during IDLE.
 
-	#Specific QPACE States. Some of these may be the same as above states.
-	"SHUTDOWN":       0x46, # WTC Shutdown now!
-	"IDLE":			  0x48, # WTC may send the Pi packets. The pi has no intentions. Could be running an experiment.
-	"REBOOT":		  0x49, # Informing the WTC that the Pi is about to reboot.
-
-	# "SENDBACK":       0x60, # WTC Send data back
-	"CHUNK1":         0x61, # WTC Sending chunk 1
-	"CHUNK2":         0x62, # WTC Sending chunk 2
-	"CHUNK3":         0x63, # WTC Sending chunk 3
-	"CHUNK4":         0x64  # WTC Sending chunk 4
+	"CHUNK1":         0x61, # Response for the WTC Sending chunk 1
+	"CHUNK2":         0x62, # Response for the WTC Sending chunk 2
+	"CHUNK3":         0x63, # Response for the WTC Sending chunk 3
+	"CHUNK4":         0x64  # Response for the WTC Sending chunk 4
 
 }
