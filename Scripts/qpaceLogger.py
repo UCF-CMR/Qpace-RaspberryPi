@@ -52,7 +52,7 @@ class Logger():
         except:
             self.counter='null'
 
-        self.filename = 'unknown_LogName' # Must be 16 characters for the serialization.
+        self.filename = 'unknown_LogName' # Must be 15 characters for the serialization.
 
     def setBoot(self,newTimestamp=None):
         self._boot = True

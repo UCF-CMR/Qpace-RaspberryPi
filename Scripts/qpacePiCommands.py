@@ -230,6 +230,9 @@ class PrivilegedPacket(CMDPacket):
 	-------------------------
 	Class to handle all the Privileged packets with XTEA
 	"""
+
+	encoded_data_length = 94
+
 	def __init__(self,chip,opcode,tag=None, cipherText = None,plainText=None):
 		"""
 		Constructor for a PrivledgedPacket
@@ -249,13 +252,12 @@ class PrivilegedPacket(CMDPacket):
 		------
 		Any exception gets popped up the stack.
 		"""
-		self.tag = tag
 		CMDPacket.__init__(self,opcode=opcode,chip=chip)
 
 		if cipherText:
-			self.packetData = cipherText
+			self.packetData = PrivledgedPacket.returnRandom(4) + cipherText + PrivledgedPacket.returnRandom(6) + b'\x00'*12
 		else:
-			self.packetData = PrivilegedPacket.encodeXTEA(plainText)
+			self.packetData = PrivilegedPacket.encodeXTEA(plainText + tag) + PrivledgedPacket.returnRandom(6) + b'\x00'*12
 
 	@staticmethod
 	def encodeXTEA(plainText):
@@ -437,12 +439,9 @@ class Command():
 
 		self.pathname = pathname
 		lenstr = str(len(os.listdir(pathname))) # Get the number of files/directories in this directory.
-		padding = " "*(94-len(lenstr)) #98 due to specification of packet structure
-		endPadding = b"\x00"*12 # 12 due to specification of packet structure
-		plainText = PrivilegedPacket.returnRandom(4)
-		plainText += (lenstr + padding + tag).encode('ascii')
-		plainText += PrivilegedPacket.returnRandom(6)
-		plainText += endPadding
+		padding = CMDPacket.padding_byte*(PrivledgedPacket.encoded_data_length-len(lenstr)) #98 due to specification of packet structure
+		plainText = lenstr.encode('ascii')
+		plainText += padding
 		PrivilegedPacket(chip=chip,opcode="NOOP*",tag=tag,plainText=plainText).respond()
 
 	def directoryList(self,chip,logger,cmd,args):
@@ -462,10 +461,9 @@ class Command():
 			filestore.write("Timestamp: {}\n".format(strftime("%Y%m%d-%H%M%S",gmtime())))
 			for line in pathList:
 				filestore.write(line + '\n')
-		padding = " " * (94 - len(filepath))
-		plainText = PrivilegedPacket.returnRandom(4)
-		plainText += (filepath + padding + tag).encode('ascii')
-		plainText += PrivilegedPacket.returnRandom(18)
+		padding = CMDPacket.padding_byte * (PrivledgedPacket.encoded_data_length - len(filepath))
+		plainText = filepath.encode('ascii')
+		plainText += padding
 		PrivilegedPacket(chip=chip,opcode="NOOP*", tag=tag,plainText=plainText).respond()
 
 	def move(self,chip,logger,cmd,args):
@@ -492,10 +490,9 @@ class Command():
 			filestore.write('[{}] {}: {} {} moved to {}\n'.format(timestamp, wasMoved=='was',originalFile, wasMoved, pathToNewFile))
 			if exception: filestore.write('[{}] {}\n'.format(timestamp,exception))
 		wasMoved = "{} {} moved.".format(originalFile, wasMoved)
-		padding = " " * (94 - len(wasMoved))
-		plainText = PrivilegedPacket.returnRandom(4)
-		plainText += (wasMoved + padding + tag).encode('ascii')
-		plainText += PrivilegedPacket.returnRandom(18)
+		padding = CMDPacket.padding_byte * (PrivledgedPacket.encoded_data_length - len(wasMoved))
+		plainText = wasMoved.encode('ascii')
+		plainText += padding
 		PrivilegedPacket(chip=chip,opcode="NOOP*",tag=tag,plainText=plainText).respond()
 
 	def tarExtract(self,chip,logger,cmd,args):
@@ -513,7 +510,7 @@ class Command():
 			os.remove(tempdir + filename)
 		except:pass
 		message = b'DONE'
-		plainText = message + PrivilegedPacket.returnRandom(CMDPacket.data_size - len(message))
+		plainText = message + CMDPacket.padding_byte * (PrivledgedPacket.encoded_data_length-len(message))
 		PrivilegedPacket(chip=chip,opcode="NOOP*",tag=tag,plainText=plainText).respond()
 
 	def tarCreate(self,chip,logger,cmd,args):
@@ -588,11 +585,17 @@ class Command():
 
 		totPak = int.from_bytes(args[0:4], byteorder='big')
 		# fec = args[4:8]
-		filename = args[8:96].replace(b'\x1f',b'')
+		filename = args[8:96].replace(CMDPacket.padding_byte,b'')
+		tag = args[96:97]
 		# print('FEC:',fec)
+		print('TAG:',tag)
 		print('TPK:',totPak)
 		print('FNM:',filename)
 		Command.UploadRequest.set(pak=totPak,filename=filename)
+
+		response = b'upREADY'
+		response += PrivledgedPacket.returnRandom(87)
+		PrivledgedPacket(chip,'NOOP*',tag='AA',plainText=response).respond()
 
 	def upFile(self,chip,logger,cmd,args):
 		"""
