@@ -406,7 +406,7 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent, log
 				os.system("sudo date -s '@" + str(byte) +"'")
 				chip.block_write(SC16IS750.REG_THR,packetData)
 				configureTimestamp = False
-				logger.setBoot()
+				logger.setBoot(newTimestamp=byte)
 				logger.logSystem('Timestamp: {}'.format(str(byte)))
 			elif byte in qpStates.values():
 				logger.logSystem('PseudoSM: State receieved: {}'.format(hex(byte)))

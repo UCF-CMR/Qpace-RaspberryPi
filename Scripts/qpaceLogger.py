@@ -41,19 +41,32 @@ class Logger():
     def __init__(self):
         self._boot = False
         # Create the filename. Count up from that number. The highest number is the latest log.
-        fileList = [int(x.replace('.log','')) for x in os.listdir('../logs/') if x.endswith('.log')]
-        if fileList:
-            self.counter = max(fileList) + 1
-        else:
-            self.counter = 0
+        # take everything after 15 characters. Log names are in the format YYYYmmdd-HHMMSS_C.log where C is the counter.
+        try:
 
-    def setBoot(self):
+            fileList = [int(x.replace('.log','')[16:]) for x in os.listdir('../logs/') if x.endswith('.log') and not x.endswith('null.log')]
+            if fileList:
+                self.counter = max(fileList) + 1
+            else:
+                self.counter = 0
+        except:
+            self.counter='null'
+
+        self.filename = 'unknown_LogName' # Must be 16 characters for the serialization.
+
+    def setBoot(self,newTimestamp=None):
         self._boot = True
-
+        #newTimestamp is an integer that represents the 4 byte timestamp
+        if newTimestamp:
+            try:
+                newTimestamp = datetime.datetime.fromtimestamp(newTimestamp).strftime('%Y%m%d-%H%M%S')
+                os.rename('{}{}_{}.log'.format(Logger.LOG_PATH,self.filename,self.counter),'{}{}_{}.log'.format(Logger.LOG_PATH,newTimestamp,self.counter))
+                self.filename = newTimestamp
+            except:pass
     def clearBoot(self):
         self._boot = False
 
-    def logData(self,type,timestamp = 'Unknown',*strings):
+    def logData(self,type,*strings):
         """
         This function handles logging the actual data. It should not be called by a user.
 
@@ -77,10 +90,10 @@ class Logger():
         try:
             stringBuilder = []
             for string in strings:
-                stringBuilder.append('{} > [{}] {}'.format(type,timestamp,string))
+                stringBuilder.append('{} > [{}] {}'.format(type,self.fileName if self._boot else str(round(time())),string))
 
 
-            with open('{}{}.log'.format(Logger.LOG_PATH,self.counter),'a') as f:
+            with open('{}{}_{}.log'.format(Logger.LOG_PATH,self.filename,self.counter),'a') as f:
                 f.write('\n'.join(stringBuilder))
 
             if Logger.DEBUG:
@@ -91,7 +104,6 @@ class Logger():
                         color = '\033[0;1m' # Bold
                     print(self.counter,'|{}'.format(color),string,'\033[0;0m')
         except Exception as e:
-            print(e)
             raise # Pass all and any exceptions back to the caller.
 
     def logError(self,description, exception = None):
@@ -115,11 +127,10 @@ class Logger():
 
         """
         try:
-            timestamp = strftime("%Y%m%d-%H%M%S",gmtime()) if self._boot else str(round(time()))
             if exception is not None:
                 description += ' {}'.format(str(exception.args))
             Errors.inc()
-            return self.logData('Err',timestamp,description) # Actually log the data.
+            return self.logData('Err',description) # Actually log the data.
         except Exception:
             Logger.LOG_ATTEMPTS += 1
 
@@ -142,7 +153,6 @@ class Logger():
 
         """
         try:
-            timestamp = strftime("%Y%m%d-%H%M%S",gmtime()) if self._boot else str(round(time()))
-            return self.logData('Sys',timestamp,*data)
+            return self.logData('Sys',*data)
         except Exception as e:
             Logger.LOG_ATTEMPTS += 1
