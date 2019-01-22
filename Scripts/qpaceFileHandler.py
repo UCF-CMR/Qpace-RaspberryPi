@@ -387,7 +387,7 @@ class Scaffold():
 	@staticmethod
 	def construct(pid,newData):
 
-		filename = Command.UploadRequest.filename.decode('ascii')
+		filename = Command.UploadRequest.filename
 		# useFEC = Command.UploadRequest.useFEC
 		with open(TEMPPATH + filename+".scaffold","rb+") as scaffold:
 			scaffoldData = scaffold.read()
@@ -414,4 +414,4 @@ class Scaffold():
 				f.write(info[:-paddingUsed])
 
 			os.rename(TEMPPATH+filename+'.scaffold',ROOTPATH + filename)
-			return Command.UploadRequest.reset(filename)
+			return Command.UploadRequest.finished(filename)

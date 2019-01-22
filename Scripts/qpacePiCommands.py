@@ -344,32 +344,10 @@ class Command():
 		Class that handles if there is a request to upload a file to the pi.
 		Only one UploadRequest can happen at a time.
 		"""
-		received = 0
+		received = []
 		# useFEC = None
 		totalPackets = None
 		filename = None
-
-		@staticmethod
-		def reset(who):
-			"""
-			Reset the UploadRequest back to it's original state.
-
-			Parameters
-			----------
-			None
-
-			Returns
-			-------
-			Void
-
-			Raises
-			------
-			Any exception gets popped up the stack.
-			"""
-			Command.UploadRequest.received = 0
-			# Command.UploadRequest.useFEC = None
-			Command.UploadRequest.totalPackets =  None
-			return who
 
 		@staticmethod
 		def set(pak = None, filename = None):
@@ -394,27 +372,35 @@ class Command():
 			"""
 
 			try:
+				filename = filename.decode('ascii')
 				from pathlib import Path
-				Path('{}{}.scaffold'.format(TEMPPATH,filename.decode('ascii'))).touch()
+				Path('{}{}.scaffold'.format(TEMPPATH,filename)).touch()
 			except:
 				#open(filename.decode('ascii') + '.scaffold','wb').close() #Fallback method to make sure it works
 				pass
-			Command.UploadRequest.received += 1
+			# If it's not already in there, add it
+			if not filename in Command.UploadRequest.received:
+				Command.UploadRequest.received.append(filename)
 			# Command.UploadRequest.useFEC = fec
 			Command.UploadRequest.totalPackets = pak
 			Command.UploadRequest.filename = filename
 
 		@staticmethod
-		def finished():
-			if Command.UploadRequest.received > 0:
-				Command.UploadRequest.received -= 1
-
+		def finished(who):
+			if Command.UploadRequest.received:
+				try:
+					Command.UploadRequest.received.remove(who)
+				except:
+					# If there's an issue removing it, there's no use complaining.
+					# If there's an exception, it's usually due to the object not being in the list anyway.
+					pass
+			return who
 		@staticmethod
 		def isActive():
 			"""
 			Check if there has been an UploadRequest received.
 			"""
-			return Command.UploadRequest.received > 0
+			return len(Command.UploadRequest.received) > 0
 
 	def status(self,chip,logger,cmd,args):
 		"""
@@ -589,21 +575,16 @@ class Command():
 		"""
 		# Numbers based on Packet Specification Document.
 		import qpaceFileHandler as qfh
-
-		totPak = int.from_bytes(args[0:4], byteorder='big')
-		# fec = args[4:8]
-		filename = args[8:96].replace(CMDPacket.padding_byte,b'')
-		# print('FEC:',fec)
-		print('TPK:',totPak)
+		filename = args[0:96].replace(CMDPacket.padding_byte,b'')
 		print('FNM:',filename)
-		response = b'up'
 		if Command.UploadRequest.isActive():
-			logger.logSystem("UploadRequest: Redundant Request? ({},{})".format(str(totPak),str(filename)))
-			response += b'Requests are still active. '
-		Command.UploadRequest.set(pak=totPak,filename=filename)
-		logger.logSystem("UploadRequest: Upload Request has been received. ({},{})".format(str(totPak),str(filename)))
+			logger.logSystem("UploadRequest: Redundant Request? ({})".format(str(filename)))
+		Command.UploadRequest.set(filename=filename)
+		logger.logSystem("UploadRequest: Upload Request has been received. ({})".format(str(filename)))
 
-		response += b'Using Scaffold: ' + filename
+		response = b'up'
+		response += b'Active Requests: ' + bytes([len(Command.UploadRequest.received)])
+		response += b' Using Scaffold: ' + filename
 		response += PrivilegedPacket.padding_byte * (PrivilegedPacket.encoded_data_length - len(response))
 		PrivilegedPacket(chip,'NOOP*',tag=b'AA',plainText=response).respond()
 
