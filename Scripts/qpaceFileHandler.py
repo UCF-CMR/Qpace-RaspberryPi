@@ -6,7 +6,7 @@
 #
 # Handler for encoding and decoding packets for file transfer.
 
-from  qpacePiCommands import generateChecksum
+from  qpacePiCommands import generateChecksum,Command
 import qpaceInterpreter as interp
 import tstSC16IS750 as SC16IS750
 #import SC16IS750
@@ -15,8 +15,9 @@ from datetime import datetime,timedelta
 from math import ceil
 import os
 
-ROOTPATH = '/home/pi/'
+MISCPATH = '/mnt/c/users/jonat/desktop/cmr/pi/data/misc/'
 ROOTPATH= '/mnt/c/users/jonat/desktop/cmr/pi/'
+TEMPPATH = '/mnt/c/users/jonat/desktop/cmr/pi/temp/'
 
 class DataPacket():#Packet):
 	"""
@@ -388,7 +389,7 @@ class Scaffold():
 
 		filename = Command.UploadRequest.filename.decode('ascii')
 		# useFEC = Command.UploadRequest.useFEC
-		with open(filename+".scaffold","rb+") as scaffold:
+		with open(TEMPPATH + filename+".scaffold","rb+") as scaffold:
 			scaffoldData = scaffold.read()
 			scaffold.seek(0)
 			offset = pid * Scaffold.determineDataSize()
@@ -402,18 +403,15 @@ class Scaffold():
 			checksum = information[0]
 			paddingUsed = int.from_bytes(information[1],byteorder='big')
 			filename = information[2][:information[2].find(DataPacket.padding_byte)].decode('ascii')
-			filename += '.scaffold'
-
-			self.logger.systemLog()
 			print('Checksum:', checksum)
 			print('paddingUsed:',paddingUsed)
 			print('filename:', filename)
 
-			with open(filename,'rb+') as f:
+			with open(TEMPPATH+filename+'.scaffold','rb+') as f:
 				info = f.read()
 				f.seek(0)
 				f.truncate()
 				f.write(info[:-paddingUsed])
 
-			os.rename(filename,filename[:-9]) #-9 cuts off the '.scaffold'
-			Command.UploadRequest.reset()
+			os.rename(TEMPPATH+filename+'.scaffold',ROOTPATH + filename)
+			return Command.UploadRequest.reset(filename)

@@ -20,9 +20,12 @@ import qpaceControl as qps
 
 CMD_DEFAULT_TIMEOUT = 5 #seconds
 CMD_POLL_DELAY = .35 #seconds
-MISCPATH = '/data/misc'
+MISCPATH = 'home/pi/data/misc/'
+TEMPPATH = '/home/pi/temp/'
 ROOTPATH = '/home/pi/'
+MISCPATH = '/mnt/c/users/jonat/desktop/cmr/pi/data/misc/'
 ROOTPATH= '/mnt/c/users/jonat/desktop/cmr/pi/'
+TEMPPATH = '/mnt/c/users/jonat/desktop/cmr/pi/temp/'
 
 UNAUTHORIZED = b'OKAY'
 
@@ -221,7 +224,8 @@ class CMDPacket():
 			self.packetData=CMDPacket.padding_byte * self.data_size
 
 		if len(self.packetData) != self.data_size:
-			raise ValueError('Length of packetData is not equal to data_size {}!={}'.format(len(self.packetData),self.data_size))
+			raise ValueError('Length of packetData is not equal to data_size len({})!=Packet.data_size({})'.format(len(self.packetData),self.data_size))
+
 		return bytes([self.routing]) + self.opcode.encode('ascii') + self.packetData + generateChecksum(self.packetData)
 
 class PrivilegedPacket(CMDPacket):
@@ -235,7 +239,7 @@ class PrivilegedPacket(CMDPacket):
 
 	def __init__(self,chip,opcode,tag=None, cipherText = None,plainText=None):
 		"""
-		Constructor for a PrivledgedPacket
+		Constructor for a PrivilegedPacket
 
 		Parameters
 		----------
@@ -252,12 +256,14 @@ class PrivilegedPacket(CMDPacket):
 		------
 		Any exception gets popped up the stack.
 		"""
-		CMDPacket.__init__(self,opcode=opcode,chip=chip)
-
 		if cipherText:
-			self.packetData = PrivledgedPacket.returnRandom(4) + cipherText + PrivledgedPacket.returnRandom(6) + b'\x00'*12
+			data = PrivilegedPacket.returnRandom(4) + cipherText + PrivilegedPacket.returnRandom(6) + b'\x00'*12
+		elif plainText:
+			data = PrivilegedPacket.returnRandom(4) + PrivilegedPacket.encodeXTEA(plainText + tag) + PrivilegedPacket.returnRandom(6) + b'\x00'*12
 		else:
-			self.packetData = PrivilegedPacket.encodeXTEA(plainText + tag) + PrivledgedPacket.returnRandom(6) + b'\x00'*12
+			data = PrivilegedPacket.returnRandom(4) + CMDPacket.padding_byte * PrivilegedPacket.encoded_data_length + PrivilegedPacket.returnRandom(6) + b'\x00'*12
+		CMDPacket.__init__(self,opcode=opcode,chip=chip,data=data)
+
 
 	@staticmethod
 	def encodeXTEA(plainText):
@@ -338,13 +344,13 @@ class Command():
 		Class that handles if there is a request to upload a file to the pi.
 		Only one UploadRequest can happen at a time.
 		"""
-		received = False
+		received = 0
 		# useFEC = None
 		totalPackets = None
 		filename = None
 
 		@staticmethod
-		def reset():
+		def reset(who):
 			"""
 			Reset the UploadRequest back to it's original state.
 
@@ -360,11 +366,10 @@ class Command():
 			------
 			Any exception gets popped up the stack.
 			"""
-			logger.logSystem('UploadRequest: Upload Request has been cleared.',str(Command.UploadRequest.totalPackets),str(Command.UploadRequest.filename))
-			Command.UploadRequest.received = False
+			Command.UploadRequest.received = 0
 			# Command.UploadRequest.useFEC = None
 			Command.UploadRequest.totalPackets =  None
-			Command.UploadRequest.filename = None
+			return who
 
 		@staticmethod
 		def set(pak = None, filename = None):
@@ -387,27 +392,29 @@ class Command():
 			Any exception gets popped up the stack.
 			If there is a problem with touching the scaffold it is silenced.
 			"""
-			logger.logSystem("UploadRequest: Upload Request has been received. ({},{})".format(str(pak),str(filename)))
-			if Command.UploadRequest.isActive():
-				logger.logSystem("UploadRequest: Redundant Request? ({},{})".format(str(pak),str(filename)))
-			else:
-				try:
-					from pathlib import Path
-					Path('{}.scaffold'.format(filename.decode('ascii'))).touch()
-				except:
-					#open(filename.decode('ascii') + '.scaffold','wb').close() #Fallback method to make sure it works
-					pass
-				Command.UploadRequest.received = True
-				# Command.UploadRequest.useFEC = fec
-				Command.UploadRequest.totalPackets = pak
-				Command.UploadRequest.filename = filename
+
+			try:
+				from pathlib import Path
+				Path('{}{}.scaffold'.format(TEMPPATH,filename.decode('ascii'))).touch()
+			except:
+				#open(filename.decode('ascii') + '.scaffold','wb').close() #Fallback method to make sure it works
+				pass
+			Command.UploadRequest.received += 1
+			# Command.UploadRequest.useFEC = fec
+			Command.UploadRequest.totalPackets = pak
+			Command.UploadRequest.filename = filename
+
+		@staticmethod
+		def finished():
+			if Command.UploadRequest.received > 0:
+				Command.UploadRequest.received -= 1
 
 		@staticmethod
 		def isActive():
 			"""
 			Check if there has been an UploadRequest received.
 			"""
-			return Command.UploadRequest.received
+			return Command.UploadRequest.received > 0
 
 	def status(self,chip,logger,cmd,args):
 		"""
@@ -435,11 +442,11 @@ class Command():
 		Create a DirectoryListingPacket and respond with the response packet.
 		"""
 		pathname = args.split(' ')[0]
-		tag = "AA"
+		tag = b"AA"
 
 		self.pathname = pathname
 		lenstr = str(len(os.listdir(pathname))) # Get the number of files/directories in this directory.
-		padding = CMDPacket.padding_byte*(PrivledgedPacket.encoded_data_length-len(lenstr)) #98 due to specification of packet structure
+		padding = CMDPacket.padding_byte*(PrivilegedPacket.encoded_data_length-len(lenstr)) #98 due to specification of packet structure
 		plainText = lenstr.encode('ascii')
 		plainText += padding
 		PrivilegedPacket(chip=chip,opcode="NOOP*",tag=tag,plainText=plainText).respond()
@@ -450,7 +457,7 @@ class Command():
 		Create a SendDirectoryList packet and respond with the response packet.
 		"""
 		pathname = args.split(' ')[0]
-		tag = "AA"
+		tag = b"AA"
 		self.pathname = pathname
 		filepath = '../temp/DirList'
 		try:
@@ -461,7 +468,7 @@ class Command():
 			filestore.write("Timestamp: {}\n".format(strftime("%Y%m%d-%H%M%S",gmtime())))
 			for line in pathList:
 				filestore.write(line + '\n')
-		padding = CMDPacket.padding_byte * (PrivledgedPacket.encoded_data_length - len(filepath))
+		padding = CMDPacket.padding_byte * (PrivilegedPacket.encoded_data_length - len(filepath))
 		plainText = filepath.encode('ascii')
 		plainText += padding
 		PrivilegedPacket(chip=chip,opcode="NOOP*", tag=tag,plainText=plainText).respond()
@@ -474,7 +481,7 @@ class Command():
 		args = args.split(' ')
 		originalFile = args[0]
 		pathToNewFile = args[1]
-		tag = 'AA'
+		tag = b'AA'
 		try:
 			import shutil
 			shutil.move(originalFile, pathToNewFile)
@@ -490,7 +497,7 @@ class Command():
 			filestore.write('[{}] {}: {} {} moved to {}\n'.format(timestamp, wasMoved=='was',originalFile, wasMoved, pathToNewFile))
 			if exception: filestore.write('[{}] {}\n'.format(timestamp,exception))
 		wasMoved = "{} {} moved.".format(originalFile, wasMoved)
-		padding = CMDPacket.padding_byte * (PrivledgedPacket.encoded_data_length - len(wasMoved))
+		padding = CMDPacket.padding_byte * (PrivilegedPacket.encoded_data_length - len(wasMoved))
 		plainText = wasMoved.encode('ascii')
 		plainText += padding
 		PrivilegedPacket(chip=chip,opcode="NOOP*",tag=tag,plainText=plainText).respond()
@@ -510,8 +517,8 @@ class Command():
 			os.remove(tempdir + filename)
 		except:pass
 		message = b'DONE'
-		plainText = message + CMDPacket.padding_byte * (PrivledgedPacket.encoded_data_length-len(message))
-		PrivilegedPacket(chip=chip,opcode="NOOP*",tag=tag,plainText=plainText).respond()
+		plainText = message + CMDPacket.padding_byte * (PrivilegedPacket.encoded_data_length-len(message))
+		PrivilegedPacket(chip=chip,opcode="NOOP*",tag=b'AA',plainText=plainText).respond()
 
 	def tarCreate(self,chip,logger,cmd,args):
 		"""
@@ -528,8 +535,8 @@ class Command():
 		with tarfile.open(tarDir, "w:gz") as tar:
 			tar.add(args[0], arcname=os.path.basename(args[0]))
 
-		plainText = tarDir.encode('ascii') + b' '*(CMDPacket.data_size - len(tarDir))
-		PrivilegedPacket(chip=chip,opcode='NOOP*',tag=tag,plainText=plainText).respond()
+		plainText = tarDir.encode('ascii') + CMDPacket.padding_byte*(CMDPacket.data_size - len(tarDir))
+		PrivilegedPacket(chip=chip,opcode='NOOP*',tag=b'AA',plainText=plainText).respond()
 
 	def dlReq(self,chip,logger,cmd,args):
 		"""
@@ -586,16 +593,19 @@ class Command():
 		totPak = int.from_bytes(args[0:4], byteorder='big')
 		# fec = args[4:8]
 		filename = args[8:96].replace(CMDPacket.padding_byte,b'')
-		tag = args[96:97]
 		# print('FEC:',fec)
-		print('TAG:',tag)
 		print('TPK:',totPak)
 		print('FNM:',filename)
+		response = b'up'
+		if Command.UploadRequest.isActive():
+			logger.logSystem("UploadRequest: Redundant Request? ({},{})".format(str(totPak),str(filename)))
+			response += b'Requests are still active. '
 		Command.UploadRequest.set(pak=totPak,filename=filename)
+		logger.logSystem("UploadRequest: Upload Request has been received. ({},{})".format(str(totPak),str(filename)))
 
-		response = b'upREADY'
-		response += PrivledgedPacket.returnRandom(87)
-		PrivledgedPacket(chip,'NOOP*',tag='AA',plainText=response).respond()
+		response += b'Using Scaffold: ' + filename
+		response += PrivilegedPacket.padding_byte * (PrivilegedPacket.encoded_data_length - len(response))
+		PrivilegedPacket(chip,'NOOP*',tag=b'AA',plainText=response).respond()
 
 	def upFile(self,chip,logger,cmd,args):
 		"""

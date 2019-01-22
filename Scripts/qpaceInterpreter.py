@@ -239,13 +239,16 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent, log
 		print("Interpreter is processing packet as Incoming Data.")
 		if Command.UploadRequest.isActive():
 			if fieldData['noop'] == b'NOOP!':
-				fh.Scaffold.finish(fieldData['information'])
-			else:
+				who = fh.Scaffold.finish(fieldData['information'])
+				logger.logSystem('UploadRequest: Upload Request has been cleared for {}'.format(who))
+			elif fieldData['noop'] == b'NOOP>':
 				fh.Scaffold.construct(fieldData['pid'],fieldData['information'])
+			else:
+				logger.logSystem("Interpreter: A packet is interpreted as data, but it's opcode isn't correct.")
 
 		#TODO Remove for flight!!!
 		if not Command.UploadRequest.isActive():
-			print('UPLOAD REQUEST NOT MADE ACTIVE')
+			print('UPLOAD REQUEST NOT ACTIVE')
 
 	def processCommand(chip, fieldData, fromWhom = 'WTC'):
 		"""
@@ -318,7 +321,7 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent, log
 		"""
 		if fieldData['TYPE'] == 'XTEA':
 			isValid = True
-			#returnVal = PrivledgedPacket.decodeXTEA(fieldData['information'])
+			#returnVal = PrivilegedPacket.decodeXTEA(fieldData['information'])
 			#TODO add in XTEA encryption and decryption.
 		elif fieldData['TYPE'] == 'DATA':
 			isValid = True
