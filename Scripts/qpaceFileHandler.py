@@ -15,6 +15,9 @@ from datetime import datetime,timedelta
 from math import ceil
 import os
 
+ROOTPATH = '/home/pi/'
+ROOTPATH= '/mnt/c/users/jonat/desktop/cmr/pi/'
+
 class DataPacket():#Packet):
 	"""
 	Packet structure for QPACE:
@@ -195,20 +198,7 @@ class ChunkPacket():
 class DownloadRequest():
 	pass
 
-class TransmitCompletePacket(DataPacket):
-	def __init__(self, pathname, checksum, pid,rid,paddingUsed = 0):
-		temp = [checksum, paddingUsed.to_bytes(1,byteorder='big'), pathname.encode('ascii')[pathname.rfind('/')+1:]]
-		data = b' '.join(temp)
-		# if useFEC:
-		# 	data += (36 - len(data)) * b'\x04' if len(data) < 36 else b''
-		# 	data = data[:36] # only get the first 116 chars. Defined by the packet document
-		# else:
-		# 	data += (116 - len(data)) * b'\x04' if len(data) < 116 else b''
-		# 	data = data[:116] # only get the first 116 chars. Defined by the packet document
-		padding = len(data)
-		data += DataPacket.padding_byte * padding
-		super().__init__(data,pid,rid,opcode=b'NOOP!')
-class Relay():
+class Defaults():
 	packetsPerAck_DEFAULT = 1
 	delayPerTransmit_DEFAULT = 135 #in milliseconds
 	firstPacket_DEFAULT = -1
@@ -221,26 +211,28 @@ class Relay():
 class Transmitter():
 
 	def __init__(self, chip, pathname, route,
-				# useFEC =			Relay.useFEC_DEFAULT,
-				packetsPerAck = 	Relay.packetsPerAck_DEFAULT,
-				delayPerTransmit = 	Relay.delayPerTransmit_DEFAULT,
-				firstPacket = 		Relay.firstPacket_DEFAULT,
-				lastPacket = 		Relay.lastPacket_DEFAULT,
-				xtea = 				Relay.xtea_DEFAULT,
+				# useFEC =			Defaults.useFEC_DEFAULT,
+				firstPacket = 		Defaults.firstPacket_DEFAULT,
+				lastPacket = 		Defaults.lastPacket_DEFAULT,
+				xtea = 				Defaults.xtea_DEFAULT,
 				packetQueue =		None):
 		self.chip = chip
 		self.pathname = pathname
 		# self.useFEC = useFEC
-		self.packetsPerAck = packetsPerAck
-		self.delayPerTransmit = delayPerTransmit
 		self.firstPacket = firstPacket if firstPacket > 0 else 0
 		self.lastPacket = lastPacket if lastPacket > firstPacket else None
 		self.route = route
-		self.filesize = os.path.getsize(pathname)
 		self.packetQueue = packetQueue
+		# Attempt to get the file size. Pop up the stack if it cannot be found.
+		# Since this happens first, if this succeeds, then the rest of the methods will be fine.
+		try:
+			self.filesize = os.path.getsize("{}{}".format(ROOTPATH,pathname))
+		except FileNotFoundError as e:
+			raise e
+
 
 		try:
-			self.checksum = generateChecksum(open(pathname,'rb').read())
+			self.checksum = generateChecksum(open("{}{}".format(ROOTPATH,pathname),'rb').read())
 		except:
 			self.checksum = b'NONE' #TODO should we just not send the file? I don't think so.
 
@@ -257,35 +249,41 @@ class Transmitter():
 		# Get the length of all the packets if NONE was supplied as the last packet.
 		if self.lastPacket == None:
 			self.lastPacket = len(packetData)
-		totalAcks = ceil((self.lastPacket - self.firstPacket + 1)/self.packetsPerAck)
 		try:
-			for ackCount in range(totalAcks):
+			for pid in range(self.firstPacket,self.lastPacket):
 				sessionPackets = []
-				for i in range(self.packetsPerAck):
-					try:
-						pid = (ackCount * self.packetsPerAck + i) + self.firstPacket
-						packet = DataPacket(packetData[pid], pid, self.route)
-						self.packetQueue.enqueue(packet) #TODO ADD PACKET TO BUFFER
-					except IndexError:
-						# IndexError when we don't have enough packets for the current set of acknoledgements
-						# This is fine though, raise a StopIteration up one level to exit
 
-						if i == self.packetsPerAck:
-							raise StopIteration("All done!")
+				# try:
+				packet = DataPacket(packetData[pid], pid, self.route)
+				self.packetQueue.enqueue(packet.build()) #TODO ADD PACKET TO BUFFER
+				# except IndexError:
+				# 	# IndexError when we don't have enough packets for the current set of acknoledgements
+				# 	# This is fine though, raise a StopIteration up one level to exit
+				# 	if i == self.packetsPerAck:
+				# 		raise StopIteration("All done!")
 				# sleep(self.delayPerTransmit/1000) # handled by wtc?
 		except StopIteration as e:
 			#StopIteration to stop iterating :) we are done here.
 			print(e)
-		lastPacketPaddingSize = packet.paddingSize
 		#When it's done it needs to send a DONE packet
-		allDone = TransmitCompletePacket(self.pathname,self.checksum,self.expected_packets,self.route,paddingUsed=lastPacketPaddingSize)
+		temp = [self.checksum,bytes([self.expected_packets]),self.pathname.encode('ascii')[self.pathname.rfind('/')+1:]]
+		data = b' '.join(temp)
+		# if useFEC:
+		# 	data += (36 - len(data)) * b'\x04' if len(data) < 36 else b''
+		# 	data = data[:36] # only get the first 116 chars. Defined by the packet document
+		# else:
+		# 	data += (116 - len(data)) * b'\x04' if len(data) < 116 else b''
+		# 	data = data[:116] # only get the first 116 chars. Defined by the packet document
+		padding = len(data)
+		data += DataPacket.padding_byte * padding
+		allDone = DataPacket(data,packet.pid+1,0x00,opcode=b'NOOP!').build()
 		self.packetQueue.enqueue(allDone)
 		DataPacket.last_id = 0
 
 
 	def getPacketData(self):
 		packetData = []
-		with open(self.pathname,'rb') as f:
+		with open("{}{}".format(ROOTPATH,self.pathname),'rb') as f:
 			while(True):
 				data = f.read(self.data_size)
 				if data:
@@ -302,15 +300,15 @@ class ReceivedPacket():
 class Receiver():
 
 	def __init__(self, chip, pathname,
-				prepend =			Relay.prepend_DEFAULT,
-				route =				Relay.route_DEFAULT,
-				# useFEC =			Relay.useFEC_DEFAULT,
-				packetsPerAck = 	Relay.packetsPerAck_DEFAULT,
-				delayPerTransmit = 	Relay.delayPerTransmit_DEFAULT,
-				firstPacket = 		Relay.firstPacket_DEFAULT,
-				lastPacket = 		Relay.lastPacket_DEFAULT,
-				xtea = 				Relay.xtea_DEFAULT,
-				expected_packets = 	Relay.totalPackets_DEFAULT):
+				prepend =			Defaults.prepend_DEFAULT,
+				route =				Defaults.route_DEFAULT,
+				# useFEC =			Defaults.useFEC_DEFAULT,
+				packetsPerAck = 	Defaults.packetsPerAck_DEFAULT,
+				delayPerTransmit = 	Defaults.delayPerTransmit_DEFAULT,
+				firstPacket = 		Defaults.firstPacket_DEFAULT,
+				lastPacket = 		Defaults.lastPacket_DEFAULT,
+				xtea = 				Defaults.xtea_DEFAULT,
+				expected_packets = 	Defaults.totalPackets_DEFAULT):
 		self.chip = chip
 		self.prepend = prepend
 		self.pathname = pathname

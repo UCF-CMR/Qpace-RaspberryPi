@@ -20,7 +20,9 @@ import qpaceControl as qps
 
 CMD_DEFAULT_TIMEOUT = 5 #seconds
 CMD_POLL_DELAY = .35 #seconds
-STATUSPATH = '/data/misc'
+MISCPATH = '/data/misc'
+ROOTPATH = '/home/pi/'
+ROOTPATH= '/mnt/c/users/jonat/desktop/cmr/pi/'
 
 UNAUTHORIZED = b'OKAY'
 
@@ -96,17 +98,15 @@ def sendBytesToCCDR(chip,sendData):
 		logger.logSystem('SendBytesToCCDR: Data will not be sent to the WTC: not string or bytes.')
 		raise TypeError("Data to the WTC must be in the form of bytes or string")
 	try:
-		chip.block_write(SC16IS750.REG_THR, sendData)
+		chip.block_write(0, sendData) # 0 is SC16IS750.REG_THR
 	except Exception as err:
 		#TODO do we actually handle the case where it just doesn't work?
 		print(err)
-		logger.logError('sendBytesToCCDR: An error has occured when attempting to send data to the WTC. Data to send:' + str(sendData),err)
-		pass
 	else:
 		return True
 	return False
 
-def generateChecksum(self,data):
+def generateChecksum(data):
 	"""
 	Generates a FNV checksum on the packet data
 
@@ -137,6 +137,7 @@ class CMDPacket():
 	"""
 
 	data_size = 118 #Bytes
+	padding_byte = b'\x04'
 
 	def __init__(self,chip,opcode,data):
 		"""
@@ -217,7 +218,7 @@ class CMDPacket():
 		Any exception gets popped up the stack.
 		"""
 		if self.packetData == None:
-			self.packetData=b' ' * self.data_size
+			self.packetData=CMDPacket.padding_byte * self.data_size
 
 		if len(self.packetData) != self.data_size:
 			raise ValueError('Length of packetData is not equal to data_size {}!={}'.format(len(self.packetData),self.data_size))
@@ -526,7 +527,7 @@ class Command():
 		# create the {}.tar.gz at the filename. Since it could be a directory with a /
 		# look for the 2nd to last / and then slice it. Then remove and trailing /'s
 		newFile = args[0][args[0].rfind('/') + 1:].replace('/','')
-		tarDir = '../data/misc/{}.tar.gz'.format(newFile)
+		tarDir = '..{}{}.tar.gz'.format(MISCPATH,newFile)
 		with tarfile.open(tarDir, "w:gz") as tar:
 			tar.add(args[0], arcname=os.path.basename(args[0]))
 
@@ -537,12 +538,18 @@ class Command():
 		"""
 		Create a DownloadRequestPacket and respond with the response packet.
 		"""
-		path = args[4:].replace(' ','')
-		packet_estimate = (os.path.getsize(path)//114) + 1
+		path = args[4:].replace(b'\x04',b'').decode('ascii')
+		try:
+			packet_estimate = (os.path.getsize("{}{}".format(ROOTPATH,path))//114) + 1
+		except FileNotFoundError as e:
+			packet_estimate = 0
 		data = packet_estimate.to_bytes(4,'big')
-		data += check_output(['ls','-la',path])
+		if packet_estimate > 0:
+			data += check_output(['ls','-la',"{}{}".format(ROOTPATH,path)])
+		else:
+			data += ('FileNotFound:{}{}'.format(ROOTPATH,path)).encode('ascii')
 		padding = CMDPacket.data_size - len(data)
-		data += b' ' * padding if padding > 0 else 0
+		data += CMDPacket.padding_byte * padding if padding > 0 else 0
 		CMDPacket(chip=chip,opcode='DOWNR',data=data).respond()
 
 	def dlFile(self,chip,logger,cmd,args):
@@ -552,14 +559,10 @@ class Command():
 		import qpaceFileHandler as qfh
 		qfh.DataPacket.last_id = 0
 		# fec = args[:4]
-		ppa = int.from_bytes(args[4:8], byteorder='big')
-		msdelay = int.from_bytes(args[8:12], byteorder='big')
-		start = int.from_bytes(args[12:16], byteorder='big')
-		end = int.from_bytes(args[16:20], byteorder='big')
-		filename = args[20:].replace(b'\x1f',b'')
+		start = int.from_bytes(args[4:8], byteorder='big')
+		end = int.from_bytes(args[8:12], byteorder='big')
+		filename = args[12:].replace(CMDPacket.padding_byte,b'')
 		# print('FEC:',fec)
-		print('PPA:',ppa)
-		print('DEL:',msdelay)
 		print('STR:',start)
 		print('END:',end)
 		print('FNM:',filename)
@@ -567,8 +570,6 @@ class Command():
 										filename.decode('ascii'),
 										0x01,
 										# useFEC = fec == b' FEC',
-										packetsPerAck = ppa,
-										delayPerTransmit = msdelay,
 										firstPacket = start,
 										lastPacket = end,
 										xtea = False,
@@ -712,7 +713,7 @@ class Command():
 
 		logger.logSystem("saveStatus: Attempting to save the status to a file.")
 		try:
-			with open(STATUSPATH+'status_'+timestamp,'w') as statFile:
+			with open(MISCPATH+'status_'+timestamp,'w') as statFile:
 				statFile.write(text_to_write)
 		except Exception as err:
 			logger.logError("There was a problem writing the status file.",err)

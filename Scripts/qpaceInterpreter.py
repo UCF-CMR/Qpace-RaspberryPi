@@ -56,10 +56,9 @@ COMMANDS = {
 	b'DOWNR': 		cmd.dlReq,
 	b'DWNLD': 		cmd.dlFile,
 	b'up': 			cmd.upReq,
-	#b'Upload File': Command.upFile, #TODO ????
 	b'MANUL': 		cmd.manual,
-	b'MANUL':		cmd.dil # TODO: Remove when real things are available to be done. ALTHOUGH it could stay. I don't see any reason why not.
-	b'PLZST':		cmd.immdiateShutdown
+	b'MANUL':		cmd.dil, # TODO: Remove when real things are available to be done. ALTHOUGH it could stay. I don't see any reason why not.
+	b'PLZSD':		cmd.immediateShutdown
 }
 
 class LastCommand():
@@ -275,7 +274,7 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent, log
 				#TODO Alert ground of problem decoding command!
 				raise BufferError("Could not decode ASCII bytes to string for command query.")
 			else:
-				logger.logSystem("Interpreter: Command Received!",command,str(arguments))
+				logger.logSystem("Interpreter: Command Received! <{}>".format(command))
 				LastCommand.set(command, str(datetime.datetime.now()), fromWhom)
 				COMMANDS[fieldData['opcode']](chip,logger,command,arguments) # Run the command
 
@@ -509,7 +508,7 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent, log
 							# If the opcode is a command, process it as a command.
 							# If we don't know what it is at this point, then let's log it and
 							# trash the data.
-							if fieldData['opcode'] in fh.DataPacket.opcode:
+							if fieldData['opcode'] in fh.DataPacket.valid_opcodes:
 								processIncomingPacketData(chip,fieldData)
 							elif fieldData['opcode'] in COMMANDS: # Double check to see if it's a command
 								processCommand(chip,fieldData,fromWhom = 'CCDR')

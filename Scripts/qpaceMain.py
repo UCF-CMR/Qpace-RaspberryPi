@@ -445,7 +445,7 @@ def run(logger):
 
 			# Initialize the nextQueue for WHATISNEXT operations
 			nextQueue = Queue(logger=logger,name='NextQueue')
-			packetQueue = Queue(logger=logger,name='PacketQueue')
+			packetQueue = Queue(logger=logger,name='PacketQueue',suppressLog=True)
 
 			# Initialize threads
 			interpreter = threading.Thread(target=qpi.run,args=(chip,nextQueue,packetQueue,experimentRunningEvent,runEvent,shutdownEvent,logger))
