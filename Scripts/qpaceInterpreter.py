@@ -20,30 +20,18 @@ except:
 import time
 import datetime
 import os
+from struct import pack
 from  qpacePiCommands import generateChecksum, Command
 import tstSC16IS750 as SC16IS750
 import SC16IS750
-import qpaceControl as states
+import qpaceControl
 import qpaceFileHandler as fh
 
-qpStates = states.QPCONTROL
+qpStates = qpaceControl.QPCONTROL
 WHATISNEXT_WAIT = 2 #in seconds
 packetBuffer = [] #TODO Possibly remove for flight. Not really an issue used for debugging
 # Routing ID defined in packet structure document
-class ROUTES():
-	"""
-	Reason for Implementation
-	-------------------------
-	Handler class that holds routes for the packets.
-
-	Note: May be uneccessary at this point. TODO: look into removing this class.
-	"""
-	PI1ROUTE= 0x01
-	PI2ROUTE= 0x02
-	GNDROUTE= 0x00
-	WTCROUTE= 0xFF
-	DEVELOPMENT = 0x54 #'T'
-
+validRoutes = (0x01,0x02,0x54) # Pi1, Pi2, Gnd, WTC, Dev
 # Add commands to the map. Format is "String to recognize for command" : function name
 cmd = Command() # Creates an instance for the Command class so we can pass the packetQueue into it.
 COMMANDS = {
@@ -196,13 +184,13 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent, log
 				"xteaPadding":	packetData[110:124],
 				"checksum":    	packetData[124:]
 			}
-		elif packetData[1:6] == b'NOOP>' or packetData[1:6] == b'NOOP!':
+		elif packetData[1:6] in fh.DataPacket.valid_opcodes:
 			packet = {
 				"TYPE":			"DATA",
 				"route":		packetData[0],
 				"noop":			packetData[1:6],
 				"opcode":		packetData[1:6],
-				"pid":			int.from_bytes(packetData[6:10],byteorder='big'),
+				"pid":			packetData[6:10],
 				"information":	packetData[10:124],
 				"checksum":		packetData[124:]
 			}
@@ -236,7 +224,6 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent, log
 		Any exception gets popped up the stack.
 
 		"""
-		print("Interpreter is processing packet as Incoming Data.")
 		if Command.UploadRequest.isActive():
 			if fieldData['noop'] == b'NOOP!':
 				match,who = fh.Scaffold.finish(fieldData['information'])
@@ -324,16 +311,18 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent, log
 		------
 		Any exception gets popped up the stack.
 		"""
+
 		if fieldData['TYPE'] == 'XTEA':
 			isValid = True
 			#returnVal = PrivilegedPacket.decodeXTEA(fieldData['information'])
 			#TODO add in XTEA encryption and decryption.
 		elif fieldData['TYPE'] == 'DATA':
-			isValid = True
+			packetString = bytes([fieldData['route']]) + fieldData['opcode'] + fieldData['pid'] + fieldData['information']
+			isValid = fieldData['route'] in validRoutes and fieldData['checksum'] == generateChecksum(packetString)
 		elif fieldData['TYPE'] == 'NORM':
-			# return True,fieldData
 			packetString = bytes([fieldData['route']]) + fieldData['opcode'] + fieldData['information']
-			isValid = fieldData['route'] in (ROUTES.PI1ROUTE, ROUTES.PI2ROUTE,ROUTES.DEVELOPMENT) and fieldData['checksum'] == generateChecksum(packetString)
+			isValid = fieldData['route'] in validRoutes and fieldData['checksum'] == generateChecksum(packetString)
+
 		return isValid, fieldData
 
 	def WTCRXBufferHandler(gpio,level,tick):
@@ -511,12 +500,11 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent, log
 						if isValid:
 							#TODO These prints are for DEBUG only.
 							print('Packet has passed Validation.')
-							print('OPCODE: ', fieldData['opcode'])
 							# If the opcode is that of a DataPacket procecss as incoming data.
 							# If the opcode is a command, process it as a command.
 							# If we don't know what it is at this point, then let's log it and
 							# trash the data.
-							if fieldData['opcode'] in fh.DataPacket.valid_opcodes:
+							if fieldData['TYPE'] == 'DATA':
 								processIncomingPacketData(chip,fieldData)
 							elif fieldData['opcode'] in COMMANDS: # Double check to see if it's a command
 								processCommand(chip,fieldData,fromWhom = 'CCDR')

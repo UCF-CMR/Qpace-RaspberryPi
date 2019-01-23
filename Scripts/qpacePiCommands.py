@@ -15,7 +15,7 @@ import datetime
 import random
 import tarfile
 import qpaceLogger as qpLog
-import qpaceControl as qps
+
 
 
 CMD_DEFAULT_TIMEOUT = 5 #seconds
@@ -576,7 +576,6 @@ class Command():
 		# Numbers based on Packet Specification Document.
 		import qpaceFileHandler as qfh
 		filename = args[0:92].replace(CMDPacket.padding_byte,b'').replace(b'/',b'@')
-		print('FNM:',filename)
 		if Command.UploadRequest.isActive():
 			logger.logSystem("UploadRequest: Redundant Request? ({})".format(str(filename)))
 		Command.UploadRequest.set(filename=filename)
@@ -603,7 +602,6 @@ class Command():
 		This can only be done if an experiment is NOT running.
 		"""
 		import qpaceExperiment as exp
-		import qpaceControl as qps
 		import SC16IS750
 		print("running experiment")
 		exp.pinInit()

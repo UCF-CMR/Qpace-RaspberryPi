@@ -181,7 +181,6 @@ class ChunkPacket():
 
 	def build(self):
 		if ChunkPacket.complete:
-			print('Building a packet!')
 			packet = b''
 			for chunk in ChunkPacket.chunks:
 				#print('<',len(chunk),'>',chunk)
@@ -304,7 +303,7 @@ class Scaffold():
 
 	@staticmethod
 	def construct(pid,newData):
-
+		pid = int.from_bytes(pid,byteorder='big')
 		filename = Command.UploadRequest.filename
 		# useFEC = Command.UploadRequest.useFEC
 		with open(TEMPPATH + filename+".scaffold","rb+") as scaffold:
@@ -321,17 +320,11 @@ class Scaffold():
 			checksum = information[0]
 			paddingUsed = int.from_bytes(information[1],byteorder='big')
 			filename = information[2][:information[2].find(DataPacket.padding_byte)].replace(b'/',b'@').decode('ascii')
-			print('Checksum:', checksum)
-			print('paddingUsed:',paddingUsed)
-			print('filename:', filename)
-
 			with open(TEMPPATH+filename+'.scaffold','rb+') as f:
 				info = f.read()
 				f.seek(0)
 				f.truncate()
 				f.write(info[:-paddingUsed])
-
-			print('Calculated:',generateChecksum(open(TEMPPATH+filename+'.scaffold','rb').read()))
 			checksumMatch = checksum == generateChecksum(open(TEMPPATH+filename+'.scaffold','rb').read())
 			os.rename(TEMPPATH+filename+'.scaffold',ROOTPATH + filename.replace('@','/'))
 			return checksumMatch,Command.UploadRequest.finished(filename)
