@@ -224,7 +224,7 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent, log
 		Any exception gets popped up the stack.
 
 		"""
-		if Command.UploadRequest.isActive():
+		if fh.UploadRequest.isActive():
 			if fieldData['noop'] == b'NOOP!':
 				match,who = fh.Scaffold.finish(fieldData['information'])
 				logger.logSystem('UploadRequest: Upload Request has been cleared for {}'.format(who))
@@ -239,7 +239,7 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent, log
 				logger.logSystem("Interpreter: A packet is interpreted as data, but it's opcode isn't correct.")
 
 		#TODO Remove for flight!!!
-		if not Command.UploadRequest.isActive():
+		if not fh.UploadRequest.isActive():
 			print('UPLOAD REQUEST NOT ACTIVE')
 
 	def processCommand(chip, fieldData, fromWhom = 'WTC'):

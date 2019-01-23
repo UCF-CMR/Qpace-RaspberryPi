@@ -336,72 +336,6 @@ class Command():
 	def nextQueue(self,queue):
 		self._nextQueue = queue
 
-	class UploadRequest():
-		"""
-		Reason for Implementation
-		-------------------------
-		Abstract class.
-		Class that handles if there is a request to upload a file to the pi.
-		Only one UploadRequest can happen at a time.
-		"""
-		received = []
-		# useFEC = None
-		totalPackets = None
-		filename = None
-
-		@staticmethod
-		def set(pak = None, filename = None):
-			"""
-			Make an UploadRequest. If there is already an active request IGNORE all future requests.
-			If there is not a request going on, then set all the required data and touch the scaffold
-			to prepare for upload.
-
-			Parameters
-			----------
-			pak = the expected packets to be receiving.
-			filename = the filename expected to be sent.
-
-			Returns
-			-------
-			Void
-
-			Raises
-			------
-			Any exception gets popped up the stack.
-			If there is a problem with touching the scaffold it is silenced.
-			"""
-
-			try:
-				filename = filename.decode('ascii')
-				from pathlib import Path
-				Path('{}{}.scaffold'.format(TEMPPATH,filename)).touch()
-			except:
-				#open(filename.decode('ascii') + '.scaffold','wb').close() #Fallback method to make sure it works
-				pass
-			# If it's not already in there, add it
-			if not filename in Command.UploadRequest.received:
-				Command.UploadRequest.received.append(filename)
-			# Command.UploadRequest.useFEC = fec
-			Command.UploadRequest.totalPackets = pak
-			Command.UploadRequest.filename = filename
-
-		@staticmethod
-		def finished(who):
-			if Command.UploadRequest.received:
-				try:
-					Command.UploadRequest.received.remove(who)
-				except:
-					# If there's an issue removing it, there's no use complaining.
-					# If there's an exception, it's usually due to the object not being in the list anyway.
-					pass
-			return who
-		@staticmethod
-		def isActive():
-			"""
-			Check if there has been an UploadRequest received.
-			"""
-			return len(Command.UploadRequest.received) > 0
-
 	def status(self,chip,logger,cmd,args):
 		"""
 		Create a StatusPacket and respond with the response packet.
@@ -581,22 +515,16 @@ class Command():
 		# Numbers based on Packet Specification Document.
 		import qpaceFileHandler as qfh
 		filename = args[0:92].replace(CMDPacket.padding_byte,b'').replace(b'/',b'@')
-		if Command.UploadRequest.isActive():
+		if qfh.UploadRequest.isActive():
 			logger.logSystem("UploadRequest: Redundant Request? ({})".format(str(filename)))
-		Command.UploadRequest.set(filename=filename)
+		qfh.UploadRequest.set(filename=filename)
 		logger.logSystem("UploadRequest: Upload Request has been received. ({})".format(str(filename)))
 
 		response = b'up'
-		response += b'Active Requests: ' + bytes([len(Command.UploadRequest.received)])
+		response += b'Active Requests: ' + bytes([len(qfh.UploadRequest.received)])
 		response += b' Using Scaffold: ' + filename
 		response += PrivilegedPacket.padding_byte * (PrivilegedPacket.encoded_data_length - len(response))
 		PrivilegedPacket(chip,'NOOP*',tag=b'AA',plainText=response).respond()
-
-	def upFile(self,chip,logger,cmd,args):
-		"""
-		Possibly depreciated. To be implemented if not.
-		"""
-		pass
 
 	def manual(self,chip,logger,cmd,args):
 		print('NOTHING HAS BEEN WRITTEN FOR THE "MANUAL" METHOD.')

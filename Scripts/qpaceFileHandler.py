@@ -302,8 +302,8 @@ class Scaffold():
 	@staticmethod
 	def construct(pid,newData):
 		pid = int.from_bytes(pid,byteorder='big')
-		filename = Command.UploadRequest.filename
-		# useFEC = Command.UploadRequest.useFEC
+		filename = UploadRequest.filename
+		# useFEC = UploadRequest.useFEC
 		with open(TEMPPATH + filename+".scaffold","rb+") as scaffold:
 			scaffoldData = scaffold.read()
 			scaffold.seek(0)
@@ -313,7 +313,7 @@ class Scaffold():
 
 	@staticmethod
 	def finish(information):
-		if Command.UploadRequest.isActive():
+		if UploadRequest.isActive():
 			information = information.split(b' ')
 			checksum = information[0]
 			paddingUsed = int.from_bytes(information[1],byteorder='big')
@@ -325,4 +325,70 @@ class Scaffold():
 				f.write(info[:-paddingUsed])
 			checksumMatch = checksum == generateChecksum(open(TEMPPATH+filename+'.scaffold','rb').read())
 			os.rename(TEMPPATH+filename+'.scaffold',ROOTPATH + filename.replace('@','/'))
-			return checksumMatch,Command.UploadRequest.finished(filename)
+			return checksumMatch,UploadRequest.finished(filename)
+
+class UploadRequest():
+	"""
+	Reason for Implementation
+	-------------------------
+	Abstract class.
+	Class that handles if there is a request to upload a file to the pi.
+	Only one UploadRequest can happen at a time.
+	"""
+	received = []
+	# useFEC = None
+	totalPackets = None
+	filename = None
+
+	@staticmethod
+	def set(pak = None, filename = None):
+		"""
+		Make an UploadRequest. If there is already an active request IGNORE all future requests.
+		If there is not a request going on, then set all the required data and touch the scaffold
+		to prepare for upload.
+
+		Parameters
+		----------
+		pak = the expected packets to be receiving.
+		filename = the filename expected to be sent.
+
+		Returns
+		-------
+		Void
+
+		Raises
+		------
+		Any exception gets popped up the stack.
+		If there is a problem with touching the scaffold it is silenced.
+		"""
+
+		try:
+			filename = filename.decode('ascii')
+			from pathlib import Path
+			Path('{}{}.scaffold'.format(TEMPPATH,filename)).touch()
+		except:
+			#open(filename.decode('ascii') + '.scaffold','wb').close() #Fallback method to make sure it works
+			pass
+		# If it's not already in there, add it
+		if not filename in UploadRequest.received:
+			UploadRequest.received.append(filename)
+		# UploadRequest.useFEC = fec
+		UploadRequest.totalPackets = pak
+		UploadRequest.filename = filename
+
+	@staticmethod
+	def finished(who):
+		if UploadRequest.received:
+			try:
+				UploadRequest.received.remove(who)
+			except:
+				# If there's an issue removing it, there's no use complaining.
+				# If there's an exception, it's usually due to the object not being in the list anyway.
+				pass
+		return who
+	@staticmethod
+	def isActive():
+		"""
+		Check if there has been an UploadRequest received.
+		"""
+		return len(UploadRequest.received) > 0
