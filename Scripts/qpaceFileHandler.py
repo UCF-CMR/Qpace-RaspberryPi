@@ -322,7 +322,11 @@ class Scaffold():
 				info = f.read()
 				f.seek(0)
 				f.truncate()
-				f.write(info[:-paddingUsed])
+				if paddingUsed:
+					f.write(info[:-paddingUsed])
+				else:
+					f.write(info)
+			print(generateChecksum(open(TEMPPATH+filename+'.scaffold','rb').read()))
 			checksumMatch = checksum == generateChecksum(open(TEMPPATH+filename+'.scaffold','rb').read())
 			os.rename(TEMPPATH+filename+'.scaffold',ROOTPATH + filename.replace('@','/'))
 			return checksumMatch,UploadRequest.finished(filename)

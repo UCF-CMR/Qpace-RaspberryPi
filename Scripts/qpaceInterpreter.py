@@ -236,7 +236,7 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent, log
 			elif fieldData['noop'] == b'NOOP>':
 				fh.Scaffold.construct(fieldData['pid'],fieldData['information'])
 			else:
-				logger.logSystem("Interpreter: A packet is interpreted as data, but it's opcode isn't correct.")
+				logger.logSystem("Interpreter: A packet is interpreted as data, but its opcode isn't correct.")
 
 		#TODO Remove for flight!!!
 		if not fh.UploadRequest.isActive():

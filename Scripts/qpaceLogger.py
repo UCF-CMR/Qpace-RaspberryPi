@@ -95,6 +95,7 @@ class Logger():
 
             with open('{}{}_{}.log'.format(Logger.LOG_PATH,self.filename,self.counter),'a') as f:
                 f.write('\n'.join(stringBuilder))
+                f.write('\n')
 
             if Logger.DEBUG:
                 for string in stringBuilder:
