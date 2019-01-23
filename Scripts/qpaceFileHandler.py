@@ -198,9 +198,6 @@ class ChunkPacket():
 			print('Packet is not complete yet.')
 			pass
 
-class DownloadRequest():
-	pass
-
 class Defaults():
 	packetsPerAck_DEFAULT = 1
 	delayPerTransmit_DEFAULT = 135 #in milliseconds
@@ -211,6 +208,7 @@ class Defaults():
 	prepend_DEFAULT = ''
 	route_DEFAULT = None
 	totalPackets_DEFAULT = None
+
 class Transmitter():
 
 	def __init__(self, chip, pathname, route,
@@ -294,87 +292,6 @@ class Transmitter():
 				else:
 					break
 		return packetData
-
-class ReceivedPacket():
-	def __init__(self, rid, pid, data):
-		self.rid = rid
-		self.pid = pid
-		self.data = data
-class Receiver():
-
-	def __init__(self, chip, pathname,
-				prepend =			Defaults.prepend_DEFAULT,
-				route =				Defaults.route_DEFAULT,
-				# useFEC =			Defaults.useFEC_DEFAULT,
-				packetsPerAck = 	Defaults.packetsPerAck_DEFAULT,
-				delayPerTransmit = 	Defaults.delayPerTransmit_DEFAULT,
-				firstPacket = 		Defaults.firstPacket_DEFAULT,
-				lastPacket = 		Defaults.lastPacket_DEFAULT,
-				xtea = 				Defaults.xtea_DEFAULT,
-				expected_packets = 	Defaults.totalPackets_DEFAULT):
-		self.chip = chip
-		self.prepend = prepend
-		self.pathname = pathname
-		# self.useFEC = useFEC
-		self.packetsPerAck = packetsPerAck
-		self.delayPerTransmit = delayPerTransmit
-		self.firstPacket = firstPacket if firstPacket > 1 else 1
-		self.lastPacket = lastPacket if lastPacket > firstPacket else None
-		self.route = route
-		self.expected_packets = expected_packets
-		self.checksum = b'Do we even need this? Confused a little?' #TODO should we just not send the file? I don't think so.
-
-		# if useFEC:
-		# 	self.data_size = (DataPacket.max_size - DataPacket.header_size) // 3
-		# else:
-		# 	self.data_size = DataPacket.max_size - DataPacket.header_size
-		self.data_size = DataPacket.max_size - DataPacket.header_size
-
-	def run(self,fromWTC=True):
-		with open(self.prepend+self.pathname,'rb+') as scaffold:
-			packetCount = 0
-			while(True): # Continue to accept packets until we break and are done
-				packetsReceived = 0
-				acceptingPackets = True
-				while(acceptingPackets):
-					packet = self.getPacketFromFile(packetCount)
-					packetsReceived += 1
-					packetCount += 1
-					if packet.rid == 1 or packet.rid == 2:
-						data = scaffold.read()
-						scaffold.seek(0)
-						offset = packet.pid*self.data_size
-						data = data[:offset] + packet.data + data[offset:]
-						scaffold.write(data)
-					if packetsReceived >= self.packetsPerAck or packetCount >= self.expected_packets:
-						acceptingPackets = False
-
-				#TODO do the acknoledgement process
-				# If the acknkoledgement fails or we get a STOP, stop accepting packets.
-				# If the acknoledgeement is successful then continue on accepting more packets
-				if acknowledgement_fail or stop_code:
-					break
-
-				# If we've receieved all the packets, then break. We are done.
-				if packetCount >= self.expected_packets:
-					break
-
-
-	def getPacketFromFile(self,NUM=0):
-		filename = str(NUM) + '.qp'
-		try:
-			logger.logSystem("FileHandler: Reading in {} bytes from file".format(str(DataPacket.max_size)),filename)
-			with open(filename,'rb') as f:
-				data = f.read()
-			return ReceivedPacket(buf[0],buf[1:4],buf[5:])
-		except Exception as err:
-			logger.logError("An exception was thrown.",err)
-
-
-		return ReceivedPacket(buf[0],buf[1:4],buf[5:])
-
-	def writeFile(self):
-		pass
 
 class Scaffold():
 
