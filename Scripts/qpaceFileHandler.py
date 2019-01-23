@@ -187,7 +187,9 @@ class ChunkPacket():
 			for chunk in ChunkPacket.chunks:
 				#print('<',len(chunk),'>',chunk)
 				packet += chunk
-			if len(packet) != DataPacket.max_size: self.logger.logSystem("Packet is not {} bytes! It is {} bytes!".format(str(DataPacket.max_size),str(len(packet))) ,str(packet)[50:])
+			if len(packet) != DataPacket.max_size:
+				self.logger.logSystem("Packet is not {} bytes! It is {} bytes!".format(str(DataPacket.max_size),str(len(packet))) ,str(packet)[50:])
+				packet = b''
 			ChunkPacket.chunks[:] = [] #reset chunks to empty
 			ChunkPacket.complete = False #reset copmlete to False
 			ChunkPacket.lastInputTime = None # reset the timer.
@@ -402,7 +404,7 @@ class Scaffold():
 			information = information.split(b' ')
 			checksum = information[0]
 			paddingUsed = int.from_bytes(information[1],byteorder='big')
-			filename = information[2][:information[2].find(DataPacket.padding_byte)].decode('ascii')
+			filename = information[2][:information[2].find(DataPacket.padding_byte)].replace(b'/',b'@').decode('ascii')
 			print('Checksum:', checksum)
 			print('paddingUsed:',paddingUsed)
 			print('filename:', filename)
@@ -413,5 +415,5 @@ class Scaffold():
 				f.truncate()
 				f.write(info[:-paddingUsed])
 
-			os.rename(TEMPPATH+filename+'.scaffold',ROOTPATH + filename)
+			os.rename(TEMPPATH+filename+'.scaffold',ROOTPATH + filename.replace('@','/'))
 			return Command.UploadRequest.finished(filename)

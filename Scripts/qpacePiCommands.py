@@ -575,7 +575,7 @@ class Command():
 		"""
 		# Numbers based on Packet Specification Document.
 		import qpaceFileHandler as qfh
-		filename = args[0:96].replace(CMDPacket.padding_byte,b'')
+		filename = args[0:92].replace(CMDPacket.padding_byte,b'').replace(b'/',b'@')
 		print('FNM:',filename)
 		if Command.UploadRequest.isActive():
 			logger.logSystem("UploadRequest: Redundant Request? ({})".format(str(filename)))
