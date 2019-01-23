@@ -239,8 +239,13 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent, log
 		print("Interpreter is processing packet as Incoming Data.")
 		if Command.UploadRequest.isActive():
 			if fieldData['noop'] == b'NOOP!':
-				who = fh.Scaffold.finish(fieldData['information'])
+				match,who = fh.Scaffold.finish(fieldData['information'])
 				logger.logSystem('UploadRequest: Upload Request has been cleared for {}'.format(who))
+				if match:
+					logger.logSystem('Scaffold: The Upload was successful')
+				else:
+					logger.logSystem('Scaffold: The Uploaded file does not match the checksum with ground')
+
 			elif fieldData['noop'] == b'NOOP>':
 				fh.Scaffold.construct(fieldData['pid'],fieldData['information'])
 			else:

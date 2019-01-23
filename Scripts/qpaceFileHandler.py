@@ -126,7 +126,6 @@ class DataPacket():#Packet):
 		self.paddingSize = padding
 		packet = self.rid.to_bytes(1,byteorder='big') + self.opcode + self.pid.to_bytes(4,byteorder='big') + data
 		packet += generateChecksum(packet)
-		print('PACKET TO SEND LEN:', len(packet))
 		# After constructing the packet's contents, pad the end of the packet until we reach the max size.
 		return packet
 
@@ -235,7 +234,7 @@ class Transmitter():
 		try:
 			self.checksum = generateChecksum(open("{}{}".format(ROOTPATH,pathname),'rb').read())
 		except:
-			self.checksum = b'NONE' #TODO should we just not send the file? I don't think so.
+			self.checksum = b'NONE' #Should we just not send the file? I think we should send it anyway.
 
 		# if useFEC:
 		# 	self.data_size = (DataPacket.max_size - DataPacket.header_size) // 3
@@ -332,5 +331,7 @@ class Scaffold():
 				f.truncate()
 				f.write(info[:-paddingUsed])
 
+			print('Calculated:',generateChecksum(open(TEMPPATH+filename+'.scaffold','rb').read()))
+			checksumMatch = checksum == generateChecksum(open(TEMPPATH+filename+'.scaffold','rb').read())
 			os.rename(TEMPPATH+filename+'.scaffold',ROOTPATH + filename.replace('@','/'))
-			return Command.UploadRequest.finished(filename)
+			return checksumMatch,Command.UploadRequest.finished(filename)
