@@ -224,10 +224,8 @@ class Transmitter():
 		self.packetQueue = packetQueue
 		# Attempt to get the file size. Pop up the stack if it cannot be found.
 		# Since this happens first, if this succeeds, then the rest of the methods will be fine.
-		try:
-			self.filesize = os.path.getsize("{}{}".format(ROOTPATH,pathname))
-		except FileNotFoundError as e:
-			raise e
+		self.filesize = os.path.getsize("{}{}".format(ROOTPATH,pathname))
+
 
 
 		try:

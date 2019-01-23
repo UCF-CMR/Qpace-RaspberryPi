@@ -556,17 +556,22 @@ class Command():
 		print('STR:',start)
 		print('END:',end)
 		print('FNM:',filename)
-		transmitter = qfh.Transmitter(	chip,
-										filename.decode('ascii'),
-										0x01,
-										# useFEC = fec == b' FEC',
-										firstPacket = start,
-										lastPacket = end,
-										xtea = False,
-										packetQueue = self._packetQueue
-									)
-		transmitter.run()
-		self._nextQueue.enqueue('SENDPACKET') # taken from qpaceControl
+		try:
+			transmitter = qfh.Transmitter(	chip,
+											filename.decode('ascii'),
+											0x01,
+											# useFEC = fec == b' FEC',
+											firstPacket = start,
+											lastPacket = end,
+											xtea = False,
+											packetQueue = self._packetQueue
+										)
+		except FileNotFoundError:
+			logger.logSystem('Transmitter: Could not find the file requested for: {}'.format(filename.decode('ascii')))
+		else:
+			transmitter.run()
+		finally:
+			self._nextQueue.enqueue('SENDPACKET') # taken from qpaceControl
 
 	def upReq(self,chip,logger,cmd,args):
 		"""
