@@ -9,6 +9,7 @@
 
 QPCONTROL = {
 	"NOOP":			  0x0F, # No-operation. Has no use. More like a "ping" than anything else
+	"DEBUG":		  0x23,
 
 	"STEPON":		  0x83, # Pi request for the Steppers to be turned on
 	"STEPOFF":		  0x84, # Pi request for the Steppers to be turned off

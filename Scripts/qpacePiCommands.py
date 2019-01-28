@@ -186,6 +186,8 @@ class CMDPacket():
 			sendData = self.build()
 			return sendBytesToCCDR(self.chip,sendData)
 
+
+
 	def isValid(self): #TODO Make sure the packet is not corrupted
 		"""
 		Not implemented yet.
@@ -354,7 +356,9 @@ class Command():
 		status_file = str(timestamp) if thread else 'Save Failed' # Save the timestamp inwhich this status file will be saved as.
 		status += b'F('+ status_file.encode('ascii') +b')' # the File where the major status stuff should be being saved in.
 		data += status + b' '*(111-len(status)) # 111 due to defined packet Structure
-		CMDPacket(chip=chip,opcode='STATS',data=data).respond()
+		p = CMDPacket(chip=chip,opcode='STATS',data=data).build()
+		self.packetQueue.enqueue(p)
+		self.nextQueue.enqueue('SENDPACKET')
 		if thread:
 			thread.join() # Make sure we wait for the thread to close if it's still going.
 
@@ -370,7 +374,9 @@ class Command():
 		padding = CMDPacket.padding_byte*(PrivilegedPacket.encoded_data_length-len(lenstr)) #98 due to specification of packet structure
 		plainText = lenstr.encode('ascii')
 		plainText += padding
-		PrivilegedPacket(chip=chip,opcode="NOOP*",tag=tag,plainText=plainText).respond()
+		p = PrivilegedPacket(chip=chip,opcode="NOOP*",tag=tag,plainText=plainText).build()
+		self.packetQueue.enqueue(p)
+		self.nextQueue.enqueue('SENDPACKET')
 
 	def directoryList(self,chip,logger,cmd,args):
 		"""
@@ -392,7 +398,9 @@ class Command():
 		padding = CMDPacket.padding_byte * (PrivilegedPacket.encoded_data_length - len(filepath))
 		plainText = filepath.encode('ascii')
 		plainText += padding
-		PrivilegedPacket(chip=chip,opcode="NOOP*", tag=tag,plainText=plainText).respond()
+		p = PrivilegedPacket(chip=chip,opcode="NOOP*", tag=tag,plainText=plainText).build()
+		self.packetQueue.enqueue(p)
+		self.nextQueue.enqueue('SENDPACKET')
 
 	def move(self,chip,logger,cmd,args):
 		"""
@@ -421,7 +429,9 @@ class Command():
 		padding = CMDPacket.padding_byte * (PrivilegedPacket.encoded_data_length - len(wasMoved))
 		plainText = wasMoved.encode('ascii')
 		plainText += padding
-		PrivilegedPacket(chip=chip,opcode="NOOP*",tag=tag,plainText=plainText).respond()
+		p = PrivilegedPacket(chip=chip,opcode="NOOP*",tag=tag,plainText=plainText).build()
+		self.packetQueue.enqueue(p)
+		self.nextQueue.enqueue('SENDPACKET')
 
 	def tarExtract(self,chip,logger,cmd,args):
 		"""
@@ -439,7 +449,9 @@ class Command():
 		except:pass
 		message = b'DONE'
 		plainText = message + CMDPacket.padding_byte * (PrivilegedPacket.encoded_data_length-len(message))
-		PrivilegedPacket(chip=chip,opcode="NOOP*",tag=b'AA',plainText=plainText).respond()
+		p = PrivilegedPacket(chip=chip,opcode="NOOP*",tag=b'AA',plainText=plainText).build()
+		self.packetQueue.enqueue(p)
+		self.nextQueue.enqueue('SENDPACKET')
 
 	def tarCreate(self,chip,logger,cmd,args):
 		"""
@@ -457,7 +469,9 @@ class Command():
 			tar.add(args[0], arcname=os.path.basename(args[0]))
 
 		plainText = tarDir.encode('ascii') + CMDPacket.padding_byte*(CMDPacket.data_size - len(tarDir))
-		PrivilegedPacket(chip=chip,opcode='NOOP*',tag=b'AA',plainText=plainText).respond()
+		p = PrivilegedPacket(chip=chip,opcode='NOOP*',tag=b'AA',plainText=plainText).build()
+		self.packetQueue.enqueue(p)
+		self.nextQueue.enqueue('SENDPACKET')
 
 	def dlReq(self,chip,logger,cmd,args):
 		"""
@@ -481,7 +495,9 @@ class Command():
 			data += ('FileNotFound:{}{}'.format(ROOTPATH,path)).encode('ascii')
 		padding = CMDPacket.data_size - len(data)
 		data += CMDPacket.padding_byte * padding if padding > 0 else 0
-		CMDPacket(chip=chip,opcode='DOWNR',data=data).respond()
+		p = CMDPacket(chip=chip,opcode='DOWNR',data=data).build()
+		self.packetQueue.enqueue(p)
+		self.nextQueue.enqueue('SENDPACKET')
 
 	def dlFile(self,chip,logger,cmd,args):
 		"""
@@ -514,7 +530,7 @@ class Command():
 		finally:
 			# For however many transactions the WTC can handle, enqueue a SENDPACKET so when the WTC asks "WHATISNEXT" the Pi can tell it it wants to send packets.
 			for x in range((len(self._packetQueue)//WTC_PACKET_BUFFER_SIZE) + 1):
-				self._nextQueue.enqueue('SENDPACKET') # taken from qpaceControl
+				self.nextQueue.enqueue('SENDPACKET') # taken from qpaceControl
 
 	def upReq(self,chip,logger,cmd,args):
 		"""
@@ -533,7 +549,9 @@ class Command():
 		response += b'Active Requests: ' + bytes([len(qfh.UploadRequest.received)])
 		response += b' Using Scaffold: ' + filename
 		response += PrivilegedPacket.padding_byte * (PrivilegedPacket.encoded_data_length - len(response))
-		PrivilegedPacket(chip,'NOOP*',tag=b'AA',plainText=response).respond()
+		p = PrivilegedPacket(chip,'NOOP*',tag=b'AA',plainText=response).build()
+		self.packetQueue.enqueue(p)
+		self.nextQueue.enqueue('SENDPACKET')
 
 	def manual(self,chip,logger,cmd,args):
 		print('NOTHING HAS BEEN WRITTEN FOR THE "MANUAL" METHOD.')

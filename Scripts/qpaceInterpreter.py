@@ -150,6 +150,7 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent, log
 
 	global packetBuffer #TODO Possibly remove for flight. Not really an issue used for debugging
 	packetBuffer = []
+	callback = None
 
 	cmd.packetQueue = packetQueue # set the packet queue so we can append packets.
 	cmd.nextQueue = nextQueue
@@ -434,6 +435,8 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent, log
 					wtc_respond(next) # Respond with what the Pi would like the WTC to know.
 					# Wait for a response from the WTC.
 					logger.logSystem('PseudoSM: Waiting {}s for a response from WTC'.format(WHATISNEXT_WAIT))
+					# Possibly might need to cancel the callback and restart it here.
+					# callback.cancel()
 					if waitForBytesFromCCDR(chip,1,timeout=WHATISNEXT_WAIT): # Wait for 15s for a response from the WTC
 						response = chip.byte_read(SC16IS750.REG_RHR)
 						# If SENDPACKET was queued, but a BUFFERFUL came in as a response, then re-queue the SENDPACKET
@@ -443,8 +446,11 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent, log
 						wtc_respond('DONE') # Always respond with done for an "ACCEPTED or PENDING"
 						# THIS IS A BLOCKING CALL
 						nextQueue.blockWithResponse(response,timeout=5) # Blocking until the response is read or timeout.
+
 					if not nextQueue.isEmpty():
 						nextQueue.dequeue() # After "waiting" for the bytes, dequeue the items.
+					# If we cancel the callback earlier, re-initialize it here.
+					# callback = gpio.callback(CCDR_IRQ, pigpio.FALLING_EDGE, WTCRXBufferHandler)
 
 				elif byte == qpStates['NEXTPACKET']:
 					nextPacket = packetQueue.dequeue()
