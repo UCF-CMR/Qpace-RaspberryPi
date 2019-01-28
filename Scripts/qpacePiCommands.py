@@ -22,9 +22,11 @@ WTC_PACKET_BUFFER_SIZE = 10 # How many packets can the WTC store?
 CMD_DEFAULT_TIMEOUT = 5 #seconds
 CMD_POLL_DELAY = .35 #seconds
 MISCPATH = 'home/pi/data/misc/'
+TEXTPATH = 'home/pi/data/text/'
 TEMPPATH = '/home/pi/temp/'
 ROOTPATH = '/home/pi/'
 MISCPATH = '/mnt/c/users/jonat/desktop/cmr/pi/data/misc/'
+TEXTPATH = '/mnt/c/users/jonat/desktop/cmr/pi/data/text/'
 ROOTPATH= '/mnt/c/users/jonat/desktop/cmr/pi/'
 TEMPPATH = '/mnt/c/users/jonat/desktop/cmr/pi/temp/'
 
@@ -366,10 +368,9 @@ class Command():
 		"""
 		Create a DirectoryListingPacket and respond with the response packet.
 		"""
-		pathname = args.split(' ')[0]
+		pathname = ROOTPATH + args.split(' ')[0]
 		tag = b"AA"
 
-		self.pathname = pathname
 		lenstr = str(len(os.listdir(pathname))) # Get the number of files/directories in this directory.
 		padding = CMDPacket.padding_byte*(PrivilegedPacket.encoded_data_length-len(lenstr)) #98 due to specification of packet structure
 		plainText = lenstr.encode('ascii')
@@ -386,7 +387,7 @@ class Command():
 		pathname = args.split(' ')[0]
 		tag = b"AA"
 		self.pathname = pathname
-		filepath = '../temp/DirList'
+		filepath = TEXTPATH
 		try:
 			pathList = os.listdir(pathname)
 		except:
@@ -399,6 +400,34 @@ class Command():
 		plainText = filepath.encode('ascii')
 		plainText += padding
 		p = PrivilegedPacket(chip=chip,opcode="NOOP*", tag=tag,plainText=plainText).build()
+		self.packetQueue.enqueue(p)
+		self.nextQueue.enqueue('SENDPACKET')
+
+	def splitVideo(self,chip,logger,cmd,args):
+		args = args.split(' ')
+		path = ROOTPATH + args[0]
+		nam_i,ext_i = path.rfind('/'),path.rfind('.')
+		ext_i = None if ext_i < 0 or ext_i < nam_i else ext_i # If it's -1 or if it's before the first slash, then ignore it.
+		filename = path[nam_i+1:ext_i] #get the filename from the path, remove the extension if there is one.
+		minute = args[1]
+		second = args[2]
+
+		os.system('cd ffmpeg -i {} -c copy -map 0 -segment_time 00:{}:{} -f segment {}_%03d.mp4 &> /dev/null'.format(pathname,hour,second,filename))
+		self.directoryList(chip,logger,cmd,path[:nam_i]) # pass in the path stated above without the file to get the directory list.
+		#NOTE: self.directoryList() will send a PrivilegedPacket back to the ground.
+
+
+	def convertVideo(self,chip,logger,cmd,args):
+		args = args.split(' ')
+		pathToVideo = args[0]
+		nam_i,ext_i = pathToVideo.rfind('/'),pathToVideo.rfind('.')
+		ext_i = None if ext_i < 0 or ext_i < nam_i else ext_i # If it's -1 or if it's before the first slash, then ignore it.
+		filename = pathToVideo[nam_i+1:ext_i] #get the filename from the path, remove the extension if there is one.
+		pathToVideo = ROOTPATH + pathToVideo[:nam_i]
+		os.system('MP4Box -add {}{}.h264 {}{}.mp4 &> /dev/null'.format(pathToVideo,filename,pathToVideo,filename))
+		returnValue = check_output(['ls','-la',"{}{}.mp4".format(pathToVideo,filename)])
+		returnValue += returnValue.encode('ascii') + CMDPacket.padding_byte*(CMDPacket.data_size - len(returnValue))
+		p = CMDPacket(chip=chip,opcode='RSPND',data=returnValue).build()
 		self.packetQueue.enqueue(p)
 		self.nextQueue.enqueue('SENDPACKET')
 

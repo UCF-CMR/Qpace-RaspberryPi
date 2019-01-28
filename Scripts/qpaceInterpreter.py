@@ -43,6 +43,8 @@ COMMANDS = {
 	b'tc':			cmd.tarCreate,
 	b'DOWNR': 		cmd.dlReq,
 	b'DWNLD': 		cmd.dlFile,
+	b'sv':			cmd.splitVideo,
+	b'cv':		    cmd.convertVideo,
 	b'up': 			cmd.upReq,
 	b'MANUL': 		cmd.manual,
 	b'MANUL':		cmd.dil, # TODO: Remove when real things are available to be done. ALTHOUGH it could stay. I don't see any reason why not.
