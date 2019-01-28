@@ -13,11 +13,13 @@ import tstSC16IS750 as SC16IS750
 from time import sleep
 from datetime import datetime,timedelta
 from math import ceil
+import re
 import os
 
 MISCPATH = '/mnt/c/users/jonat/desktop/cmr/pi/data/misc/'
 ROOTPATH= '/mnt/c/users/jonat/desktop/cmr/pi/'
 TEMPPATH = '/mnt/c/users/jonat/desktop/cmr/pi/temp/'
+MAX_FILE_SIZE = 419430400 # This is how many bytes are in 400MB. Restrict file sizes to this because of RAM.,///
 
 class DataPacket():#Packet):
 	"""
@@ -82,10 +84,11 @@ class DataPacket():#Packet):
 		data_in_bytes = len(data)
 		if data_in_bytes <= self.data_size: # Make sure the data is below the max bytes
 			if (DataPacket.last_id + 1) == pid:
-				if pid < 0 or pid > DataPacket.max_id:
+				if pid > DataPacket.max_id:
+					self.pid = pid % DataPacket.max_id # If the pid is > max_id, force it to be smaller!
+				if pid < 0:
 					raise ValueError("Packet pid is invalid.")
 				DataPacket.last_id = pid
-				self.pid = pid % DataPacket.max_id # If the pid is > max_id, force it to be smaller!
 			else:
 				if pid == 0:
 					DataPacket.pid = 0
@@ -226,7 +229,12 @@ class Transmitter():
 		# Since this happens first, if this succeeds, then the rest of the methods will be fine.
 		self.filesize = os.path.getsize("{}{}".format(ROOTPATH,pathname))
 
-
+		if self.filesize > MAX_FILE_SIZE:
+			noDownloadMessage = b'You cannot download this file. It is too big. Break it up first.'
+			noDownloadPacket = DataPacket(noDownloadMessage, pid, self.route)
+			self.packetQueue.enqueue(noDownloadPacket)
+			DataPacket.last_id = 0
+			return
 
 		try:
 			self.checksum = generateChecksum(open("{}{}".format(ROOTPATH,pathname),'rb').read())
@@ -271,8 +279,8 @@ class Transmitter():
 		# else:
 		# 	data += (116 - len(data)) * b'\x04' if len(data) < 116 else b''
 		# 	data = data[:116] # only get the first 116 chars. Defined by the packet document
-		padding = len(data)
-		data += DataPacket.padding_byte * padding
+		# padding = 116 - len(data)
+		# data += DataPacket.padding_byte * padding
 		allDone = DataPacket(data,packet.pid+1,0x00,opcode=b'NOOP!').build()
 		self.packetQueue.enqueue(allDone)
 		DataPacket.last_id = 0
@@ -291,6 +299,8 @@ class Transmitter():
 
 class Scaffold():
 
+	last_pid = -1
+
 	@staticmethod
 	def determineDataSize():
 		# if useFEC:
@@ -299,6 +309,7 @@ class Scaffold():
 		# 	return DataPacket.max_size - DataPacket.header_size
 		return DataPacket.max_size - DataPacket.header_size
 
+
 	@staticmethod
 	def construct(pid,newData):
 		pid = int.from_bytes(pid,byteorder='big')
@@ -306,9 +317,28 @@ class Scaffold():
 		# useFEC = UploadRequest.useFEC
 		with open(TEMPPATH + filename+".scaffold","rb+") as scaffold:
 			scaffoldData = scaffold.read()
+			size = Scaffold.determineDataSize()
+			scaffoldData = [scaffoldData[i:i + size] for i in range(0, len(scaffoldData), size)]
+			try: # Try to put the data in the scaffold
+				# Try to place the data. if pid < Scaffold.last_pid + 1, then we should be able to just replace it.
+				scaffoldData[pid] = newData
+			except IndexError: # If we can't, make room for it.
+				# If we are way ahead, pad the file.
+				# print(pid,Scaffold.last_pid+1)
+				if pid > Scaffold.last_pid + 1:
+					appendCount = pid - len(scaffoldData) # Get the distance between the current pid placement and the length of all the packets
+					# print(appendCount)
+					for i in range(appendCount):
+						scaffoldData.append(b' '*size) #Put some kind of padding byte there
+					# print(pid,Scaffold.last_pid+1,appendCount)
+
+				#DEBUG For some reason during testing, if these two operations change order, sometimes it won't order the data properly.
+				#I suggest leaving it in this order unless a better method is utilized.
+				Scaffold.last_pid = pid # Only set the last_pid to the highest PID, therefore if we get here, then we need to set it.
+				scaffoldData.append(newData) # Append the new data. if pid == the last_pid +1, then we just need to append. No padding
+
+			scaffoldData = b''.join(scaffoldData)
 			scaffold.seek(0)
-			offset = pid * Scaffold.determineDataSize()
-			scaffoldData = scaffoldData[:offset] + newData + scaffoldData[offset:]
 			scaffold.write(scaffoldData)
 
 	@staticmethod
@@ -369,7 +399,10 @@ class UploadRequest():
 		try:
 			filename = filename.decode('ascii')
 			from pathlib import Path
-			Path('{}{}.scaffold'.format(TEMPPATH,filename)).touch()
+			#Path('{}{}.scaffold'.format(TEMPPATH,filename)).touch()
+			with open('{}{}.scaffold'.format(TEMPPATH,filename),'wb') as fi:
+				for x in range(pak):
+					fi.write(b'\x00'*DataPacket.max_size)
 		except:
 			#open(filename.decode('ascii') + '.scaffold','wb').close() #Fallback method to make sure it works
 			pass
