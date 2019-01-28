@@ -131,6 +131,7 @@ class Logger():
             if exception is not None:
                 description += ' {}'.format(str(exception.args))
             Errors.inc()
+            self.logData('Sys','An error is being recorded to the error log. Please check the error log at this timestamp.')
             return self.logData('Err',description) # Actually log the data.
         except Exception:
             Logger.LOG_ATTEMPTS += 1

@@ -109,6 +109,9 @@ class Queue():
 		self.logger=logger
 		self.logger.logSystem('{}: Initializing...'.format(name))
 
+	def __len__(self):
+		return len(self.internalQueue)
+
 	def isEmpty(self):
 		""" Check to see if the queue is empty."""
 		return len(self.internalQueue) == 0
@@ -117,7 +120,7 @@ class Queue():
 	# def NextQueue.isFull():
 	# 	return len(internalQueue) >= NextQueue.MAX
 
-	def enqueue(self,item):
+	def enqueue(self,item,prepend=False):
 		"""
 		Enqueue an item to the queue.
 		Set up a threading.Condition variable for use by NextQueue. This is only useful for the "wait" feature.
@@ -136,7 +139,10 @@ class Queue():
 		if item in states.QPCONTROL:
 			item = states.QPCONTROL[item]
 
-		self.internalQueue.append(item)
+		if prepend:
+			self.internalQueue.insert(0,item)
+		else:
+			self.internalQueue.append(item)
 		self.enqueueCount += 1
 
 	def peek(self):
@@ -180,6 +186,7 @@ class Queue():
 
 	def getCount(self):
 		return self.enqueueCount
+
 
 	def waitUntilEmpty(self,popN=1,timeout=WAIT_TIME):
 		"""

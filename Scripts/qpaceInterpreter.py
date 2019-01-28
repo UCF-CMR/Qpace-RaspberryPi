@@ -436,6 +436,10 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent, log
 					logger.logSystem('PseudoSM: Waiting {}s for a response from WTC'.format(WHATISNEXT_WAIT))
 					if waitForBytesFromCCDR(chip,1,timeout=WHATISNEXT_WAIT): # Wait for 15s for a response from the WTC
 						response = chip.byte_read(SC16IS750.REG_RHR)
+						# If SENDPACKET was queued, but a BUFFERFUL came in as a response, then re-queue the SENDPACKET
+						if (next == 'SENDPACKET' or next == qpStates['SENDPACKET']) and response == qpStates['BUFFERFULL']:
+							nextQueue.enqueue('SENDPACKET',prepend=True)
+
 						wtc_respond('DONE') # Always respond with done for an "ACCEPTED or PENDING"
 						# THIS IS A BLOCKING CALL
 						nextQueue.blockWithResponse(response,timeout=5) # Blocking until the response is read or timeout.
@@ -450,6 +454,7 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent, log
 						wtc_respond(fh.DummyPacket().build())
 
 				elif byte == qpStates['BUFFERFULL']:
+
 					wtc_respond('DONE')
 				elif byte == qpStates['ACCEPTED']:
 					wtc_respond('DONE')
@@ -511,8 +516,9 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent, log
 							else:
 								logger.logSystem("Interpreter: Unknown valid packet.",str(fieldData))
 						else:
+							pass
 							#TODO Alert the WTC? Send OKAY back to ground?
-							logger.logSystem('Interpreter: Packet did not pass validation.')
+							print('Packet did not pass validation.')
 
 		except KeyboardInterrupt: # Really only needed for DEBUG. Forces a re-check for shutdownEvent.
 			continue

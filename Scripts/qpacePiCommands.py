@@ -16,6 +16,7 @@ import random
 import tarfile
 import qpaceLogger as qpLog
 
+WTC_PACKET_BUFFER_SIZE = 10 # How many packets can the WTC store?
 
 
 CMD_DEFAULT_TIMEOUT = 5 #seconds
@@ -462,13 +463,19 @@ class Command():
 		"""
 		Create a DownloadRequestPacket and respond with the response packet.
 		"""
+		import qpaceFileHandler as qfh
 		path = args[4:].replace(b'\x04',b'').decode('ascii')
 		try:
-			packet_estimate = (os.path.getsize("{}{}".format(ROOTPATH,path))//114) + 1
+			size_of_file = os.path.getsize("{}{}".format(ROOTPATH,path))
 		except FileNotFoundError as e:
-			packet_estimate = 0
-		data = packet_estimate.to_bytes(4,'big')
-		if packet_estimate > 0:
+			size_of_file = 0
+			# 114 is the maximum alotment of data space in the files. the other 14 bytes are header and checksum data
+			# Get the number of packets estimated to be in this thing.
+			data = ((size_of_file//114) + 1).to_bytes(4,'big')
+			data += b'\n'
+		if size_of_file > qfh.MAX_FILE_SIZE:
+			data += ('File Too large. Send less than 400MB at a time.\n')
+		if size_of_file > 0:
 			data += check_output(['ls','-la',"{}{}".format(ROOTPATH,path)])
 		else:
 			data += ('FileNotFound:{}{}'.format(ROOTPATH,path)).encode('ascii')
@@ -505,7 +512,9 @@ class Command():
 		else:
 			transmitter.run()
 		finally:
-			self._nextQueue.enqueue('SENDPACKET') # taken from qpaceControl
+			# For however many transactions the WTC can handle, enqueue a SENDPACKET so when the WTC asks "WHATISNEXT" the Pi can tell it it wants to send packets.
+			for x in range((len(self._packetQueue)//WTC_PACKET_BUFFER_SIZE) + 1):
+				self._nextQueue.enqueue('SENDPACKET') # taken from qpaceControl
 
 	def upReq(self,chip,logger,cmd,args):
 		"""
