@@ -17,6 +17,11 @@ import random
 import tarfile
 import qpaceLogger as qpLog
 
+try:
+	import xtea3
+except:
+	pass
+
 WTC_PACKET_BUFFER_SIZE = 10 # How many packets can the WTC store?
 
 
@@ -276,17 +281,14 @@ class PrivilegedPacket(CMDPacket):
 		"""
 		Encode a plaintext into ciphertext.
 		"""
-		cipherText = plainText
+		key = b'128-bits128-bits'
+		iv = b'12345678'
+		try:
+			cipherText = xtea.new(key,mode=xtea.MODE_OFB,IV=iv).encrypt(plaintext)
+		except:
+			cipherText = plainText
+
 		return cipherText
-
-	@staticmethod
-	def decodeXTEA(cipherText):
-		"""
-		decode a ciphertext into plaintext.
-		"""
-		plainText = cipherText
-		return plainText
-
 
 	@staticmethod
 	def returnRandom(n):

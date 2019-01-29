@@ -17,6 +17,11 @@ try:
 	import pigpio
 except:
 	pass
+
+try:
+	import xtea3
+except:
+	pass
 import time
 import datetime
 import os
@@ -158,6 +163,20 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent, log
 	cmd.packetQueue = packetQueue # set the packet queue so we can append packets.
 	cmd.nextQueue = nextQueue
 
+	def decodeXTEA(packetData):
+		header = packetData[:10]
+		footer = packetData[104:]
+		key = b'128-bits128-bits'
+		iv = b'12345678'
+		try:
+			information = xtea3.new(key,mode=xtea.MODE_OFB,IV=iv).decrypt(packetData[10:104])
+		except:
+			information = packetData[10:104]
+
+		return header + information + footer
+
+
+
 	def splitPacket(packetData):
 		"""
 		Takes a string of packet data and splits it up into a dictionary of fields.
@@ -176,6 +195,7 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent, log
 		"""
 		# Magic numbers defined in Packet Specification Document
 		if packetData[1:6] == b'NOOP*':
+			packetData = decodeXTEA(packetData)
 			packet = {
 				"TYPE":			"XTEA",
 				"route":       	packetData[0],
@@ -318,7 +338,7 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent, log
 
 		if fieldData['TYPE'] == 'XTEA':
 			isValid = True
-			#returnVal = PrivilegedPacket.decodeXTEA(fieldData['information'])
+
 			#TODO add in XTEA encryption and decryption.
 		elif fieldData['TYPE'] == 'DATA':
 			packetString = bytes([fieldData['route']]) + fieldData['opcode'] + fieldData['pid'] + fieldData['information']
