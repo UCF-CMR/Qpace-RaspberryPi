@@ -4,10 +4,10 @@
 #Q-Pace project, Center for Microgravity Research
 #University of Central Florida
 
-import qpaceExperiment as expModule
-import qpaceLogger as qpLog
 import datetime
 import time
+import qpaceExperiment as expModule
+import qpaceLogger as qpLog
 
 def run(filename, isRunningEvent, runEvent,logger,nextQueue):
 	"""
@@ -255,9 +255,6 @@ def run(filename, isRunningEvent, runEvent,logger,nextQueue):
 											exp.stepper_turn(delay,turns)
 
 						elif(instruction[0] == 'CAMERA'):
-							# CAMERA SET OPTION:VALUE OPTION:VALUE OPTION:VALUE....
-							# CAMERA RECORD MILLISECONDS
-							# CAMERA CAPTURE
 							try:
 								filename = 'exp_{}_{}'.format(title,str(round(time.time())))
 								if instruction[1] == 'CAPTURE':
@@ -268,6 +265,7 @@ def run(filename, isRunningEvent, runEvent,logger,nextQueue):
 									except:
 										pass
 									else:
+										# This becomes a forked process... It can be shutdown by sending a signal to it with linux 'Kill'
 										picam.record(time=toRec,filename=filename)
 								elif instruction[1] == 'SET':
 									for inst in instruction[2:]:

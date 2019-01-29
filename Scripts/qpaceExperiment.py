@@ -210,15 +210,17 @@ class Camera():
 		query.append(str(time))
 		query.append('-o')
 		query.append('{}{}.h264'.format(VIDEOPATH,filename))
-		ret = os.system(' '.join(query)) # Do the recording
-		if not ret:
-			raise CameraProcessFailed('record',ret)
-		ret = os.system('MP4Box -add {}{}.h264 {}{}.mp4'.format(VIDEOPATH,filename,VIDEOPATH,filename)) # add the MP4 wrapper around the H264
-		if not ret:
-			raise CameraProcessFailed('convert',ret)
-		ret = os.system('rm {}{}.h264'.format(VIDEOPATH,filename))
-		if not ret:
-			raise CameraProcessFailed('remove',ret)
+
+		# Build the command to execute the raspivid stuffs
+		piCamQuery = ' '.join(query)
+		# Build the command to add the MP4 wrapper
+		mp4Wrapper = 'MP4Box -add {}{}.h264 {}{}.mp4'.format(VIDEOPATH,filename,VIDEOPATH,filename)
+		# Build the command to remove the raw video after the mp4 video is made
+		removalQuery = 'rm {}{}.h264'.format(VIDEOPATH,filename)
+		# Execute all of them. Use && so each one only executes with the success of them all. use & to plit the thread
+		ret = os.system('{} && {} && {} &'.format(piCamQuery,mp4Wrapper,removalQuery))
+		if ret:
+			CameraProcessFailed('PiCam && Conversion && removal',ret)
 
 
 class PIN():
