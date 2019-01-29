@@ -48,7 +48,8 @@ COMMANDS = {
 	b'up': 			cmd.upReq,
 	b'MANUL': 		cmd.manual,
 	b'MANUL':		cmd.dil, # TODO: Remove when real things are available to be done. ALTHOUGH it could stay. I don't see any reason why not.
-	b'PLZSD':		cmd.immediateShutdown
+	b'PLZSD':		cmd.immediateShutdown,
+	b'se':			cmd.startExperiment
 }
 
 class LastCommand():
@@ -520,7 +521,10 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent, log
 							if fieldData['TYPE'] == 'DATA':
 								processIncomingPacketData(chip,fieldData)
 							elif fieldData['opcode'] in COMMANDS: # Double check to see if it's a command
-								processCommand(chip,fieldData,fromWhom = 'CCDR')
+								try:
+									processCommand(chip,fieldData,fromWhom = 'CCDR')
+								except StopIteration:
+									continue # Used for flow control inside of some commands.
 							else:
 								logger.logSystem("Interpreter: Unknown valid packet.",str(fieldData))
 						else:

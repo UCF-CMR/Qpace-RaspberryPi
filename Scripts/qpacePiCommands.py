@@ -11,6 +11,7 @@ import os
 from subprocess import check_output,Popen
 from math import ceil
 from time import strftime,gmtime,sleep
+import threading
 import datetime
 import random
 import tarfile
@@ -319,9 +320,10 @@ class Command():
 	-------------------------
 	Handler class for all commands. These will be invoked from the Interpreter.
 	"""
-	def __init__(self,packetQueue=None,nextQueue=None):
+	def __init__(self,packetQueue=None,nextQueue=None,experimentEvent=None):
 		self._packetQueue = packetQueue
 		self._nextQueue = nextQueue
+		self.experimentEvent = experimentEvent
 
 	# Getters and Setters for self.packetQueue
 	@property
@@ -584,6 +586,30 @@ class Command():
 
 	def manual(self,chip,logger,cmd,args):
 		print('NOTHING HAS BEEN WRITTEN FOR THE "MANUAL" METHOD.')
+
+
+
+
+
+
+	def startExperiment(self,chip,logger,cmd,args):
+
+		filename = args.replace(CMDPacket.padding_byte)
+
+		if self.experimentEvent is None or self.experimentEvent.is_set():
+			raise StopIteration('experimentEvent is None or experimentEvent is set.') # If experimentEvent does not exist or is set, return False to know there is a failure.
+		runEvent = threading.Event()
+		runEvent.set()
+		# Run an experiment file from the experiment directory
+		logger.logSystem("Command recieved: Running an experiment.", task[2]) # Placeholder
+		parserThread = threading.Thread(name='experimentParser',target=exp.run, args=(task[2],self.experimentEvent,runEvent,logger,self.nextQueue))
+		parserThread.start()
+
+		data = 'Attempting to start experiment <{}> if it exists.'.format(filename)
+		data += CMDPacket.padding_byte * (CMDPacket.data_size - len(data))
+		p = CMDPacket(chip=chip,opcode='RSPND',data=data).build()
+		self.packetQueue.enqueue(p)
+		self.nextQueue.enqueue('SENDPACKET')
 
 	def dil(self,chip,logger,cmd,args,runningExperiment=None):
 		"""

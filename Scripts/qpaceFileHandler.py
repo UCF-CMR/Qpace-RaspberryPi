@@ -19,7 +19,9 @@ import os
 MISCPATH = '/mnt/c/users/jonat/desktop/cmr/pi/data/misc/'
 ROOTPATH= '/mnt/c/users/jonat/desktop/cmr/pi/'
 TEMPPATH = '/mnt/c/users/jonat/desktop/cmr/pi/temp/'
-MAX_FILE_SIZE = 3395675490 # This is a little over 3GB. In testing, a file that is 3GB will only cause less than 300MB of RAM usage in python. Don't ask me how that works.
+# This is 2GB. In testing, a file that is 3GB will only cause less than 300MB of RAM usage in python. Don't ask me how that works.
+# Therefore, we will only allow files that are 2GB.
+MAX_FILE_SIZE = 2147483648
 MAX_RAM_ALLOTMENT = 419430400 # This is how many bytes are in 400MB. Restrict file sizes to this because of RAM.,///
 
 class DataPacket():#Packet):
