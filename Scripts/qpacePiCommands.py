@@ -437,8 +437,8 @@ class Command():
 		Create a MoveFilePacket and respond with the response packet.
 		"""
 		args = args.split(' ')
-		originalFile = args[0]
-		pathToNewFile = args[1]
+		originalFile = ROOTPATH + args[0]
+		pathToNewFile = ROOTPATH + args[1]
 		tag = b'AA'
 		try:
 			import shutil

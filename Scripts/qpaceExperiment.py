@@ -1,11 +1,13 @@
 #! /usr/bin/env python3
 # qpaceExperiment.py by Minh Pham, Jonathan Kessluk, Chris Britt
-# 08-07-2018, Rev. 2.5
+# 08-07-2018, Rev. 3
 # Q-Pace project, Center for Microgravity Research
 # University of Central Florida
 
 import time
 import datetime
+import os
+from subprocess import check_output
 from qpaceLogger import Logger as qpLog
 
 
@@ -17,10 +19,207 @@ except:
 	print("Unable to import RPi.GPIO")
 	pass
 
+# Go pro items are depreciated
 GoProDirectory = '/home/pi/gopro/DCIM/101GOPRO/'
 MountPoint = '/home/pi/gopro'
-SavePoint = '/home/pi/data/vid/'
+PICTUREPATH = '/home/pi/data/pic/'
+VIDEOPATH = '/home/pi/data/vid/'
+VIDEOPATH = '/mnt/c/users/jonat/desktop/cmr/pi/data/vid/'
+PICTUREPATH = '/mnt/c/users/jonat/desktop/cmr/pi/data/pic/'
 MAX_PENDING_DELTA = 300 # in seconds
+
+class Camera():
+	"""
+	View documentation https://www.raspberrypi.org/documentation/raspbian/applications/camera.md
+
+	"For frame rates over 120fps, it is necessary to turn off automatic exposure and gain control using -ex off.
+	 Doing so should achieve the higher frame rates, but exposure time and gains will need to be set to fixed values supplied by the user."
+	"""
+
+	exposureModes = ['off','auto','night','sports','snow','beach','fixedfps','antishake']
+	whiteBalanceModes = ['off','auto','sun','cloud','tungsten','fluorescent','incandescent']
+	imxfxModes = ['none','negative','solarise','oilpaint','saturation','blackboard','whiteboard']
+	modes = [0,1,2,3,4,5,6,7]
+
+	class CameraConfigurationError(Exception):
+		def __init__(self,message=None):
+			if message:
+				super().__init__(message)
+			else:
+				super().__init__('PiCam Configuration is Invalid.')
+	class CameraProcessFailed(Exception):
+		def __init__(self,reason=None,exitCode=''):
+			if not reason:
+				reason ='execute'
+			if exitCode:
+				exitCode = 'Exit Code {}.'.format(exitCode)
+			super().__init__('PiCam failed to {}. {}'.format(reason,exitCode))
+
+	def __init__(self):
+		self.attr = {
+			'fps': None,
+			'w': None,
+			'h': None,
+			'q': None, # Only used for images
+			'sh': None,
+			'ci': None,
+			'br': None,
+			'sa': None,
+			'vs': False,
+			'ex': None,
+			'awb': None,
+			'ifx': None,
+			'cfx': None, #tuple (U,V)
+			'rot': None,
+			'hf': None,
+			'vf': None,
+			'roi': None, #tuple (x,y,w,h)
+			'md': 0,  # check documentation.
+			'a': None, # Annotations. Verification does not cover this. Only use when using the documentation to support you.
+			'ae': None # Annotation Parameters. Verification does not cover this. Only use when using the documentation to support you.
+		}
+
+	@classmethod
+	def getSettings():
+		return check_output(['raspivid','--settings'])
+
+	def getSettings(self):
+		return Camera.getSettings()
+
+	def set(self,**kwargs):
+		for key,value in kwargs.items():
+			if key in self.attr:
+				self.attr[key] = value
+
+
+	def verifySettings():
+		if self.attr['sh'] and self.attr['sh'] < -100 or self.attr['sh'] > 100:
+			raise CameraConfigurationError('Sharpness must be set between -100 and 100.')
+		if self.attr['co'] and self.attr['co'] < -100 or self.attr['co'] > 100:
+			raise CameraConfigurationError('Contrast must be set between -100 and 100.')
+		if self.attr['br'] and self.attr['br'] < 0 or self.attr['br'] > 100:
+			raise CameraConfigurationError('Brightness must be set between 0 and 100.')
+		if self.attr['sa'] and self.attr['sa'] < -100 or self.attr['sa'] > 100:
+			raise CameraConfigurationError('Saturation must be set between -100 and 100.')
+		if self.attr['vs'] and self.attr['vs'] is not True and self.attr['vs'] is not False:
+			raise CameraConfigurationError('Video stabilisation must be set to True or False.')
+		if self.attr['ex'] and self.attr['ex'] not in exposureModes:
+			raise CameraConfigurationError('Exposure must be set to a value in exposureModes.')
+		if self.attr['awb'] and self.attr['awb'] not in whiteBalanceModes:
+			raise CameraConfigurationError('White balance must be set to a value in whiteBalanceModes.')
+		if self.attr['ifx'] and self.attr['ifx'] not in imxfxModes:
+			raise CameraConfigurationError('Image effects must be set to a value in imxfxModes.')
+		if self.attr['cfx']:
+			if type(self.attr['cfx']) is tuple and len(selfattr['.cfx']) is 2:
+				if self.attr['cfx'][0] < 0 or self.attr['cfx'][0] > 255 or self.attr['cfx'][1] < 0 or self.attr['cfx'][1] > 255 :
+					raise CameraConfigurationError('U or Y value must be between 0 and 255.')
+			else:
+				raise CameraConfigurationError('Color effects must be set as a tuple where the values are (U,Y) for the U or Y channels of the image.')
+		if self.attr['rot'] and self.attr['rot'] < 0 or self.attr['.rot'] > 359:
+			self.attr['rot'] = self.attr['rot'] % 360
+		if self.attr['hf'] and self.attr['hf'] is not True and self.attr['hf'] is not False:
+			raise CameraConfigurationError('Horizontal Flip must be True or False.')
+		if self.attr['vs'] and self.attr['vf'] is not True and self.attr['vf'] is not False:
+			raise CameraConfigurationError('Vertical Flip must be True or False.')
+		if self.attr['roi']:
+			if type(self.attr['roi']) is tuple and len(self.attr['roi']) is 4:
+				for item in self.attr['roi']:
+					if item < 0 or item > 1:
+						raise CameraConfigurationError('Region of Interest values must be between 0 and 1.')
+			else:
+				raise CameraConfigurationError('Region of interest must be a tuple representing (x,y,w,h) the x,y for the top left and width and height.')
+		if self.attr['md'] and self.attr['md'] not in modes:
+			raise CameraConfigurationError('Camera mode must be in the mode list (0 - 7)')
+
+		# if not self.attr['w']:
+		# 	raise CameraConfigurationError('Define a width.')
+		# if not self.attr['h']:
+		# 	raise CameraConfigurationError('Define a height.')
+		# if not self.attr['fps']:
+		# 	raise CameraConfigurationError('Define an FPS between 0.1 and 200.')
+
+		if self.attr['md'] and self.attr['fps']:
+			if self.attr['md'] is 1:
+				if self.attr['fps'] <.1 or self.attr['fps'] >30:
+					raise CameraConfigurationError('Mode 1: FPS Must be 0.1-30.')
+			elif self.attr['md'] is 2:
+				if self.attr['fps'] <.1 or self.attr['fps'] >15:
+					raise CameraConfigurationError('Mode 2: FPS Must be 0.1-15.')
+			elif self.attr['md'] is 3:
+				if self.attr['fps'] <.1 or self.attr['fps'] >15:
+					raise CameraConfigurationError('Mode 3: FPS Must be 0.1-15.')
+			elif self.attr['md'] is 4:
+				if self.attr['fps'] <.1 or self.attr['fps'] >40:
+					raise CameraConfigurationError('Mode 4: FPS Must be 0.1-40.')
+			elif self.attr['md'] is 5:
+				if self.attr['fps'] <.1 or self.attr['fps'] >40:
+					raise CameraConfigurationError('Mode 5: FPS Must be 0.1-40.')
+			elif self.attr['md'] is 6:
+				if self.attr['fps'] <40 or self.attr['fps'] >90:
+					raise CameraConfigurationError('Mode 6: FPS Must be 40-90.')
+			elif self.attr['md'] is 7:
+				if self.attr['fps'] <40 or self.attr['fps'] >200:
+					raise CameraConfigurationError('Mode 7: FPS Must be 40-200.')
+		if self.attr['q']:
+			if self.atter['q'] < 0 or self.attr['q'] > 100:
+				raise CameraConfigurationError('JPEG Quality must be set between 0-100. 100 is uncompressed.')
+
+	def capture(self,filename=None):
+		self.verifySettings()
+		if not filename:
+			filename = 'picam_{}'.format(str(round(time.time()*100)))
+		query = ['raspistill']
+		if self.attr['h']:
+			query.append('-h')
+			query.append(self.attr['h'])
+		if self.attr['w']:
+			query.append('-w')
+			query.append(self.attr['w'])
+		if self.attr['q']:
+			query.append('-q')
+			query.append(self.attr['q'])
+		else:
+			query.append('-q')
+			query.append('75')
+
+		query.append('-o')
+		query.append('{}{}.jpg'.format(PICTUREPATH,filename))
+		ret = os.system(' '.join(query)) # Take the picture
+		if not ret:
+			raise CameraProcessFailed('capture',ret)
+	def record(self,time=None,filename=None):
+		self.verifySettings()
+		if not filename:
+			filename = 'picam_{}'.format(str(round(time.time()*100)))
+
+		if not time or type(time) is not int or time < 0:
+			raise CameraConfigurationError('Must set time to record in milliseconds.')
+
+		query = ['raspivid']
+		for option,value in self.attr.items():
+			if value:
+				if option is 'cfx':
+					value = '{}:{}'.format(value[0],value[1])
+				if option is 'roi':
+					value = ','.join(value)
+
+				query.append('-{}'.format(option))
+				query.append(value)
+
+		query.append('-t')
+		query.append(str(time))
+		query.append('-o')
+		query.append('{}{}.h264'.format(VIDEOPATH,filename))
+		ret = os.system(' '.join(query)) # Do the recording
+		if not ret:
+			raise CameraProcessFailed('record',ret)
+		ret = os.system('MP4Box -add {}{}.h264 {}{}.mp4'.format(VIDEOPATH,filename,VIDEOPATH,filename)) # add the MP4 wrapper around the H264
+		if not ret:
+			raise CameraProcessFailed('convert',ret)
+		ret = os.system('rm {}{}.h264'.format(VIDEOPATH,filename))
+		if not ret:
+			raise CameraProcessFailed('remove',ret)
+
 
 class PIN():
 	"""
@@ -75,6 +274,7 @@ class Stepper():
 
 class Action():
 
+	#GoPro is Depreciated
 	GoProIsOn = False
 
 	def __init__(self,logger=None,queue=None):
@@ -232,7 +432,11 @@ class Action():
 				#GPIO.setup(PIN.STPEN, GPIO.OUT, initial=1)				#Step Enable
 				GPIO.setup(PIN.STPENA, GPIO.OUT, initial=0)				#Step A Enable
 				GPIO.setup(PIN.STPENB, GPIO.OUT, initial=0)				#Step B Enable
+
+
 			elif pingroup == PINGROUP.gopro:
+				#GOPRO IS DEPRECIATED
+				self.logger.logSystem('GO PRO METHODS ARE DEPRECIATED')
 				#GoPro pin setup
 				#GPIO.setup(PIN.GOPPWR, GPIO.OUT, initial=0)				#Power
 				GPIO.setup(PIN.GOPBUT, GPIO.OUT, initial=1)				#On Button
@@ -245,6 +449,7 @@ class Action():
 		"""
 		Turn the Gopro on
 		"""
+		self.logger.logSystem('GO PRO METHODS ARE DEPRECIATED')
 		if not self.GoProIsOn:
 			self.flip(PIN.GOPBUT,delay=2.33)
 			time.sleep(1.75)
@@ -255,6 +460,7 @@ class Action():
 		Turn off the GoPro
 
 		"""
+		self.logger.logSystem('GO PRO METHODS ARE DEPRECIATED')
 		if forceOff:
 			self.flip(PIN.GOPDEN,delay=2.33)
 		elif self.GoProIsOn:
@@ -278,6 +484,7 @@ class Action():
 		Any exception gets popped up the stack.
 
 		"""
+		self.logger.logSystem('GO PRO METHODS ARE DEPRECIATED')
 		self.flip(PIN.GOPCAP,delay=.5)
 
 	def gopro_start(self):
@@ -297,6 +504,7 @@ class Action():
 		Any exception gets popped up the stack.
 
 		"""
+		self.logger.logSystem('GO PRO METHODS ARE DEPRECIATED')
 		self.init_gopro() # Turn on camera and set mode
 		self.logger.logSystem("ExpCtrl: Beginning to record")
 		self.press_capture() # Begin Recording
@@ -318,6 +526,7 @@ class Action():
 		Any exception gets popped up the stack.
 
 		"""
+		self.logger.logSystem('GO PRO METHODS ARE DEPRECIATED')
 		self.high(PIN.GOPDEN)
 
 	def transOff(self):
@@ -337,6 +546,7 @@ class Action():
 		Any exception gets popped up the stack.
 
 		"""
+		self.logger.logSystem('GO PRO METHODS ARE DEPRECIATED')
 		self.low(PIN.GOPDEN)
 
 	def goProTransfer(self):
@@ -356,6 +566,7 @@ class Action():
 		Any exception gets popped up the stack.
 
 		"""
+		self.logger.logSystem('GO PRO METHODS ARE DEPRECIATED')
 		time.sleep(1)
 		if True:
 			#TURN USB ENABLE
@@ -375,7 +586,7 @@ class Action():
 					files = os.listdir(GoProDirectory)
 					for name in files:
 						if re.match('.+\.(MP4|JPG)',name):
-							os.system('cp '+GoProDirectory + name + ' ' + SavePoint)
+							os.system('cp '+GoProDirectory + name + ' ' + VIDEOPATH)
 				except Exception as e:  #Moving the file from the GOPRO failed
 					self.logger.logError("ExpCtrl: Could not move the video", e)
 				else: #Moving the file is successful
@@ -508,3 +719,4 @@ class Action():
 			pendingCount += 1
 
 		return response is qp['ACCEPTED']
+

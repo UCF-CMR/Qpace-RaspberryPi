@@ -33,7 +33,7 @@ def run(filename, isRunningEvent, runEvent,logger,nextQueue):
 	# [Comment]
 	COMMENT [COMMENT]
 	LOG [COMMENT]
-	START [AUTHOR]
+	START [title]
 	END
 	INIT
 	RESET
@@ -45,11 +45,18 @@ def run(filename, isRunningEvent, runEvent,logger,nextQueue):
 	DELAY [MS]
 	LED ON
 	LED OFF
+
 	GOPRO ON
 	GOPRO OFF
 	GOPRO START
 	GOPRO STOP
 	GOPRO TRANSFER
+
+	CAMERA OPTION:VALUE OPTION:VALUE OPTION:VALUE....
+	CAMERA RECORD MILLISECONDS [FILENAME]
+	CAMERA ESTOP
+	CAMERA CAPTURE
+
 	STEPPER QTURN [N] [Delay_in_ms_per_qturn]
 	STEPPER STEP [N] [Delay_in_ms_per_step]
 	SOLENOID [GROUP] TAP
@@ -59,6 +66,7 @@ def run(filename, isRunningEvent, runEvent,logger,nextQueue):
 	Also supports inline comments.
 	"""
 	logger.logSystem('ExpParser: Starting...')
+	picam = expModule.Camera()
 	exp = expModule.Action(logger=logger,queue=nextQueue)
 	comment_tuple = ('#','//') # These are what will be used to have comments in the profile.
 	logLocation = '/home/pi/logs/'
@@ -98,7 +106,7 @@ def run(filename, isRunningEvent, runEvent,logger,nextQueue):
 
 			# At this point the solenoids and steppers should be enabled. NOW we can do some science!
 			logger.logSystem('ExpParser: Experiment is ready to begin. Time to do science!')
-			author = 'Unknown'
+			title = 'Unknown'
 			# Begin interpreting the experiment.
 			for line in inputLines:
 				# Remove comments from the instructions.
@@ -115,12 +123,12 @@ def run(filename, isRunningEvent, runEvent,logger,nextQueue):
 						if(instruction[0] == 'START'):
 							# Start an experiment if one hasn't started yet.
 							if isRunningEvent.is_set():
-								raise StopIteration('ExpParser: Attempted a start, but an experiment is already running by {}'.format(author))
-							author = ' '.join(instruction[1:]) or 'Unknown'
+								raise StopIteration('ExpParser: Attempted a start, but an experiment is already running: {}'.format(title))
+							title = ' '.join(instruction[1:]) or 'Unknown'
 							experimentStartTime= datetime.datetime.now()
-							experimentLog = open('{}exp_{}_{}.qpe'.format(logLocation,experimentStartTime.strftime('%Y%m%d-%H%M%S'),author),'w')
+							experimentLog = open('{}exp_{}_{}.qpe'.format(logLocation,experimentStartTime.strftime('%Y%m%d-%H%M%S'),title),'w')
 							isRunningEvent.set()
-							logMessage = 'ExpParser: Starting Experiment "{}" written by {}.'.format(filename,author)
+							logMessage = 'ExpParser: Starting Experiment "{}" ({}).'.format(filename,title)
 							logger.logSystem(logMessage)
 							experimentLog.write('{}\n'.format(logMessage))
 						elif(instruction[0] == 'END' or instruction[0] == 'EXIT'):
@@ -246,7 +254,31 @@ def run(filename, isRunningEvent, runEvent,logger,nextQueue):
 										elif instruction[1] == 'STEP':
 											exp.stepper_turn(delay,turns)
 
+						elif(instruction[0] == 'CAMERA'):
+							# CAMERA SET OPTION:VALUE OPTION:VALUE OPTION:VALUE....
+							# CAMERA RECORD MILLISECONDS
+							# CAMERA CAPTURE
+							try:
+								filename = 'exp_{}_{}'.format(title,str(round(time.time())))
+								if instruction[1] == 'CAPTURE':
+									picam.capture(filename=filename)
+								elif instruction[1] == 'RECORD':
+									try:
+										toRec = int(instruction[2])
+									except:
+										pass
+									else:
+										picam.record(time=toRec,filename=filename)
+								elif instruction[1] == 'SET':
+									for inst in instruction[2:]:
+										option,value = inst.split(':')
+										if option in picam.attr:
+											picam.attr[option] = value
 
+										picam.verifySettings()
+							except CameraConfigurationError as cce:
+								pass
+								#TODO do something with the error. back out of the experiment. log it.
 						elif(instruction[0] == 'SOLENOID'):
 							if isRunningEvent.is_set():
 								logMessage = 'ExpParser: Solenoid group {} will {} with these paramaters: {}'.format(instruction[1],instruction[2],instruction[3:])
