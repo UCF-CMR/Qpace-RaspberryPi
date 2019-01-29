@@ -33,8 +33,12 @@ import qpaceControl
 import qpaceFileHandler as fh
 
 qpStates = qpaceControl.QPCONTROL
+
+SECRETS = '/qctrl.secret'
+SECRETS = 'qctrl.secret' #TODO Remove for flight
+
 WHATISNEXT_WAIT = 2 #in seconds
-packetBuffer = [] #TODO Possibly remove for flight. Not really an issue used for debugging
+packetBuffer = [] #TODO Possibly remove for flight. Not really an issue. used for debugging
 # Routing ID defined in packet structure document
 validRoutes = (0x01,0x02,0x54) # Pi1, Pi2, Gnd, WTC, Dev
 # Add commands to the map. Format is "String to recognize for command" : function name
@@ -146,6 +150,17 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent, log
 		logger.logError(str(e),e)
 		raise e
 
+	enc_key = None
+	enc_iv = None
+	try:
+		# This file will be found in the root directory.
+		with open(SECRETS,'rb') as fi:
+			enc_key = fi.readline()
+			enc_iv = fi.readline()
+	except Exception as e:
+		# If we can't even attempt to decode XTEA packets, then there's no reason to run QPACE though...
+		logger.logError('Interpreter: Unable to import keys. XTEA Decoding is disabled.',e)
+
 	try:
 		# Initialize the pins
 		gpio = pigpio.pi()
@@ -166,10 +181,11 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent, log
 	def decodeXTEA(packetData):
 		header = packetData[:10]
 		footer = packetData[104:]
-		key = b'128-bits128-bits'
-		iv = b'12345678'
+		# Note if there's not key or IV that the packet gets passed through. If this happens and it's not decoded, it won't really do anything. It'll fail validation.
 		try:
-			information = xtea3.new(key,mode=xtea.MODE_OFB,IV=iv).decrypt(packetData[10:104])
+			if not enc_key or not enc_iv:
+				raise RuntimeError('No encryption key or IV')
+			information = xtea3.new(enc_key,mode=xtea.MODE_OFB,IV=enc_iv).decrypt(packetData[10:104])
 		except:
 			information = packetData[10:104]
 

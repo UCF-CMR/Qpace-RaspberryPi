@@ -22,6 +22,8 @@ try:
 except:
 	pass
 
+
+
 WTC_PACKET_BUFFER_SIZE = 10 # How many packets can the WTC store?
 
 
@@ -247,6 +249,9 @@ class PrivilegedPacket(CMDPacket):
 	"""
 
 	encoded_data_length = 94
+	enc_key = None
+	enc_iv = None
+	tryEncryption = True
 
 	def __init__(self,chip,opcode,tag=None, cipherText = None,plainText=None):
 		"""
@@ -267,6 +272,9 @@ class PrivilegedPacket(CMDPacket):
 		------
 		Any exception gets popped up the stack.
 		"""
+		if tryEncryption:
+			getEncryption()
+
 		if cipherText:
 			data = PrivilegedPacket.returnRandom(4) + cipherText + PrivilegedPacket.returnRandom(6) + b'\x00'*12
 		elif plainText:
@@ -281,10 +289,10 @@ class PrivilegedPacket(CMDPacket):
 		"""
 		Encode a plaintext into ciphertext.
 		"""
-		key = b'128-bits128-bits'
-		iv = b'12345678'
 		try:
-			cipherText = xtea.new(key,mode=xtea.MODE_OFB,IV=iv).encrypt(plaintext)
+			if not enc_key or not enc_iv:
+				raise RuntimeError('No encryption key or IV')
+			cipherText = xtea.new(PrivilegedPacket.enc_key,mode=xtea.MODE_OFB,IV=PrivilegedPacket.enc_iv).encrypt(plaintext)
 		except:
 			cipherText = plainText
 
@@ -315,6 +323,18 @@ class PrivilegedPacket(CMDPacket):
 				num = 55
 			retval.append(num)
 		return bytes(retval)
+
+	@staticmethod
+	def getEncryption():
+		tryEncryption = False
+		try:
+			# This file will be found in the root directory.
+			with open(SECRETS,'rb') as fi:
+				PrivilegedPacket.enc_key = fi.readline()
+				PrivilegedPacket.enc_iv = fi.readline()
+		except Exception as e:
+			# If we can't even attempt to decode XTEA packets, then there's no reason to run QPACE though...
+			logger.logError('Interpreter: Unable to import keys. XTEA Encoding is disabled.',e)
 
 class Command():
 	"""

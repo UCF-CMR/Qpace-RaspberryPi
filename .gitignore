@@ -29,3 +29,6 @@ graveyard/
 
 # Don't include the todo list. It's not necessary to include
 **/todo.txt
+
+# Don't include the secrets!
+**/*.secret
