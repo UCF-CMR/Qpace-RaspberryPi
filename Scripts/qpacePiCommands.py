@@ -38,88 +38,6 @@ TEXTPATH = '/mnt/c/users/jonat/desktop/cmr/pi/data/text/'
 ROOTPATH= '/mnt/c/users/jonat/desktop/cmr/pi/'
 TEMPPATH = '/mnt/c/users/jonat/desktop/cmr/pi/temp/'
 
-UNAUTHORIZED = b'OKAY'
-
-# def _waitForWTCResponse(chip, trigger = None, timeout = None):
-#     """
-#     Wait for the WTC to respond with a continue code and then return.
-#
-#     Parameters
-#     ----------
-#     chip - SC16IS750 - an SC16IS750 object which handles the WTC Connection
-#     trigger - bytes - waits until it receives a specific byte sequence from the WTC. If None
-#                       is given, then it will read and return from the WTC, otherwise it will return None.
-#     timeout - int - number of seconds to wait for a response from the WTC. If None, then the default timeout
-#                     will be used.
-#
-#     Returns
-#     -------
-#     bytes - The bytes read from the registers on the WTC if the trigger is None.
-#     True - If a trigger is given and it matched
-#     False - If the trigger never matched the input and the timeout occurred
-#
-#     Raises
-#     ------
-#     TypeError - If the trigger is not bytes or string OR the timeout is not an int.
-#     """
-#     if isinstance(trigger,str):
-#         trigger = trigger.encode('utf-8')
-#     elif not isinstance(timeout,int) and not isinstance(timeout,float) and not isinstance(trigger,bytes) and not isinstance(trigger,bytearray):
-#         raise TypeError("Trigger must be bytes or string.")
-#     logText = "Waiting for {} seconds for the WTC to respond".format(timeout or CMD_DEFAULT_TIMEOUT)
-#     if trigger:
-#         logText += " with '{}'".format(trigger)
-#     logger.logSystem([[logText]])
-#
-#     attempts_remaining = ceil((timeout or CMD_DEFAULT_TIMEOUT)/CMD_POLL_DELAY)
-#     if attempts_remaining < 1:
-#         attempts_remaining = 1
-#
-#     buf = b''
-#     while attempts_remaining > 0 and buf != trigger:
-#         sleep(CMD_POLL_DELAY)
-#         attempts_remaining -= 1
-#         waiting = chip.byte_read(SC16IS750.REG_RXLVL)
-#         if waiting > 0 :
-#             for i in range(waiting):
-#                 buf += chip.byte_read(SC16IS750.REG_RHR)
-#     if buf == trigger:
-#         return True
-#     elif trigger is None and buf is not b'':
-#         return buf
-#     else:
-#         return False
-
-def sendBytesToCCDR(chip,sendData):
-	"""
-	Send a string or bytes to the WTC. This method, by default, is dumb. It will pass whatever
-	is the input and passes it directly on to the CCDR.
-
-	Parameters
-	----------
-	chip - SC16IS750 - an SC16IS750 object which handles the WTC Connection
-	sendData - a string or bytes that we want to send to the WTC (Can be large block)
-
-	Raises
-	------
-	TypeError - thrown if sendData is not a string or bytes
-	"""
-	if isinstance(sendData,str):
-		sendData = sendData.encode('ascii')
-	elif isinstance(sendData,int):
-		sendData = bytes([sendData])
-	elif not isinstance(sendData,bytes) and not isinstance(sendData,bytearray):
-		logger.logSystem('SendBytesToCCDR: Data will not be sent to the WTC: not string or bytes.')
-		raise TypeError("Data to the WTC must be in the form of bytes or string")
-	try:
-		chip.block_write(0, sendData) # 0 is SC16IS750.REG_THR
-	except Exception as err:
-		#TODO do we actually handle the case where it just doesn't work?
-		print(err)
-	else:
-		return True
-	return False
-
 def generateChecksum(data):
 	"""
 	Generates a FNV checksum on the packet data
@@ -207,7 +125,7 @@ class Command():
 			self.packetData = data
 			self.chip = chip
 
-		def respond(self):
+		def send(self):
 			"""
 			This method sends the data to the WTC as a block write.
 
@@ -226,28 +144,8 @@ class Command():
 			"""
 			if self.packetData:
 				sendData = self.build()
-
-
-
-
-		def isValid(self): #TODO Make sure the packet is not corrupted
-			"""
-			Not implemented yet.
-
-			Parameters
-			----------
-			None
-
-			Returns
-			-------
-			True if the packet is valid
-			False if the packet is invalid
-
-			Raises
-			------
-			Any exception gets popped up the stack.
-			"""
-			pass
+				self.packetQueue.enqueue(sendData)
+				self.nextQueue.enqueue('SENDPACKET')
 
 		def build(self):
 			"""
@@ -385,9 +283,7 @@ class Command():
 		status_file = str(timestamp) if thread else 'Save Failed' # Save the timestamp inwhich this status file will be saved as.
 		status += b'F('+ status_file.encode('ascii') +b')' # the File where the major status stuff should be being saved in.
 		data += status + b' '*(111-len(status)) # 111 due to defined packet Structure
-		p = CMDPacket(chip=chip,opcode='STATS',data=data).build()
-		self.packetQueue.enqueue(p)
-		self.nextQueue.enqueue('SENDPACKET')
+		p = CMDPacket(chip=chip,opcode='STATS',data=data).send()
 		if thread:
 			thread.join() # Make sure we wait for the thread to close if it's still going.
 
@@ -402,9 +298,7 @@ class Command():
 		padding = CMDPacket.padding_byte*(PrivilegedPacket.encoded_data_length-len(lenstr)) #98 due to specification of packet structure
 		plainText = lenstr.encode('ascii')
 		plainText += padding
-		p = PrivilegedPacket(chip=chip,opcode="NOOP*",tag=tag,plainText=plainText).build()
-		self.packetQueue.enqueue(p)
-		self.nextQueue.enqueue('SENDPACKET')
+		p = PrivilegedPacket(chip=chip,opcode="NOOP*",tag=tag,plainText=plainText).sned()
 
 	def directoryList(self,chip,logger,cmd,args):
 		"""
@@ -426,9 +320,7 @@ class Command():
 		padding = CMDPacket.padding_byte * (PrivilegedPacket.encoded_data_length - len(filepath))
 		plainText = filepath.encode('ascii')
 		plainText += padding
-		p = PrivilegedPacket(chip=chip,opcode="NOOP*", tag=tag,plainText=plainText).build()
-		self.packetQueue.enqueue(p)
-		self.nextQueue.enqueue('SENDPACKET')
+		p = PrivilegedPacket(chip=chip,opcode="NOOP*", tag=tag,plainText=plainText).send()
 
 	def splitVideo(self,chip,logger,cmd,args):
 		args = args.split(' ')
@@ -441,7 +333,7 @@ class Command():
 
 		os.system('cd ffmpeg -i {} -c copy -map 0 -segment_time 00:{}:{} -f segment {}_%03d.mp4 &> /dev/null'.format(pathname,hour,second,filename))
 		self.directoryList(chip,logger,cmd,path[:nam_i]) # pass in the path stated above without the file to get the directory list.
-		#NOTE: self.directoryList() will send a PrivilegedPacket back to the ground.
+		#NOTE: self.directoryList() will send a PrivilegedPacket back to the ground. This calls the directoryList command because we want the same behaviour
 
 
 	def convertVideo(self,chip,logger,cmd,args):
@@ -454,9 +346,7 @@ class Command():
 		os.system('MP4Box -add {}{}.h264 {}{}.mp4 &> /dev/null'.format(pathToVideo,filename,pathToVideo,filename))
 		returnValue = check_output(['ls','-la',"{}{}.mp4".format(pathToVideo,filename)])
 		returnValue += returnValue.encode('ascii') + CMDPacket.padding_byte*(CMDPacket.data_size - len(returnValue))
-		p = CMDPacket(chip=chip,opcode='RSPND',data=returnValue).build()
-		self.packetQueue.enqueue(p)
-		self.nextQueue.enqueue('SENDPACKET')
+		p = CMDPacket(chip=chip,opcode='RSPND',data=returnValue).send()
 
 	def move(self,chip,logger,cmd,args):
 		"""
@@ -485,9 +375,7 @@ class Command():
 		padding = CMDPacket.padding_byte * (PrivilegedPacket.encoded_data_length - len(wasMoved))
 		plainText = wasMoved.encode('ascii')
 		plainText += padding
-		p = PrivilegedPacket(chip=chip,opcode="NOOP*",tag=tag,plainText=plainText).build()
-		self.packetQueue.enqueue(p)
-		self.nextQueue.enqueue('SENDPACKET')
+		p = PrivilegedPacket(chip=chip,opcode="NOOP*",tag=tag,plainText=plainText).send()
 
 	def tarExtract(self,chip,logger,cmd,args):
 		"""
@@ -505,9 +393,7 @@ class Command():
 		except:pass
 		message = b'DONE'
 		plainText = message + CMDPacket.padding_byte * (PrivilegedPacket.encoded_data_length-len(message))
-		p = PrivilegedPacket(chip=chip,opcode="NOOP*",tag=b'AA',plainText=plainText).build()
-		self.packetQueue.enqueue(p)
-		self.nextQueue.enqueue('SENDPACKET')
+		p = PrivilegedPacket(chip=chip,opcode="NOOP*",tag=b'AA',plainText=plainText).send()
 
 	def tarCreate(self,chip,logger,cmd,args):
 		"""
@@ -525,9 +411,7 @@ class Command():
 			tar.add(args[0], arcname=os.path.basename(args[0]))
 
 		plainText = tarDir.encode('ascii') + CMDPacket.padding_byte*(CMDPacket.data_size - len(tarDir))
-		p = PrivilegedPacket(chip=chip,opcode='NOOP*',tag=b'AA',plainText=plainText).build()
-		self.packetQueue.enqueue(p)
-		self.nextQueue.enqueue('SENDPACKET')
+		p = PrivilegedPacket(chip=chip,opcode='NOOP*',tag=b'AA',plainText=plainText).send()
 
 	def dlReq(self,chip,logger,cmd,args):
 		"""
@@ -551,9 +435,7 @@ class Command():
 			data += ('FileNotFound:{}{}'.format(ROOTPATH,path)).encode('ascii')
 		padding = CMDPacket.data_size - len(data)
 		data += CMDPacket.padding_byte * padding if padding > 0 else 0
-		p = CMDPacket(chip=chip,opcode='DOWNR',data=data).build()
-		self.packetQueue.enqueue(p)
-		self.nextQueue.enqueue('SENDPACKET')
+		p = CMDPacket(chip=chip,opcode='DOWNR',data=data).send()
 
 	def dlFile(self,chip,logger,cmd,args):
 		"""
@@ -605,9 +487,7 @@ class Command():
 		response += b'Active Requests: ' + bytes([len(qfh.UploadRequest.received)])
 		response += b' Using Scaffold: ' + filename
 		response += PrivilegedPacket.padding_byte * (PrivilegedPacket.encoded_data_length - len(response))
-		p = PrivilegedPacket(chip,'NOOP*',tag=b'AA',plainText=response).build()
-		self.packetQueue.enqueue(p)
-		self.nextQueue.enqueue('SENDPACKET')
+		p = PrivilegedPacket(chip,'NOOP*',tag=b'AA',plainText=response).send()
 
 	def manual(self,chip,logger,cmd,args):
 		print('NOTHING HAS BEEN WRITTEN FOR THE "MANUAL" METHOD.')
@@ -632,29 +512,7 @@ class Command():
 
 		data = 'Attempting to start experiment <{}> if it exists.'.format(filename)
 		data += CMDPacket.padding_byte * (CMDPacket.data_size - len(data))
-		p = CMDPacket(chip=chip,opcode='RSPND',data=data).build()
-		self.packetQueue.enqueue(p)
-		self.nextQueue.enqueue('SENDPACKET')
-
-	def dil(self,chip,logger,cmd,args,runningExperiment=None):
-		"""
-		Special command for DEBUG mainly. Used to manually affect the instruments of the experiment module.
-		This can only be done if an experiment is NOT running.
-		"""
-		import qpaceExperiment as exp
-		import SC16IS750
-		print("running experiment")
-		exp.pinInit()
-		exp.led(True)
-		exp.goProOn()
-		exp.goProCapToggle()
-		sleep(10)
-		exp.goProCapToggle()
-		exp.goProTransfer()
-		exp.goProOff()
-		exp.led(False)
-
-		print("DONE :D :D :D")
+		p = CMDPacket(chip=chip,opcode='RSPND',data=data).send()
 
 	def immediateShutdown(self,chip,logger,cmd,args):
 		"""
