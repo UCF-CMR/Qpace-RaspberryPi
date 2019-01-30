@@ -143,227 +143,230 @@ def generateChecksum(data):
 	checksum &= 0xFFFFFFFF
 	return checksum.to_bytes(4,byteorder='big')
 
-class CMDPacket():
-	"""
-	Reason for Implementation
-	-------------------------
-	This is a class dedicated to handling packets used in responding to commands from Ground.
-	"""
-
-	data_size = 118 #Bytes
-	padding_byte = b'\x04'
-
-	def __init__(self,chip,opcode,data):
-		"""
-		Constructor for CMDPacket.
-
-		Parameters
-		----------
-		opcode - bytes - set the opcode for the packet
-		chip - an SC16IS750 object.
-
-		Returns
-		-------
-		Void
-
-		Raises
-		------
-		Any exception gets popped up the stack.
-		"""
-		self.routing = 0x00
-		self.opcode = opcode
-		self.packetData = data
-		self.chip = chip
-
-	def respond(self):
-		"""
-		This method sends the data to the WTC as a block write.
-
-		Parameters
-		----------
-		None
-
-		Returns
-		-------
-		True if successful
-		False if unsuccessful
-
-		Raises
-		------
-		Any exception gets popped up the stack.
-		"""
-		if self.packetData:
-			sendData = self.build()
-			return sendBytesToCCDR(self.chip,sendData)
-
-
-
-	def isValid(self): #TODO Make sure the packet is not corrupted
-		"""
-		Not implemented yet.
-
-		Parameters
-		----------
-		None
-
-		Returns
-		-------
-		True if the packet is valid
-		False if the packet is invalid
-
-		Raises
-		------
-		Any exception gets popped up the stack.
-		"""
-		pass
-
-	def build(self):
-		"""
-		Creates the packet from all the indiviual pieces of data.
-
-		Parameters
-		----------
-		None
-
-		Returns
-		-------
-		Void
-
-		Raises
-		------
-		Any exception gets popped up the stack.
-		"""
-		if self.packetData == None:
-			self.packetData=CMDPacket.padding_byte * self.data_size
-
-		if len(self.packetData) != self.data_size:
-			raise ValueError('Length of packetData is not equal to data_size len({})!=Packet.data_size({})'.format(len(self.packetData),self.data_size))
-
-		return bytes([self.routing]) + self.opcode.encode('ascii') + self.packetData + generateChecksum(self.packetData)
-
-class PrivilegedPacket(CMDPacket):
-	"""
-	Reason for Implementation
-	-------------------------
-	Class to handle all the Privileged packets with XTEA
-	"""
-
-	encoded_data_length = 94
-	enc_key = None
-	enc_iv = None
-	tryEncryption = True
-
-	def __init__(self,chip,opcode,tag=None, cipherText = None,plainText=None):
-		"""
-		Constructor for a PrivilegedPacket
-
-		Parameters
-		----------
-		chip - an SC16IS750 object.
-		opcode - bytes - the 5 byte opcode
-		tag - bytes - the 2 byte tag
-		cipherText - if there is cipherText already for the packet it is automatically decoded.
-
-		Returns
-		-------
-		Void
-
-		Raises
-		------
-		Any exception gets popped up the stack.
-		"""
-		if tryEncryption:
-			getEncryption()
-
-		if cipherText:
-			data = PrivilegedPacket.returnRandom(4) + cipherText + PrivilegedPacket.returnRandom(6) + b'\x00'*12
-		elif plainText:
-			data = PrivilegedPacket.returnRandom(4) + PrivilegedPacket.encodeXTEA(plainText + tag) + PrivilegedPacket.returnRandom(6) + b'\x00'*12
-		else:
-			data = PrivilegedPacket.returnRandom(4) + CMDPacket.padding_byte * PrivilegedPacket.encoded_data_length + PrivilegedPacket.returnRandom(6) + b'\x00'*12
-		CMDPacket.__init__(self,opcode=opcode,chip=chip,data=data)
-
-
-	@staticmethod
-	def encodeXTEA(plainText):
-		"""
-		Encode a plaintext into ciphertext.
-		"""
-		try:
-			if not enc_key or not enc_iv:
-				raise RuntimeError('No encryption key or IV')
-			cipherText = xtea.new(PrivilegedPacket.enc_key,mode=xtea.MODE_OFB,IV=PrivilegedPacket.enc_iv).encrypt(plaintext)
-		except:
-			cipherText = plainText
-
-		return cipherText
-
-	@staticmethod
-	def returnRandom(n):
-		"""
-		Return N random bytes.
-
-		Parameters
-		----------
-		n - Number of random bytes to return.
-
-		Returns
-		-------
-		bytes - randomized bytes.
-
-		Raises
-		------
-		Any exception gets popped up the stack.
-		"""
-		retval = []
-		for i in range(0,n):
-			# Get ascii characters from '0' to 'Z'
-			num = random.randint(48,122)
-			if num == 92: # If we have a backslash, just replace it with something else. It doesn't really matter.
-				num = 55
-			retval.append(num)
-		return bytes(retval)
-
-	@staticmethod
-	def getEncryption():
-		tryEncryption = False
-		try:
-			# This file will be found in the root directory.
-			with open(SECRETS,'rb') as fi:
-				PrivilegedPacket.enc_key = fi.readline()
-				PrivilegedPacket.enc_iv = fi.readline()
-		except Exception as e:
-			# If we can't even attempt to decode XTEA packets, then there's no reason to run QPACE though...
-			logger.logError('Interpreter: Unable to import keys. XTEA Encoding is disabled.',e)
-
 class Command():
 	"""
 	Reason for Implementation
 	-------------------------
 	Handler class for all commands. These will be invoked from the Interpreter.
 	"""
+	_packetQueue = None
+	_nextQueue = None
+
 	def __init__(self,packetQueue=None,nextQueue=None,experimentEvent=None):
-		self._packetQueue = packetQueue
-		self._nextQueue = nextQueue
+		Command._packetQueue = packetQueue
+		Command._nextQueue = nextQueue
 		self.experimentEvent = experimentEvent
 
 	# Getters and Setters for self.packetQueue
 	@property
 	def packetQueue(self):
-		return self._packetQueue
+		return Command._packetQueue
 
 	@packetQueue.setter
 	def packetQueue(self,queue):
-		self._packetQueue = queue
+		Command._packetQueue = queue
 
 	# Getters and Setters for self.nextQueue
 	@property
 	def nextQueue(self):
-		return self._nextQueue
+		return Command._nextQueue
 
 	@nextQueue.setter
 	def nextQueue(self,queue):
-		self._nextQueue = queue
+		Command._nextQueue = queue
+
+	class CMDPacket():
+		"""
+		Reason for Implementation
+		-------------------------
+		This is a class dedicated to handling packets used in responding to commands from Ground.
+		"""
+
+		data_size = 118 #Bytes
+		padding_byte = b'\x04'
+
+		def __init__(self,chip,opcode,data):
+			"""
+			Constructor for CMDPacket.
+
+			Parameters
+			----------
+			opcode - bytes - set the opcode for the packet
+			chip - an SC16IS750 object.
+
+			Returns
+			-------
+			Void
+
+			Raises
+			------
+			Any exception gets popped up the stack.
+			"""
+			self.routing = 0x00
+			self.opcode = opcode
+			self.packetData = data
+			self.chip = chip
+
+		def respond(self):
+			"""
+			This method sends the data to the WTC as a block write.
+
+			Parameters
+			----------
+			None
+
+			Returns
+			-------
+			True if successful
+			False if unsuccessful
+
+			Raises
+			------
+			Any exception gets popped up the stack.
+			"""
+			if self.packetData:
+				sendData = self.build()
+
+
+
+
+		def isValid(self): #TODO Make sure the packet is not corrupted
+			"""
+			Not implemented yet.
+
+			Parameters
+			----------
+			None
+
+			Returns
+			-------
+			True if the packet is valid
+			False if the packet is invalid
+
+			Raises
+			------
+			Any exception gets popped up the stack.
+			"""
+			pass
+
+		def build(self):
+			"""
+			Creates the packet from all the indiviual pieces of data.
+
+			Parameters
+			----------
+			None
+
+			Returns
+			-------
+			Void
+
+			Raises
+			------
+			Any exception gets popped up the stack.
+			"""
+			if self.packetData == None:
+				self.packetData=CMDPacket.padding_byte * self.data_size
+
+			if len(self.packetData) != self.data_size:
+				raise ValueError('Length of packetData is not equal to data_size len({})!=Packet.data_size({})'.format(len(self.packetData),self.data_size))
+
+			return bytes([self.routing]) + self.opcode.encode('ascii') + self.packetData + generateChecksum(self.packetData)
+
+	class PrivilegedPacket(CMDPacket):
+		"""
+		Reason for Implementation
+		-------------------------
+		Class to handle all the Privileged packets with XTEA
+		"""
+
+		encoded_data_length = 94
+		enc_key = None
+		enc_iv = None
+		tryEncryption = True
+
+		def __init__(self,chip,opcode,tag=None, cipherText = None,plainText=None):
+			"""
+			Constructor for a PrivilegedPacket
+
+			Parameters
+			----------
+			chip - an SC16IS750 object.
+			opcode - bytes - the 5 byte opcode
+			tag - bytes - the 2 byte tag
+			cipherText - if there is cipherText already for the packet it is automatically decoded.
+
+			Returns
+			-------
+			Void
+
+			Raises
+			------
+			Any exception gets popped up the stack.
+			"""
+			if tryEncryption:
+				getEncryption()
+
+			if cipherText:
+				data = PrivilegedPacket.returnRandom(4) + cipherText + PrivilegedPacket.returnRandom(6) + b'\x00'*12
+			elif plainText:
+				data = PrivilegedPacket.returnRandom(4) + PrivilegedPacket.encodeXTEA(plainText + tag) + PrivilegedPacket.returnRandom(6) + b'\x00'*12
+			else:
+				data = PrivilegedPacket.returnRandom(4) + CMDPacket.padding_byte * PrivilegedPacket.encoded_data_length + PrivilegedPacket.returnRandom(6) + b'\x00'*12
+			CMDPacket.__init__(self,opcode=opcode,chip=chip,data=data)
+
+
+		@staticmethod
+		def encodeXTEA(plainText):
+			"""
+			Encode a plaintext into ciphertext.
+			"""
+			try:
+				if not enc_key or not enc_iv:
+					raise RuntimeError('No encryption key or IV')
+				cipherText = xtea.new(PrivilegedPacket.enc_key,mode=xtea.MODE_OFB,IV=PrivilegedPacket.enc_iv).encrypt(plaintext)
+			except:
+				cipherText = plainText
+
+			return cipherText
+
+		@staticmethod
+		def returnRandom(n):
+			"""
+			Return N random bytes.
+
+			Parameters
+			----------
+			n - Number of random bytes to return.
+
+			Returns
+			-------
+			bytes - randomized bytes.
+
+			Raises
+			------
+			Any exception gets popped up the stack.
+			"""
+			retval = []
+			for i in range(0,n):
+				# Get ascii characters from '0' to 'Z'
+				num = random.randint(48,122)
+				if num == 92: # If we have a backslash, just replace it with something else. It doesn't really matter.
+					num = 55
+				retval.append(num)
+			return bytes(retval)
+
+		@staticmethod
+		def getEncryption():
+			tryEncryption = False
+			try:
+				# This file will be found in the root directory.
+				with open(SECRETS,'rb') as fi:
+					PrivilegedPacket.enc_key = fi.readline()
+					PrivilegedPacket.enc_iv = fi.readline()
+			except Exception as e:
+				# If we can't even attempt to decode XTEA packets, then there's no reason to run QPACE though...
+				logger.logError('Interpreter: Unable to import keys. XTEA Encoding is disabled.',e)
 
 	def status(self,chip,logger,cmd,args):
 		"""
@@ -592,7 +595,7 @@ class Command():
 		"""
 		# Numbers based on Packet Specification Document.
 		import qpaceFileHandler as qfh
-		filename = args[0:92].replace(CMDPacket.padding_byte,b'').replace(b'/',b'@')
+		filename = args.replace(CMDPacket.padding_byte,b'').replace(b'/',b'@')
 		if qfh.UploadRequest.isActive():
 			logger.logSystem("UploadRequest: Redundant Request? ({})".format(str(filename)))
 		qfh.UploadRequest.set(filename=filename)
