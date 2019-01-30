@@ -44,20 +44,20 @@ validRoutes = (0x01,0x02,0x54) # Pi1, Pi2, Gnd, WTC, Dev
 # Add commands to the map. Format is "String to recognize for command" : function name
 cmd = Command() # Creates an instance for the Command class so we can pass the packetQueue into it.
 COMMANDS = {
-	b'STATS': 		cmd.status,
+	b'st': 		cmd.status,
 	b'ls': 			cmd.directoryListingSet,
 	b'dl': 			cmd.directoryList,
 	b'mv': 			cmd.move,
 	b'tb': 			cmd.tarExtract,
 	b'tc':			cmd.tarCreate,
-	b'DOWNR': 		cmd.dlReq,
-	b'DWNLD': 		cmd.dlFile,
+	b'dr': 			cmd.dlReq,
+	b'df': 			cmd.dlFile,
 	b'sv':			cmd.splitVideo,
-	b'cv':		    cmd.convertVideo,
+	b'cv':	    	cmd.convertVideo,
 	b'up': 			cmd.upReq,
-	b'MANUL': 		cmd.manual,
-	b'MANUL':		cmd.dil, # TODO: Remove when real things are available to be done. ALTHOUGH it could stay. I don't see any reason why not.
-	b'PLZSD':		cmd.immediateShutdown,
+	b'ml': 			cmd.manual,
+	b'ml':			cmd.dil, # TODO: Remove when real things are available to be done. ALTHOUGH it could stay. I don't see any reason why not.
+	b'is':			cmd.immediateShutdown,
 	b'se':			cmd.startExperiment
 }
 
@@ -213,7 +213,7 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent, log
 		if packetData[1:6] == b'NOOP*':
 			packetData = decodeXTEA(packetData)
 			packet = {
-				"TYPE":			"XTEA",
+				"TYPE":			"NORM",
 				"route":       	packetData[0],
 				"noop":			packetData[1:6],
 				"xteaStartRand":packetData[6:10],
@@ -385,9 +385,6 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent, log
 		packetData = chip.block_read(SC16IS750.REG_RHR,chip.byte_read(SC16IS750.REG_RXLVL))
 		print("Data came in: ", packetData)
 		packetBuffer.append(packetData)
-		# Manual testing. Remove for real test.
-		#testData = b'\x01MANUL====\x00' + b'Q'*93 +b'EE======' + b'\x00'*12
-		#packetData = testData + CMDPacket.generateChecksum(testData)
 
 	def wtc_respond(response):
 		"""
