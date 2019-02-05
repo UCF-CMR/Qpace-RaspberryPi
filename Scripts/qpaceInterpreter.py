@@ -193,7 +193,7 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent, log
 
 
 
-	def splitPacket(packetData):
+	def decodePacket(packetData):
 		"""
 		Takes a string of packet data and splits it up into a dictionary of fields.
 
@@ -217,12 +217,13 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent, log
 				"route":       	packetData[0],
 				"noop":			packetData[1:6],
 				"xteaStartRand":packetData[6:10],
-				"opcode":      	packetData[10:12],
+				"command":      packetData[10:12],
 				"information": 	packetData[12:102],
 				"tag":			packetData[102:104],
 				"xteaEndRand": 	packetData[104:110],
 				"xteaPadding":	packetData[110:124],
-				"checksum":    	packetData[124:]
+				"checksum":    	packetData[124:],
+				"contents":		packetData[6:124]
 			}
 		elif packetData[1:6] in fh.DataPacket.valid_opcodes:
 			packet = {
@@ -232,15 +233,17 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent, log
 				"opcode":		packetData[1:6],
 				"pid":			packetData[6:10],
 				"information":	packetData[10:124],
-				"checksum":		packetData[124:]
+				"checksum":		packetData[124:],
+				"contents":		packetData[6:124]
 			}
 		else:
 			packet = {
-				"TYPE":		   "NORM",
+				"TYPE":		   "UNKNOWN",
 				"route":       packetData[0],
 				"opcode":      packetData[1:6],
 				"information": packetData[6:124],
-				"checksum":    packetData[124:]
+				"checksum":    packetData[124:],
+				"contents":		packetData[6:124]
 			}
 
 		return packet #based on packet definition document
@@ -253,7 +256,7 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent, log
 		Parameters
 		----------
 		chip - an SC16IS750 Object
-		fieldData - dictionary - dictionary created by calling splitPacket()
+		fieldData - dictionary - dictionary created by calling decodePacket()
 
 		Returns
 		-------
@@ -303,7 +306,7 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent, log
 			raise ConnectionError("Connection to the CCDR not established.")
 		if fieldData:
 			try:
-				command = fieldData['opcode'].decode('ascii')
+				command = fieldData['command'].decode('ascii')
 				arguments = fieldData['information'] #These are bytes objects
 			except UnicodeError:
 				#TODO Alert ground of problem decoding command!
@@ -311,7 +314,7 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent, log
 			else:
 				logger.logSystem("Interpreter: Command Received! <{}>".format(command))
 				LastCommand.set(command, str(datetime.datetime.now()), fromWhom)
-				COMMANDS[fieldData['opcode']](chip,logger,command,arguments) # Run the command
+				COMMANDS[fieldData['command']](chip,logger,command,arguments) # Run the command
 
 	def isValidTag(tag):
 		"""
@@ -339,7 +342,7 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent, log
 
 		Parameters
 		----------
-		fieldData - dictionary - must be data that has come from splitPacket()
+		fieldData - dictionary - must be data that has come from decodePacket()
 
 		Returns
 		-------
@@ -351,14 +354,15 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent, log
 		------
 		Any exception gets popped up the stack.
 		"""
-
-		if fieldData['TYPE'] == 'XTEA':
-			isValid = True
-
-			#TODO add in XTEA encryption and decryption.
-		elif fieldData['TYPE'] == 'DATA':
-			packetString = bytes([fieldData['route']]) + fieldData['opcode'] + fieldData['pid'] + fieldData['information']
+		# Figure out the data without the checksum
+		if fieldData['TYPE'] == 'UNKNOWN'
+			isValid = False
+			fieldData = None
+		else:
+			packetString = bytes([fieldData['route']]) + fieldData['opcode'] + fieldData['contents']
 			isValid = fieldData['route'] in validRoutes and fieldData['checksum'] == generateChecksum(packetString)
+
+		if fieldData['TYPE'] == 'DATA':
 			if fieldData['opcode'] == b'NOOP>'
 				if isValid:
 					response = b'GOOD'
@@ -367,9 +371,8 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent, log
 				packetQueue.enqueue(cmd.PrivilegedPacket(opcode='NOOP>',tag='AA',plainText=fieldData['pid'] + response + cmd.PrivilegedPacket.returnRandom(86)))
 				nextQueue.enqueue('SENDPACKET')
 		elif fieldData['TYPE'] == 'NORM':
-			packetString = bytes([fieldData['route']]) + fieldData['opcode'] + fieldData['information']
-			isValid = fieldData['route'] in validRoutes and fieldData['checksum'] == generateChecksum(packetString)
-
+			#TODO tag implementation
+			pass
 
 		return isValid, fieldData
 
@@ -548,7 +551,7 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent, log
 					# If, after pushing, the chunk is complete continue on. Otherwise skip.
 					if chunkPacket.complete:
 						packetData = chunkPacket.build()
-						fieldData = splitPacket(packetData) # Return a nice dictionary for the packets
+						fieldData = decodePacket(packetData) # Return a nice dictionary for the packets
 						# Check if the packet is valid.
 						# If it's XTEA, decode it at this step and modify the field data appropriately.
 						isValid,fieldData = checkValidity(fieldData)
