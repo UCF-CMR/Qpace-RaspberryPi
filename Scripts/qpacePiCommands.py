@@ -358,8 +358,9 @@ class Command():
 		Create a MoveFilePacket and respond with the response packet.
 		"""
 		args = args.split(' ')
-		originalFile = ROOTPATH + args[0]
-		pathToNewFile = ROOTPATH + args[1]
+		# Remove the 'doubledot' this way you can't modify or move or change anything outside of the working directory.
+		originalFile = (ROOTPATH + args[0]).replace('..','')
+		pathToNewFile = (ROOTPATH + args[1]).replace('..','')
 		tag = b'AA'
 		try:
 			import shutil
@@ -370,12 +371,18 @@ class Command():
 			exception = str(e)
 			wasMoved = 'was not'
 
-		filepath = '../data/MoveFile.log'
+		filepath = MISCPATH+'MoveFile.log'
 		with open(filepath, "a+") as filestore:
 			timestamp = strftime("%Y%m%d-%H%M%S",gmtime())
-			filestore.write('[{}] {}: {} {} moved to {}\n'.format(timestamp, wasMoved=='was',originalFile, wasMoved, pathToNewFile))
+			m='{} {} moved to {}'.format(originalFile, wasMoved, pathToNewFile)
+			filestore.write('[{}] {}\n'.format(timestamp,m))
+			logger.logSystem(m)
 			if exception: filestore.write('[{}] {}\n'.format(timestamp,exception))
+
 		wasMoved = "{} {} moved.".format(originalFile, wasMoved)
+		if exception:
+			wasMoved += " {}".format(exception)
+		wasMoved = wasMoved[:PrivilegedPacket.encoded_data_length]
 		padding = CMDPacket.padding_byte * (PrivilegedPacket.encoded_data_length - len(wasMoved))
 		plainText = wasMoved.encode('ascii')
 		plainText += padding
