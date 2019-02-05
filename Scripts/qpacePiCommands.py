@@ -287,7 +287,7 @@ class Command():
 		status_file = str(timestamp) if thread else 'Save Failed' # Save the timestamp inwhich this status file will be saved as.
 		status += b'F('+ status_file.encode('ascii') +b')' # the File where the major status stuff should be being saved in.
 		data += status + b' '*(111-len(status)) # 111 due to defined packet Structure
-		p = CMDPacket(opcode='STATS',data=data).send()
+		CMDPacket(opcode='STATS',data=data).send()
 		if thread:
 			thread.join() # Make sure we wait for the thread to close if it's still going.
 
@@ -302,7 +302,7 @@ class Command():
 		padding = CMDPacket.padding_byte*(PrivilegedPacket.encoded_data_length-len(lenstr)) #98 due to specification of packet structure
 		plainText = lenstr.encode('ascii')
 		plainText += padding
-		p = PrivilegedPacket(opcode="NOOP*",tag=tag,plainText=plainText).send()
+		PrivilegedPacket(opcode="NOOP*",tag=tag,plainText=plainText).send()
 
 	def directoryList(self,chip,logger,cmd,args):
 		"""
@@ -324,7 +324,7 @@ class Command():
 		padding = CMDPacket.padding_byte * (PrivilegedPacket.encoded_data_length - len(filepath))
 		plainText = filepath.encode('ascii')
 		plainText += padding
-		p = PrivilegedPacket(opcode="NOOP*", tag=tag,plainText=plainText).send()
+		PrivilegedPacket(opcode="NOOP*", tag=tag,plainText=plainText).send()
 
 	def splitVideo(self,chip,logger,cmd,args):
 		args = args.decode('ascii').split(' ')
@@ -349,7 +349,7 @@ class Command():
 		os.system('MP4Box -add {}{}.h264 {}{}.mp4 &> /dev/null'.format(pathToVideo,filename,pathToVideo,filename))
 		returnValue = check_output(['ls','-la',"{}{}.mp4".format(pathToVideo,filename)])
 		returnValue += returnValue.encode('ascii') + CMDPacket.padding_byte*(CMDPacket.data_size - len(returnValue))
-		p = CMDPacket(opcode='TOMP4',data=returnValue).send()
+		CMDPacket(opcode='TOMP4',data=returnValue).send()
 
 	def move(self,chip,logger,cmd,args):
 		"""
@@ -385,7 +385,7 @@ class Command():
 		padding = CMDPacket.padding_byte * (PrivilegedPacket.encoded_data_length - len(wasMoved))
 		plainText = wasMoved.encode('ascii')
 		plainText += padding
-		p = PrivilegedPacket(opcode="NOOP*",tag=tag,plainText=plainText).send()
+		PrivilegedPacket(opcode="NOOP*",tag=tag,plainText=plainText).send()
 
 	def tarExtract(self,chip,logger,cmd,args):
 		"""
@@ -403,7 +403,7 @@ class Command():
 		except:pass
 		message = b'DONE'
 		plainText = message + CMDPacket.padding_byte * (PrivilegedPacket.encoded_data_length-len(message))
-		p = PrivilegedPacket(opcode="NOOP*",tag=b'AA',plainText=plainText).send()
+		PrivilegedPacket(opcode="NOOP*",tag=b'AA',plainText=plainText).send()
 
 	def tarCreate(self,chip,logger,cmd,args):
 		"""
@@ -421,7 +421,7 @@ class Command():
 			tar.add(args[0], arcname=os.path.basename(args[0]))
 
 		plainText = tarDir.encode('ascii') + CMDPacket.padding_byte*(CMDPacket.data_size - len(tarDir))
-		p = PrivilegedPacket(opcode='NOOP*',tag=b'AA',plainText=plainText).send()
+		PrivilegedPacket(opcode='NOOP*',tag=b'AA',plainText=plainText).send()
 
 	def dlReq(self,chip,logger,cmd,args):
 		"""
@@ -445,7 +445,7 @@ class Command():
 			data += ('FileNotFound:{}{}'.format(ROOTPATH,path)).encode('ascii')
 		padding = CMDPacket.data_size - len(data)
 		data += CMDPacket.padding_byte * padding if padding > 0 else 0
-		p = CMDPacket(opcode='DOWNR',data=data).send()
+		CMDPacket(opcode='DOWNR',data=data).send()
 
 	def dlFile(self,chip,logger,cmd,args):
 		"""
@@ -497,10 +497,19 @@ class Command():
 		response += b'Active Requests: ' + bytes([len(qfh.UploadRequest.received)])
 		response += b' Using Scaffold: ' + filename
 		response += PrivilegedPacket.padding_byte * (PrivilegedPacket.encoded_data_length - len(response))
-		p = PrivilegedPacket('NOOP*',tag=b'AA',plainText=response).send()
+		PrivilegedPacket('NOOP*',tag=b'AA',plainText=response).send()
 
 	def runHandbrake(self,chip,logger,cmd,args):
-		pass
+		args = args.split(b' ')
+		inputFile = args[0].decode('ascii')
+		outputFile = args[1].decode('ascii')
+		# > /dev/null 2>&1 to hide the command from terminal because it outputs gibberish
+		# the '&' is so the command runs in the background.
+		handbrakeCommand = 'HandBrakeCLI -a none -q 10 -vfr -g -i {} -o {} -e x264 > /dev/null 2>&1 &'.format(inputFile,outputFile)
+		os.system(handbrakeCommand)
+		data = 'HandBrake: In({}) Out({})'.format(inputFile,outputFile)
+		data = data.encode('ascii') + PrivilegedPacket.padding_byte * (PrivilegedPacket.encoded_data_length - len(data))
+		CMDPacket(opcode='HANDB',data=data).send()
 
 	def startExperiment(self,chip,logger,cmd,args):
 
@@ -517,7 +526,7 @@ class Command():
 
 		data = 'Attempting to start experiment <{}> if it exists.'.format(filename)
 		data += CMDPacket.padding_byte * (CMDPacket.data_size - len(data))
-		p = CMDPacket(opcode='RSPND',data=data).send()
+		CMDPacket(opcode='RSPND',data=data).send()
 
 	def immediateShutdown(self,chip,logger,cmd,args):
 		"""
@@ -592,6 +601,11 @@ class Command():
 		except Exception as err:
 			logger.logError("There was a problem accessing the Disk stats", err)
 
+		try:
+			ps_data = check_output(['ps','al'])
+		except:
+			ps_data = 'Unable to get data.\n'
+
 		text_to_write = "Identity: Pi {}\n"     +\
 						"Boot: {}\n"			+\
 						"Last Command Executed was \"{}\" at {} invoked by \"{}\"\n" +\
@@ -606,6 +620,7 @@ class Command():
 						"Disk free: {}\n"
 		text_to_write = text_to_write.format(identity,boot,last_command,last_command_when,last_command_from,commands_executed,cpu,cpu_temp,
 								uptime,ram_tot,ram_used,ram_free,disk_total,disk_free)
+		text_to_write += ps_data
 
 		logger.logSystem("saveStatus: Attempting to save the status to a file.")
 		try:
