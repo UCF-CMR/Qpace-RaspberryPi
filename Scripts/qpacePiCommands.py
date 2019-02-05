@@ -121,8 +121,14 @@ class Command():
 			Any exception gets popped up the stack.
 			"""
 			self.routing = 0x00
-			self.opcode = opcode
-			self.packetData = data
+			if type(opcode) is bytes:
+				self.opcode = opcode
+			else:
+				self.opcode = opcode.encode('ascii')
+			if type(data) is bytes:
+				self.packetData = data
+			else:
+				self.packetData = data.encode('ascii')
 
 		def send(self):
 			"""
