@@ -44,21 +44,21 @@ validRoutes = (0x01,0x02,0x54) # Pi1, Pi2, Gnd, WTC, Dev
 # Add commands to the map. Format is "String to recognize for command" : function name
 cmd = Command() # Creates an instance for the Command class so we can pass the packetQueue into it.
 COMMANDS = {
-	b'st': 		cmd.status,
-	b'ls': 			cmd.directoryListingSet,
-	b'dl': 			cmd.directoryList,
-	b'mv': 			cmd.move,
-	b'tb': 			cmd.tarExtract,
-	b'tc':			cmd.tarCreate,
-	b'dr': 			cmd.dlReq,
-	b'df': 			cmd.dlFile,
-	b'sv':			cmd.splitVideo,
-	b'cv':	    	cmd.convertVideo,
-	b'up': 			cmd.upReq,
-	b'ml': 			cmd.manual,
-	b'ml':			cmd.dil, # TODO: Remove when real things are available to be done. ALTHOUGH it could stay. I don't see any reason why not.
-	b'is':			cmd.immediateShutdown,
-	b'se':			cmd.startExperiment
+	b'st': 	cmd.status,
+	b'ls': 	cmd.directoryListingSet,
+	b'dl': 	cmd.directoryList,
+	b'mv': 	cmd.move,
+	b'te': 	cmd.tarExtract,
+	b'tc':	cmd.tarCreate,
+	b'dr': 	cmd.dlReq,
+	b'df': 	cmd.dlFile,
+	b'sv':	cmd.splitVideo,
+	b'cv':	cmd.convertVideo,
+	b'up': 	cmd.upReq,
+	b'ml': 	cmd.manual,
+	b'is':	cmd.immediateShutdown,
+	b'hb':  cmd.runHandbrake,
+	b'se':	cmd.startExperiment
 }
 
 class LastCommand():

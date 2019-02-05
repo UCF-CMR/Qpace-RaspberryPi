@@ -346,7 +346,7 @@ class Command():
 		os.system('MP4Box -add {}{}.h264 {}{}.mp4 &> /dev/null'.format(pathToVideo,filename,pathToVideo,filename))
 		returnValue = check_output(['ls','-la',"{}{}.mp4".format(pathToVideo,filename)])
 		returnValue += returnValue.encode('ascii') + CMDPacket.padding_byte*(CMDPacket.data_size - len(returnValue))
-		p = CMDPacket(chip=chip,opcode='RSPND',data=returnValue).send()
+		p = CMDPacket(chip=chip,opcode='TOMP4',data=returnValue).send()
 
 	def move(self,chip,logger,cmd,args):
 		"""
@@ -494,7 +494,8 @@ class Command():
 
 
 
-
+	def runHandbrake(self,chip,logger,cmd,args):
+		pass
 
 
 	def startExperiment(self,chip,logger,cmd,args):
