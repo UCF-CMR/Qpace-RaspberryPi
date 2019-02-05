@@ -400,7 +400,7 @@ class UploadRequest():
 		"""
 
 		try:
-			filename = filename.decode('ascii')
+			filename = str(filename)
 			from pathlib import Path
 			#Path('{}{}.scaffold'.format(TEMPPATH,filename)).touch()
 			with open('{}{}.scaffold'.format(TEMPPATH,filename),'wb') as fi:

@@ -207,8 +207,8 @@ class Command():
 			------
 			Any exception gets popped up the stack.
 			"""
-			if tryEncryption:
-				getEncryption()
+			if PrivilegedPacket.tryEncryption:
+				PrivilegedPacket.getEncryptionKeys()
 
 			if cipherText:
 				data = PrivilegedPacket.returnRandom(4) + cipherText + PrivilegedPacket.returnRandom(6) + b'\x00'*12
@@ -224,7 +224,7 @@ class Command():
 			Encode a plaintext into ciphertext.
 			"""
 			try:
-				if not enc_key or not enc_iv:
+				if not PrivilegedPacket.enc_key or not PrivilegedPacket.enc_iv:
 					raise RuntimeError('No encryption key or IV')
 				cipherText = xtea.new(PrivilegedPacket.enc_key,mode=xtea.MODE_OFB,IV=PrivilegedPacket.enc_iv).encrypt(plaintext)
 			except:
@@ -259,7 +259,7 @@ class Command():
 			return bytes(retval)
 
 		@staticmethod
-		def getEncryption():
+		def getEncryptionKeys():
 			tryEncryption = False
 			try:
 				# This file will be found in the root directory.
@@ -295,21 +295,21 @@ class Command():
 		"""
 		Create a DirectoryListingPacket and respond with the response packet.
 		"""
-		pathname = ROOTPATH + args.split(' ')[0]
+		pathname = ROOTPATH + args.decode('ascii').split(' ')[0]
 		tag = b"AA"
 
 		lenstr = str(len(os.listdir(pathname))) # Get the number of files/directories in this directory.
 		padding = CMDPacket.padding_byte*(PrivilegedPacket.encoded_data_length-len(lenstr)) #98 due to specification of packet structure
 		plainText = lenstr.encode('ascii')
 		plainText += padding
-		p = PrivilegedPacket(opcode="NOOP*",tag=tag,plainText=plainText).sned()
+		p = PrivilegedPacket(opcode="NOOP*",tag=tag,plainText=plainText).send()
 
 	def directoryList(self,chip,logger,cmd,args):
 		"""
 
 		Create a SendDirectoryList packet and respond with the response packet.
 		"""
-		pathname = args.split(' ')[0]
+		pathname = args.decode('ascii').split(' ')[0]
 		tag = b"AA"
 		self.pathname = pathname
 		filepath = TEXTPATH
@@ -327,7 +327,7 @@ class Command():
 		p = PrivilegedPacket(opcode="NOOP*", tag=tag,plainText=plainText).send()
 
 	def splitVideo(self,chip,logger,cmd,args):
-		args = args.split(' ')
+		args = args.decode('ascii').split(' ')
 		path = ROOTPATH + args[0]
 		nam_i,ext_i = path.rfind('/'),path.rfind('.')
 		ext_i = None if ext_i < 0 or ext_i < nam_i else ext_i # If it's -1 or if it's before the first slash, then ignore it.
@@ -339,9 +339,8 @@ class Command():
 		self.directoryList(chip,logger,cmd,path[:nam_i]) # pass in the path stated above without the file to get the directory list.
 		#NOTE: self.directoryList() will send a PrivilegedPacket back to the ground. This calls the directoryList command because we want the same behaviour
 
-
 	def convertVideo(self,chip,logger,cmd,args):
-		args = args.split(' ')
+		args = args.decode('ascii').split(' ')
 		pathToVideo = args[0]
 		nam_i,ext_i = pathToVideo.rfind('/'),pathToVideo.rfind('.')
 		ext_i = None if ext_i < 0 or ext_i < nam_i else ext_i # If it's -1 or if it's before the first slash, then ignore it.
@@ -357,7 +356,7 @@ class Command():
 		Move a file from one location to another.
 		Create a MoveFilePacket and respond with the response packet.
 		"""
-		args = args.split(' ')
+		args = args.decode('ascii').split(' ')
 		# Remove the 'doubledot' this way you can't modify or move or change anything outside of the working directory.
 		originalFile = (ROOTPATH + args[0]).replace('..','')
 		pathToNewFile = (ROOTPATH + args[1]).replace('..','')
@@ -394,7 +393,7 @@ class Command():
 		Create a TarBallFilePacket and respond with the response packet.
 		"""
 		tempdir = "../temp/"
-		args = args.split(' ')
+		args = args.decode('ascii').split(' ')
 		filename = args[0]
 		pathname = args[1]
 		with tarfile.open(tempdir + filename) as tar:
@@ -412,7 +411,7 @@ class Command():
 		Create a TarBallFilePacket and respond with the response packet.
 		"""
 		import tarfile
-		args = args.split(' ')
+		args = args.decode('ascii').split(' ')
 		# The name of the new file will be whatever was input, but since the path could be long
 		# create the {}.tar.gz at the filename. Since it could be a directory with a /
 		# look for the 2nd to last / and then slice it. Then remove and trailing /'s
@@ -436,8 +435,8 @@ class Command():
 			size_of_file = 0
 			# 114 is the maximum alotment of data space in the files. the other 14 bytes are header and checksum data
 			# Get the number of packets estimated to be in this thing.
-			data = ((size_of_file//114) + 1).to_bytes(4,'big')
-			data += b'\n'
+		data = ((size_of_file//114) + 1).to_bytes(4,'big')
+		data += b'\n'
 		if size_of_file > qfh.MAX_FILE_SIZE:
 			data += ('File Too large. Send less than 400MB at a time.\n')
 		if size_of_file > 0:
@@ -491,7 +490,7 @@ class Command():
 		filename = args.replace(CMDPacket.padding_byte,b'').replace(b'/',b'@')
 		if qfh.UploadRequest.isActive():
 			logger.logSystem("UploadRequest: Redundant Request? ({})".format(str(filename)))
-		qfh.UploadRequest.set(filename=filename)
+		qfh.UploadRequest.set(filename=filename.decode('ascii'))
 		logger.logSystem("UploadRequest: Upload Request has been received. ({})".format(str(filename)))
 
 		response = b'up'
@@ -503,23 +502,20 @@ class Command():
 	def manual(self,chip,logger,cmd,args):
 		print('NOTHING HAS BEEN WRITTEN FOR THE "MANUAL" METHOD.')
 
-
-
 	def runHandbrake(self,chip,logger,cmd,args):
 		pass
 
-
 	def startExperiment(self,chip,logger,cmd,args):
 
-		filename = args.replace(CMDPacket.padding_byte)
+		filename = args.replace(CMDPacket.padding_byte,'').decode('ascii')
 
 		if self.experimentEvent is None or self.experimentEvent.is_set():
 			raise StopIteration('experimentEvent is None or experimentEvent is set.') # If experimentEvent does not exist or is set, return False to know there is a failure.
 		runEvent = threading.Event()
 		runEvent.set()
 		# Run an experiment file from the experiment directory
-		logger.logSystem("Command recieved: Running an experiment.", task[2]) # Placeholder
-		parserThread = threading.Thread(name='experimentParser',target=exp.run, args=(task[2],self.experimentEvent,runEvent,logger,self.nextQueue))
+		logger.logSystem("Command recieved: Running an experiment.", filename) # Placeholder
+		parserThread = threading.Thread(name='experimentParser',target=exp.run, args=(filename,self.experimentEvent,runEvent,logger,self.nextQueue))
 		parserThread.start()
 
 		data = 'Attempting to start experiment <{}> if it exists.'.format(filename)
@@ -544,6 +540,7 @@ class Command():
 		Popen(["sudo", "halt"],shell=True) #os.system('sudo halt')
 		raise SystemExit # Close the interpreter and clean up the buffers before reboot happens.
 
+	# Not a command to be envoked by the Interpreter
 	def saveStatus(self,logger,timestamp = strftime("%Y%m%d-%H%M%S",gmtime())):
 
 		logger.logSystem("Attempting to get the status of the Pi")
