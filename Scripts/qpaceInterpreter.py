@@ -359,9 +359,17 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent, log
 		elif fieldData['TYPE'] == 'DATA':
 			packetString = bytes([fieldData['route']]) + fieldData['opcode'] + fieldData['pid'] + fieldData['information']
 			isValid = fieldData['route'] in validRoutes and fieldData['checksum'] == generateChecksum(packetString)
+			if fieldData['opcode'] == b'NOOP>'
+				if isValid:
+					response = b'GOOD'
+				else:
+					response = b'REPT'
+				packetQueue.enqueue(cmd.PrivilegedPacket(opcode='NOOP>',tag='AA',plainText=fieldData['pid'] + response + cmd.PrivilegedPacket.returnRandom(86)))
+				nextQueue.enqueue('SENDPACKET')
 		elif fieldData['TYPE'] == 'NORM':
 			packetString = bytes([fieldData['route']]) + fieldData['opcode'] + fieldData['information']
 			isValid = fieldData['route'] in validRoutes and fieldData['checksum'] == generateChecksum(packetString)
+
 
 		return isValid, fieldData
 
