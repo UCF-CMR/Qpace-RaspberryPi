@@ -103,7 +103,7 @@ class Command():
 		data_size = 118 #Bytes
 		padding_byte = b'\x04'
 
-		def __init__(self,chip,opcode,data):
+		def __init__(self,opcode,data):
 			"""
 			Constructor for CMDPacket.
 
@@ -123,7 +123,6 @@ class Command():
 			self.routing = 0x00
 			self.opcode = opcode
 			self.packetData = data
-			self.chip = chip
 
 		def send(self):
 			"""
@@ -183,7 +182,7 @@ class Command():
 		enc_iv = None
 		tryEncryption = True
 
-		def __init__(self,chip,opcode,tag=None, cipherText = None,plainText=None):
+		def __init__(self,opcode,tag=None, cipherText = None,plainText=None):
 			"""
 			Constructor for a PrivilegedPacket
 
@@ -211,8 +210,7 @@ class Command():
 				data = PrivilegedPacket.returnRandom(4) + PrivilegedPacket.encodeXTEA(plainText + tag) + PrivilegedPacket.returnRandom(6) + b'\x00'*12
 			else:
 				data = PrivilegedPacket.returnRandom(4) + CMDPacket.padding_byte * PrivilegedPacket.encoded_data_length + PrivilegedPacket.returnRandom(6) + b'\x00'*12
-			CMDPacket.__init__(self,opcode=opcode,chip=chip,data=data)
-
+			CMDPacket.__init__(self,opcode=opcode,data=data)
 
 		@staticmethod
 		def encodeXTEA(plainText):
@@ -283,7 +281,7 @@ class Command():
 		status_file = str(timestamp) if thread else 'Save Failed' # Save the timestamp inwhich this status file will be saved as.
 		status += b'F('+ status_file.encode('ascii') +b')' # the File where the major status stuff should be being saved in.
 		data += status + b' '*(111-len(status)) # 111 due to defined packet Structure
-		p = CMDPacket(chip=chip,opcode='STATS',data=data).send()
+		p = CMDPacket(opcode='STATS',data=data).send()
 		if thread:
 			thread.join() # Make sure we wait for the thread to close if it's still going.
 
@@ -298,7 +296,7 @@ class Command():
 		padding = CMDPacket.padding_byte*(PrivilegedPacket.encoded_data_length-len(lenstr)) #98 due to specification of packet structure
 		plainText = lenstr.encode('ascii')
 		plainText += padding
-		p = PrivilegedPacket(chip=chip,opcode="NOOP*",tag=tag,plainText=plainText).sned()
+		p = PrivilegedPacket(opcode="NOOP*",tag=tag,plainText=plainText).sned()
 
 	def directoryList(self,chip,logger,cmd,args):
 		"""
@@ -320,7 +318,7 @@ class Command():
 		padding = CMDPacket.padding_byte * (PrivilegedPacket.encoded_data_length - len(filepath))
 		plainText = filepath.encode('ascii')
 		plainText += padding
-		p = PrivilegedPacket(chip=chip,opcode="NOOP*", tag=tag,plainText=plainText).send()
+		p = PrivilegedPacket(opcode="NOOP*", tag=tag,plainText=plainText).send()
 
 	def splitVideo(self,chip,logger,cmd,args):
 		args = args.split(' ')
@@ -346,7 +344,7 @@ class Command():
 		os.system('MP4Box -add {}{}.h264 {}{}.mp4 &> /dev/null'.format(pathToVideo,filename,pathToVideo,filename))
 		returnValue = check_output(['ls','-la',"{}{}.mp4".format(pathToVideo,filename)])
 		returnValue += returnValue.encode('ascii') + CMDPacket.padding_byte*(CMDPacket.data_size - len(returnValue))
-		p = CMDPacket(chip=chip,opcode='TOMP4',data=returnValue).send()
+		p = CMDPacket(opcode='TOMP4',data=returnValue).send()
 
 	def move(self,chip,logger,cmd,args):
 		"""
@@ -375,7 +373,7 @@ class Command():
 		padding = CMDPacket.padding_byte * (PrivilegedPacket.encoded_data_length - len(wasMoved))
 		plainText = wasMoved.encode('ascii')
 		plainText += padding
-		p = PrivilegedPacket(chip=chip,opcode="NOOP*",tag=tag,plainText=plainText).send()
+		p = PrivilegedPacket(opcode="NOOP*",tag=tag,plainText=plainText).send()
 
 	def tarExtract(self,chip,logger,cmd,args):
 		"""
@@ -393,7 +391,7 @@ class Command():
 		except:pass
 		message = b'DONE'
 		plainText = message + CMDPacket.padding_byte * (PrivilegedPacket.encoded_data_length-len(message))
-		p = PrivilegedPacket(chip=chip,opcode="NOOP*",tag=b'AA',plainText=plainText).send()
+		p = PrivilegedPacket(opcode="NOOP*",tag=b'AA',plainText=plainText).send()
 
 	def tarCreate(self,chip,logger,cmd,args):
 		"""
@@ -411,7 +409,7 @@ class Command():
 			tar.add(args[0], arcname=os.path.basename(args[0]))
 
 		plainText = tarDir.encode('ascii') + CMDPacket.padding_byte*(CMDPacket.data_size - len(tarDir))
-		p = PrivilegedPacket(chip=chip,opcode='NOOP*',tag=b'AA',plainText=plainText).send()
+		p = PrivilegedPacket(opcode='NOOP*',tag=b'AA',plainText=plainText).send()
 
 	def dlReq(self,chip,logger,cmd,args):
 		"""
@@ -435,7 +433,7 @@ class Command():
 			data += ('FileNotFound:{}{}'.format(ROOTPATH,path)).encode('ascii')
 		padding = CMDPacket.data_size - len(data)
 		data += CMDPacket.padding_byte * padding if padding > 0 else 0
-		p = CMDPacket(chip=chip,opcode='DOWNR',data=data).send()
+		p = CMDPacket(opcode='DOWNR',data=data).send()
 
 	def dlFile(self,chip,logger,cmd,args):
 		"""
@@ -487,7 +485,7 @@ class Command():
 		response += b'Active Requests: ' + bytes([len(qfh.UploadRequest.received)])
 		response += b' Using Scaffold: ' + filename
 		response += PrivilegedPacket.padding_byte * (PrivilegedPacket.encoded_data_length - len(response))
-		p = PrivilegedPacket(chip,'NOOP*',tag=b'AA',plainText=response).send()
+		p = PrivilegedPacket('NOOP*',tag=b'AA',plainText=response).send()
 
 	def manual(self,chip,logger,cmd,args):
 		print('NOTHING HAS BEEN WRITTEN FOR THE "MANUAL" METHOD.')
@@ -513,7 +511,7 @@ class Command():
 
 		data = 'Attempting to start experiment <{}> if it exists.'.format(filename)
 		data += CMDPacket.padding_byte * (CMDPacket.data_size - len(data))
-		p = CMDPacket(chip=chip,opcode='RSPND',data=data).send()
+		p = CMDPacket(opcode='RSPND',data=data).send()
 
 	def immediateShutdown(self,chip,logger,cmd,args):
 		"""
