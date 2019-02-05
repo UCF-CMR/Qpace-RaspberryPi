@@ -9,9 +9,6 @@
 # The interpreter will be invoked when pin 7 goes high. This will grab incoming data from the WTC,
 # Figure out if they are packets or commands. If it's a command it will execute the command
 # and if they are packets it will direct them to the packet directory and then decode it.
-#TODO: Re-do comments/documentation
-
-
 
 try:
 	import pigpio
@@ -55,7 +52,6 @@ COMMANDS = {
 	b'sv':	cmd.splitVideo,
 	b'cv':	cmd.convertVideo,
 	b'up': 	cmd.upReq,
-	b'ml': 	cmd.manual,
 	b'is':	cmd.immediateShutdown,
 	b'hb':  cmd.runHandbrake,
 	b'se':	cmd.startExperiment

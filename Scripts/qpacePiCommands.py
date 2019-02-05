@@ -499,9 +499,6 @@ class Command():
 		response += PrivilegedPacket.padding_byte * (PrivilegedPacket.encoded_data_length - len(response))
 		p = PrivilegedPacket('NOOP*',tag=b'AA',plainText=response).send()
 
-	def manual(self,chip,logger,cmd,args):
-		print('NOTHING HAS BEEN WRITTEN FOR THE "MANUAL" METHOD.')
-
 	def runHandbrake(self,chip,logger,cmd,args):
 		pass
 
