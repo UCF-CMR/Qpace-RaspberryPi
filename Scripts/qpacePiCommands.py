@@ -22,11 +22,6 @@ try:
 except:
 	pass
 
-
-
-WTC_PACKET_BUFFER_SIZE = 10 # How many packets can the WTC store?
-
-
 CMD_DEFAULT_TIMEOUT = 5 #seconds
 CMD_POLL_DELAY = .35 #seconds
 MISCPATH = 'home/pi/data/misc/'
@@ -454,9 +449,10 @@ class Command():
 		import qpaceFileHandler as qfh
 		qfh.DataPacket.last_id = 0
 		# fec = args[:4]
-		start = int.from_bytes(args[4:8], byteorder='big')
-		end = int.from_bytes(args[8:12], byteorder='big')
-		filename = args[12:].replace(CMDPacket.padding_byte,b'')
+		ppa = int.from_bytes(args[4:8],byteorder='big')
+		start = int.from_bytes(args[8:12], byteorder='big')
+		end = int.from_bytes(args[12:16], byteorder='big')
+		filename = args[16:].replace(CMDPacket.padding_byte,b'')
 		# print('FEC:',fec)
 		print('STR:',start)
 		print('END:',end)
@@ -466,6 +462,7 @@ class Command():
 											filename.decode('ascii'),
 											0x01,
 											# useFEC = fec == b' FEC',
+											ppa=ppa,
 											firstPacket = start,
 											lastPacket = end,
 											xtea = False,
@@ -475,10 +472,10 @@ class Command():
 			logger.logSystem('Transmitter: Could not find the file requested for: {}'.format(filename.decode('ascii')))
 		else:
 			transmitter.run()
-		finally:
 			# For however many transactions the WTC can handle, enqueue a SENDPACKET so when the WTC asks "WHATISNEXT" the Pi can tell it it wants to send packets.
-			for x in range((len(self._packetQueue)//WTC_PACKET_BUFFER_SIZE) + 1):
+			for x in range((len(self._packetQueue)//qfh.WTC_PACKET_BUFFER_SIZE) + 1):
 				self.nextQueue.enqueue('SENDPACKET') # taken from qpaceControl
+
 
 	def upReq(self,chip,logger,cmd,args):
 		"""

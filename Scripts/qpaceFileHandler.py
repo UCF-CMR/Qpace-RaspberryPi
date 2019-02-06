@@ -16,6 +16,8 @@ from math import ceil
 import re
 import os
 
+WTC_PACKET_BUFFER_SIZE = 10
+
 MISCPATH = '/mnt/c/users/jonat/desktop/cmr/pi/data/misc/'
 ROOTPATH= '/mnt/c/users/jonat/desktop/cmr/pi/'
 TEMPPATH = '/mnt/c/users/jonat/desktop/cmr/pi/temp/'
@@ -217,6 +219,7 @@ class Transmitter():
 
 	def __init__(self, chip, pathname, route,
 				# useFEC =			Defaults.useFEC_DEFAULT,
+				ppa = 				Defaults.packetsPerAck_DEFAULT,
 				firstPacket = 		Defaults.firstPacket_DEFAULT,
 				lastPacket = 		Defaults.lastPacket_DEFAULT,
 				xtea = 				Defaults.xtea_DEFAULT,

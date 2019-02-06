@@ -139,7 +139,6 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent, log
 	All other exceptions raised by this function are passed up the stack or ignored and not raised at all.
 	"""
 	CCDR_IRQ = 16
-	TEMP_PACKET_LOCATION = 'temp/packets/'
 	logger.logSystem("Interpreter: Starting...")
 	if chip is None:
 		e = ConnectionError('The SC16IS750 is not connected. The Interpreter can not run.')
@@ -173,6 +172,7 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent, log
 
 	cmd.packetQueue = packetQueue # set the packet queue so we can append packets.
 	cmd.nextQueue = nextQueue
+	lastPacketsSent = []
 
 	def decodeXTEA(packetData):
 		header = packetData[:10]
@@ -231,6 +231,16 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent, log
 				"information":	packetData[10:124],
 				"checksum":		packetData[124:],
 				"contents":		packetData[6:124]
+			}
+		elif packetData[1:6] == b'DLACK':
+			packet = {
+				'TYPE':		 "DLACK",
+				'route': 	 packetData[0],
+				'opcode': 	 packetData[1:6],
+				'response':  packetData[6:10],
+				'gibberish': packetData[10:124],
+				'checksum':  packetData[124:],
+				'contents':  packetData[6:124]
 			}
 		else:
 			packet = {
@@ -351,7 +361,7 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent, log
 		Any exception gets popped up the stack.
 		"""
 		# Figure out the data without the checksum
-		if fieldData['TYPE'] == 'UNKNOWN'
+		if fieldData['TYPE'] == 'UNKNOWN':
 			isValid = False
 			fieldData = None
 		else:
@@ -359,7 +369,7 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent, log
 			isValid = fieldData['route'] in validRoutes and fieldData['checksum'] == generateChecksum(packetString)
 
 		if fieldData['TYPE'] == 'DATA':
-			if fieldData['opcode'] == b'NOOP>'
+			if fieldData['opcode'] == b'NOOP>':
 				if isValid:
 					response = b'GOOD'
 				else:
@@ -368,6 +378,9 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent, log
 				nextQueue.enqueue('SENDPACKET')
 		elif fieldData['TYPE'] == 'NORM':
 			#TODO tag implementation
+			pass
+		elif fieldData['TYPE'] == 'DLACK':
+			# Honestly, I don't think there's anything to do here...
 			pass
 
 		return isValid, fieldData
@@ -499,8 +512,11 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent, log
 					nextPacket = packetQueue.dequeue()
 					if nextPacket:
 						wtc_respond(nextPacket)
+						lastPacketsSent.append(nextPacket)
 					else:
-						wtc_respond(fh.DummyPacket().build())
+						dummy = fh.DummyPacket().build()
+						wtc_respond(dummy)
+						lastPacketsSent.append(dummy)
 
 				elif byte == qpStates['BUFFERFULL']:
 
@@ -565,6 +581,33 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent, log
 									processCommand(chip,fieldData,fromWhom = 'CCDR')
 								except StopIteration:
 									continue # Used for flow control inside of some commands.
+							elif fieldData['TYPE'] == 'DLACK':
+									# If the DLACK is good, then clear the queue of lastPackets.
+									if fieldData['response'] == b'GOOD':
+										lastPacketsSent.clear()
+									else:
+										# If it's not good, then we need to send those packets again...
+										# To do that, we will prepend the packetQueue with the packets from lastPacketsSent
+										# And then we will prepend the nextQueue with a 'SENDPACKET' for every BUFFERSIZE of packets.
+										# If the last packets sent's count is less than the buffer size
+										# Then we'll append dummy packets here to fill that buffer.
+
+										# Offload the last sent packets but don't clear them until we get a good.
+										lastPacketsSent_copy = lastPacketsSent[:] #Shallow copy to not affect the original list
+										if len(lastPacketsSent_copy) < fh.WTC_PACKET_BUFFER_SIZE: # If there's more buffer space than packets sent...
+										for i in range(fh.WTC_PACKET_BUFFER_SIZE - len(lastPacketsSent_copy)): # Append a dummy packet for every packet to send.
+										lastPacketsSent_copy.append(fh.DummyPacket().build())
+										lastPacketsSent_copy.reverse() # Reverse the list so the last packets get prepended first.
+										for pkt in lastPacketsSent_copy: # For every packet to send...
+											packetQueue.enqueue(pkt, prepend=True) # Prepend those packets
+
+
+										# For however many transactions the WTC can handle, enqueue a SENDPACKET so when the WTC asks "WHATISNEXT" the Pi can tell it it wants to send packets.
+										for x in range((len(self._packetQueue)//fh.WTC_PACKET_BUFFER_SIZE) + 1):
+											nextQueue.enqueue('SENDPACKET',prepend=True) # taken from qpaceControl
+
+
+
 							else:
 								logger.logSystem("Interpreter: Unknown valid packet.",str(fieldData))
 						else:
