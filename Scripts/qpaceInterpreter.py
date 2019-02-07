@@ -172,6 +172,7 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent, log
 
 	cmd.packetQueue = packetQueue # set the packet queue so we can append packets.
 	cmd.nextQueue = nextQueue
+	cmd.shutdownEvent = shutdownEvent
 	lastPacketsSent = []
 
 	def decodeXTEA(packetData):
@@ -182,8 +183,9 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent, log
 			if not enc_key or not enc_iv:
 				raise RuntimeError('No encryption key or IV')
 			information = xtea3.new(enc_key,mode=xtea.MODE_OFB,IV=enc_iv).decrypt(packetData[10:104])
-		except:
+		except Exception as e:
 			information = packetData[10:104]
+			logger.logError('Not using XTEA.',e)
 
 		return header + information + footer
 
@@ -212,6 +214,7 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent, log
 				"TYPE":			"NORM",
 				"route":       	packetData[0],
 				"noop":			packetData[1:6],
+				'opcode':		packetData[1:6],
 				"xteaStartRand":packetData[6:10],
 				"command":      packetData[10:12],
 				"information": 	packetData[12:102],
@@ -249,7 +252,8 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent, log
 				"opcode":      packetData[1:6],
 				"information": packetData[6:124],
 				"checksum":    packetData[124:],
-				"contents":		packetData[6:124]
+				"contents":	   packetData[6:124],
+				'command':	   None
 			}
 
 		return packet #based on packet definition document
@@ -576,11 +580,6 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent, log
 							# trash the data.
 							if fieldData['TYPE'] == 'DATA':
 								processIncomingPacketData(chip,fieldData)
-							elif fieldData['opcode'] in COMMANDS: # Double check to see if it's a command
-								try:
-									processCommand(chip,fieldData,fromWhom = 'CCDR')
-								except StopIteration:
-									continue # Used for flow control inside of some commands.
 							elif fieldData['TYPE'] == 'DLACK':
 									# If the DLACK is good, then clear the queue of lastPackets.
 									if fieldData['response'] == b'GOOD':
@@ -595,9 +594,9 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent, log
 										# Offload the last sent packets but don't clear them until we get a good.
 										lastPacketsSent_copy = lastPacketsSent[:] #Shallow copy to not affect the original list
 										if len(lastPacketsSent_copy) < fh.WTC_PACKET_BUFFER_SIZE: # If there's more buffer space than packets sent...
-										for i in range(fh.WTC_PACKET_BUFFER_SIZE - len(lastPacketsSent_copy)): # Append a dummy packet for every packet to send.
-										lastPacketsSent_copy.append(fh.DummyPacket().build())
-										lastPacketsSent_copy.reverse() # Reverse the list so the last packets get prepended first.
+											for i in range(fh.WTC_PACKET_BUFFER_SIZE - len(lastPacketsSent_copy)): # Append a dummy packet for every packet to send.
+												lastPacketsSent_copy.append(fh.DummyPacket().build())
+												lastPacketsSent_copy.reverse() # Reverse the list so the last packets get prepended first.
 										for pkt in lastPacketsSent_copy: # For every packet to send...
 											packetQueue.enqueue(pkt, prepend=True) # Prepend those packets
 
@@ -605,9 +604,11 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent, log
 										# For however many transactions the WTC can handle, enqueue a SENDPACKET so when the WTC asks "WHATISNEXT" the Pi can tell it it wants to send packets.
 										for x in range((len(self._packetQueue)//fh.WTC_PACKET_BUFFER_SIZE) + 1):
 											nextQueue.enqueue('SENDPACKET',prepend=True) # taken from qpaceControl
-
-
-
+							elif fieldData['command'] in COMMANDS: # Double check to see if it's a command
+								try:
+									processCommand(chip,fieldData,fromWhom = 'CCDR')
+								except StopIteration:
+									continue # Used for flow control inside of some commands.
 							else:
 								logger.logSystem("Interpreter: Unknown valid packet.",str(fieldData))
 						else:

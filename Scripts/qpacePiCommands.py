@@ -65,10 +65,12 @@ class Command():
 	_packetQueue = None
 	_nextQueue = None
 
-	def __init__(self,packetQueue=None,nextQueue=None,experimentEvent=None):
+	def __init__(self,packetQueue=None,nextQueue=None,experimentEvent=None,shutdownEvent = None):
 		Command._packetQueue = packetQueue
 		Command._nextQueue = nextQueue
 		self.experimentEvent = experimentEvent
+		self.shutdownEvent = shutdownEvent
+		self.shutdownAllowed = None
 
 	# Getters and Setters for self.packetQueue
 	@property
@@ -281,7 +283,7 @@ class Command():
 		status += b'E(' + str(logger.Errors.get()).encode('ascii') + b'):' #Number of errors logged since last boot
 		status_file = str(timestamp) if thread else 'Save Failed' # Save the timestamp inwhich this status file will be saved as.
 		status += b'F('+ status_file.encode('ascii') +b')' # the File where the major status stuff should be being saved in.
-		data += status + b' '*(111-len(status)) # 111 due to defined packet Structure
+		data += status + b' '*(111-len(status)) # 111 defined in packet structure document r4a
 		CMDPacket(opcode='STATS',data=data).send()
 		if thread:
 			thread.join() # Make sure we wait for the thread to close if it's still going.
@@ -304,12 +306,12 @@ class Command():
 
 		Create a SendDirectoryList packet and respond with the response packet.
 		"""
-		pathname = args.decode('ascii').split(' ')[0]
+		pathname = ROOTPATH + args.decode('ascii').split(' ')[0]
 		tag = b"AA"
 		self.pathname = pathname
 		filepath = TEXTPATH
 		try:
-			pathList = os.listdir(pathname)
+			pathList = check_output(['ls','-alh',pathname])
 		except:
 			pathList = ["No such file or directory:'{}'".format(pathname)]
 		with open(filepath, "w") as filestore:
@@ -387,16 +389,17 @@ class Command():
 		Extract a Tar file.
 		Create a TarBallFilePacket and respond with the response packet.
 		"""
-		tempdir = "../temp/"
 		args = args.decode('ascii').split(' ')
-		filename = args[0]
-		pathname = args[1]
-		with tarfile.open(tempdir + filename) as tar:
-			tar.extractall(path=pathname)
+		inputFilename = ROOTPATH + args[0]
+		outputFilename = args[1]
 		try:
-			os.remove(tempdir + filename)
-		except:pass
-		message = b'DONE'
+			with tarfile.open(inputFilename) as tar:
+				tar.extractall(path=outputFilename)
+			os.remove(inputFilename)
+			message = b'Done'
+		except:
+			message = b'Failed'
+
 		plainText = message + CMDPacket.padding_byte * (PrivilegedPacket.encoded_data_length-len(message))
 		PrivilegedPacket(opcode="NOOP*",tag=b'AA',plainText=plainText).send()
 
@@ -411,11 +414,15 @@ class Command():
 		# create the {}.tar.gz at the filename. Since it could be a directory with a /
 		# look for the 2nd to last / and then slice it. Then remove and trailing /'s
 		newFile = args[0][args[0].rfind('/') + 1:].replace('/','')
-		tarDir = '..{}{}.tar.gz'.format(MISCPATH,newFile)
-		with tarfile.open(tarDir, "w:gz") as tar:
-			tar.add(args[0], arcname=os.path.basename(args[0]))
+		tarDir = '{}{}.tar.gz'.format(ROOTPATH,newFile)
+		try:
+			with tarfile.open(tarDir, "w:gz") as tar:
+				tar.add(args[0], arcname=os.path.basename(args[0]))
+			plainText = tarDir.encode('ascii')
+		except:
+			plainText = 'Failed to tar.'
 
-		plainText = tarDir.encode('ascii') + CMDPacket.padding_byte*(CMDPacket.data_size - len(tarDir))
+		plainText +=  CMDPacket.padding_byte*(CMDPacket.data_size - len(tarDir))
 		PrivilegedPacket(opcode='NOOP*',tag=b'AA',plainText=plainText).send()
 
 	def dlReq(self,chip,logger,cmd,args):
@@ -423,14 +430,14 @@ class Command():
 		Create a DownloadRequestPacket and respond with the response packet.
 		"""
 		import qpaceFileHandler as qfh
-		path = args[4:].replace(b'\x04',b'').decode('ascii')
+		path = args[1:].replace(b'\x04',b'').decode('ascii')
 		try:
 			size_of_file = os.path.getsize("{}{}".format(ROOTPATH,path))
 		except FileNotFoundError as e:
 			size_of_file = 0
-			# 114 is the maximum alotment of data space in the files. the other 14 bytes are header and checksum data
-			# Get the number of packets estimated to be in this thing.
-		data = ((size_of_file//114) + 1).to_bytes(4,'big')
+		# 114 is the maximum alotment of data space in the files. the other 14 bytes are header and checksum data
+		# Get the number of packets estimated to be in this thing.
+		data = ((size_of_file//qfh.DataPacket.data_size) + 1).to_bytes(4,'big')
 		data += b'\n'
 		if size_of_file > qfh.MAX_FILE_SIZE:
 			data += ('File Too large. Send less than 400MB at a time.\n')
@@ -448,11 +455,11 @@ class Command():
 		"""
 		import qpaceFileHandler as qfh
 		qfh.DataPacket.last_id = 0
-		# fec = args[:4]
-		ppa = int.from_bytes(args[4:8],byteorder='big')
-		start = int.from_bytes(args[8:12], byteorder='big')
-		end = int.from_bytes(args[12:16], byteorder='big')
-		filename = args[16:].replace(CMDPacket.padding_byte,b'')
+		# fec = args[0]
+		ppa = int.from_bytes(args[1:5],byteorder='big')
+		start = int.from_bytes(args[5:9], byteorder='big')
+		end = int.from_bytes(args[9:13], byteorder='big')
+		filename = args[13:].replace(CMDPacket.padding_byte,b'')
 		# print('FEC:',fec)
 		print('STR:',start)
 		print('END:',end)
@@ -476,7 +483,6 @@ class Command():
 			for x in range((len(self._packetQueue)//qfh.WTC_PACKET_BUFFER_SIZE) + 1):
 				self.nextQueue.enqueue('SENDPACKET') # taken from qpaceControl
 
-
 	def upReq(self,chip,logger,cmd,args):
 		"""
 		We have received an Upload Request. Figure out the necessary information and
@@ -484,7 +490,7 @@ class Command():
 		"""
 		# Numbers based on Packet Specification Document.
 		import qpaceFileHandler as qfh
-		filename = args.replace(CMDPacket.padding_byte,b'').replace(b'/',b'@')
+		filename = args.replace(CMDPacket.padding_byte,b'').replace(b' ',b'').replace(b'/',b'@')
 		if qfh.UploadRequest.isActive():
 			logger.logSystem("UploadRequest: Redundant Request? ({})".format(str(filename)))
 		qfh.UploadRequest.set(filename=filename.decode('ascii'))
@@ -523,7 +529,7 @@ class Command():
 
 		data = 'Attempting to start experiment <{}> if it exists.'.format(filename)
 		data += CMDPacket.padding_byte * (CMDPacket.data_size - len(data))
-		CMDPacket(opcode='RSPND',data=data).send()
+		CMDPacket(opcode='EXPMT',data=data).send()
 
 	def immediateShutdown(self,chip,logger,cmd,args):
 		"""
@@ -539,9 +545,17 @@ class Command():
 		------
 		SystemExit - If the interpreter can even get to this point... Close the interpreter.
 		"""
-		logger.logSystem('CMD: Shutting down...')
-		Popen(["sudo", "halt"],shell=True) #os.system('sudo halt')
-		raise SystemExit # Close the interpreter and clean up the buffers before reboot happens.
+		# We'll need to call this method twice within 2 minutes to have this work. Otherwise, it won't do anything.
+		logger.logSystem('immediateShutdown: A shutdown packet was received. shutdownAllowed is {}set.'.format('' if self.shutdownAllowed else 'not '))
+		if self.shutdownAllowed:
+			if (datetime.datetime.now() - self.shutdownAllowed) > datetime.timedelta(seconds = 120): # If we tried after two minutes:
+				self.shutdownAllowed = None
+			else: # If we tried and it's withing 2 minutes
+				logger.logSystem('immediateShutdown: Shutting down...')
+				os.system('sleep 5 && sudo halt &') # fork a process that sleeps for 5 seconds, then does a sudo halt.
+				self.shutdownEvent.set() # Close the interpreter and clean up the buffers before reboot happens.
+		else:
+			self.shutdownAllowed = datetime.datetime.now()
 
 	# Not a command to be envoked by the Interpreter
 	def saveStatus(self,logger,timestamp = strftime("%Y%m%d-%H%M%S",gmtime())):

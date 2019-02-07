@@ -44,7 +44,7 @@ class DataPacket():#Packet):
 
 	validDesignators = [0]   	# WTC, Pi 1, Pi 2, GS.
 
-	def __init__(self,data, pid,rid, xtea = False,opcode = b'NOOP>'):
+	def __init__(self,data, pid,rid, xtea = False,opcode = None):
 		"""
 		Constructor for a packet.
 
@@ -106,7 +106,7 @@ class DataPacket():#Packet):
 			self.rid = rid
 			self.xtea = xtea
 			self.paddingSize = 0
-			self.opcode = opcode if opcode is not None else DataPacket.opcode[0]
+			self.opcode = opcode if opcode is not None else DataPacket.valid_opcodes[0]
 		else:
 			raise ValueError("Packet size is too large for the current header information ("+str(len(data))+"). Data input restricted to " + str(self.data_size) + " Bytes.")
 
@@ -237,7 +237,7 @@ class Transmitter():
 
 		if self.filesize > MAX_FILE_SIZE:
 			noDownloadMessage = b'You cannot download this file. It is too big. Break it up first.'
-			noDownloadPacket = DataPacket(noDownloadMessage, pid, self.route)
+			noDownloadPacket = DataPacket(noDownloadMessage, pid, self.route).build()
 			self.packetQueue.enqueue(noDownloadPacket)
 			DataPacket.last_id = 0
 			return
@@ -265,8 +265,8 @@ class Transmitter():
 				sessionPackets = []
 
 				# try:
-				packet = DataPacket(packetData[pid], pid, self.route)
-				self.packetQueue.enqueue(packet.build()) #TODO ADD PACKET TO BUFFER
+				packet = DataPacket(data=packetData[pid], pid=pid, route=self.route, opcode=None)
+				self.packetQueue.enqueue(packet.build()) #ADD PACKET TO BUFFER
 				# except IndexError:
 				# 	# IndexError when we don't have enough packets for the current set of acknoledgements
 				# 	# This is fine though, raise a StopIteration up one level to exit
@@ -287,7 +287,7 @@ class Transmitter():
 		# 	data = data[:116] # only get the first 116 chars. Defined by the packet document
 		# padding = 116 - len(data)
 		# data += DataPacket.padding_byte * padding
-		allDone = DataPacket(data,packet.pid+1,0x00,opcode=b'NOOP!').build()
+		allDone = DataPacket(data=data,pid=packet.pid+1,rid=0x00,opcode=b'NOOP!').build()
 		self.packetQueue.enqueue(allDone)
 		DataPacket.last_id = 0
 
