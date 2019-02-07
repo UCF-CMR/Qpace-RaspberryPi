@@ -282,7 +282,8 @@ class Command():
 		status = b''
 		status += b'E(' + str(logger.Errors.get()).encode('ascii') + b'):' #Number of errors logged since last boot
 		status_file = str(timestamp) if thread else 'Save Failed' # Save the timestamp inwhich this status file will be saved as.
-		status += b'F('+ status_file.encode('ascii') +b')' # the File where the major status stuff should be being saved in.
+		status += b'F('+ status_file.encode('ascii') +b'):' # the File where the major status stuff should be being saved in.
+		status += b'LC('+LastCommand.type.encode('ascii')+b')'
 		data += status + b' '*(111-len(status)) # 111 defined in packet structure document r4a
 		if not silent:
 			CMDPacket(opcode='STATS',data=data).send()

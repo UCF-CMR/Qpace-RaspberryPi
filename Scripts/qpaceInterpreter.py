@@ -316,14 +316,13 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent, log
 			raise ConnectionError("Connection to the CCDR not established.")
 		if fieldData:
 			try:
-				command = fieldData['command'].decode('ascii')
 				arguments = fieldData['information'] #These are bytes objects
 			except UnicodeError:
 				#TODO Alert ground of problem decoding command!
 				raise BufferError("Could not decode ASCII bytes to string for command query.")
 			else:
 				logger.logSystem("Interpreter: Command Received! <{}>".format(command))
-				LastCommand.set(command, str(datetime.datetime.now()), fromWhom)
+				LastCommand.set(fieldData['command'].decode('ascii'), str(datetime.datetime.now()), fromWhom)
 				COMMANDS[fieldData['command']](logger,arguments) # Run the command
 
 	def isValidTag(tag):
@@ -606,7 +605,7 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent, log
 											nextQueue.enqueue('SENDPACKET',prepend=True) # taken from qpaceControl
 							elif fieldData['command'] in COMMANDS: # Double check to see if it's a command
 								try:
-									processCommand(chip,fieldData,fromWhom = 'CCDR')
+									processCommand(chip,fieldData,fromWhom = 'GND')
 								except StopIteration:
 									continue # Used for flow control inside of some commands.
 							else:
