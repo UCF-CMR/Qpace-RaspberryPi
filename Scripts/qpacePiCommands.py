@@ -267,7 +267,7 @@ class Command():
 				# If we can't even attempt to decode XTEA packets, then there's no reason to run QPACE though...
 				logger.logError('Interpreter: Unable to import keys. XTEA Encoding is disabled.',e)
 
-	def status(self,chip,logger,cmd,args):
+	def status(self,logger,args, silent=False):
 		"""
 		Create a StatusPacket and respond with the response packet.
 		"""
@@ -288,7 +288,7 @@ class Command():
 		if thread:
 			thread.join() # Make sure we wait for the thread to close if it's still going.
 
-	def directoryListingSet(self,chip,logger,cmd,args):
+	def directoryListingSet(self,logger,args, silent=False):
 		"""
 		Create a DirectoryListingPacket and respond with the response packet.
 		"""
@@ -301,7 +301,7 @@ class Command():
 		plainText += padding
 		PrivilegedPacket(opcode="NOOP*",tag=tag,plainText=plainText).send()
 
-	def directoryList(self,chip,logger,cmd,args):
+	def directoryList(self,logger,args, silent=False):
 		"""
 
 		Create a SendDirectoryList packet and respond with the response packet.
@@ -323,7 +323,7 @@ class Command():
 		plainText += padding
 		PrivilegedPacket(opcode="NOOP*", tag=tag,plainText=plainText).send()
 
-	def splitVideo(self,chip,logger,cmd,args):
+	def splitVideo(self,logger,args, silent=False):
 		args = args.decode('ascii').split(' ')
 		path = ROOTPATH + args[0]
 		nam_i,ext_i = path.rfind('/'),path.rfind('.')
@@ -333,10 +333,10 @@ class Command():
 		second = args[2]
 
 		os.system('cd ffmpeg -i {} -c copy -map 0 -segment_time 00:{}:{} -f segment {}_%03d.mp4 &> /dev/null'.format(pathname,hour,second,filename))
-		self.directoryList(chip,logger,cmd,path[:nam_i]) # pass in the path stated above without the file to get the directory list.
+		self.directoryList(logger,path[:nam_i]) # pass in the path stated above without the file to get the directory list.
 		#NOTE: self.directoryList() will send a PrivilegedPacket back to the ground. This calls the directoryList command because we want the same behaviour
 
-	def convertVideo(self,chip,logger,cmd,args):
+	def convertVideo(self,logger,args, silent=False):
 		args = args.decode('ascii').split(' ')
 		pathToVideo = args[0]
 		nam_i,ext_i = pathToVideo.rfind('/'),pathToVideo.rfind('.')
@@ -348,7 +348,7 @@ class Command():
 		returnValue += returnValue.encode('ascii') + CMDPacket.padding_byte*(CMDPacket.data_size - len(returnValue))
 		CMDPacket(opcode='TOMP4',data=returnValue).send()
 
-	def move(self,chip,logger,cmd,args):
+	def move(self,logger,args, silent=False):
 		"""
 		Move a file from one location to another.
 		Create a MoveFilePacket and respond with the response packet.
@@ -384,7 +384,7 @@ class Command():
 		plainText += padding
 		PrivilegedPacket(opcode="NOOP*",tag=tag,plainText=plainText).send()
 
-	def tarExtract(self,chip,logger,cmd,args):
+	def tarExtract(self,logger,args, silent=False):
 		"""
 		Extract a Tar file.
 		Create a TarBallFilePacket and respond with the response packet.
@@ -403,7 +403,7 @@ class Command():
 		plainText = message + CMDPacket.padding_byte * (PrivilegedPacket.encoded_data_length-len(message))
 		PrivilegedPacket(opcode="NOOP*",tag=b'AA',plainText=plainText).send()
 
-	def tarCreate(self,chip,logger,cmd,args):
+	def tarCreate(self,logger,args, silent=False):
 		"""
 		Create a compressed Tar.
 		Create a TarBallFilePacket and respond with the response packet.
@@ -425,7 +425,7 @@ class Command():
 		plainText +=  CMDPacket.padding_byte*(CMDPacket.data_size - len(tarDir))
 		PrivilegedPacket(opcode='NOOP*',tag=b'AA',plainText=plainText).send()
 
-	def dlReq(self,chip,logger,cmd,args):
+	def dlReq(self,logger,args, silent=False):
 		"""
 		Create a DownloadRequestPacket and respond with the response packet.
 		"""
@@ -449,7 +449,7 @@ class Command():
 		data += CMDPacket.padding_byte * padding if padding > 0 else 0
 		CMDPacket(opcode='DOWNR',data=data).send()
 
-	def dlFile(self,chip,logger,cmd,args):
+	def dlFile(self,logger,args, silent=False):
 		"""
 		Create a mitter instance and transmit a file packet by packet to the WTC for Ground.
 		"""
@@ -465,7 +465,7 @@ class Command():
 		print('END:',end)
 		print('FNM:',filename)
 		try:
-			transmitter = qfh.Transmitter(	chip,
+			transmitter = qfh.Transmitter(
 											filename.decode('ascii'),
 											0x01,
 											# useFEC = fec == b' FEC',
@@ -483,7 +483,7 @@ class Command():
 			for x in range((len(self._packetQueue)//qfh.WTC_PACKET_BUFFER_SIZE) + 1):
 				self.nextQueue.enqueue('SENDPACKET') # taken from qpaceControl
 
-	def upReq(self,chip,logger,cmd,args):
+	def upReq(self,logger,args, silent=False):
 		"""
 		We have received an Upload Request. Figure out the necessary information and
 		make an UploadRequest active by calling UploadRequest.set()
@@ -502,7 +502,7 @@ class Command():
 		response += PrivilegedPacket.padding_byte * (PrivilegedPacket.encoded_data_length - len(response))
 		PrivilegedPacket('NOOP*',tag=b'AA',plainText=response).send()
 
-	def runHandbrake(self,chip,logger,cmd,args):
+	def runHandbrake(self,logger,args, silent=False):
 		args = args.split(b' ')
 		inputFile = args[0].decode('ascii')
 		outputFile = args[1].decode('ascii')
@@ -514,7 +514,7 @@ class Command():
 		data = data.encode('ascii') + PrivilegedPacket.padding_byte * (PrivilegedPacket.encoded_data_length - len(data))
 		CMDPacket(opcode='HANDB',data=data).send()
 
-	def startExperiment(self,chip,logger,cmd,args):
+	def startExperiment(self,logger,args, silent=False):
 
 		filename = args.replace(CMDPacket.padding_byte,'').decode('ascii')
 
@@ -531,7 +531,7 @@ class Command():
 		data += CMDPacket.padding_byte * (CMDPacket.data_size - len(data))
 		CMDPacket(opcode='EXPMT',data=data).send()
 
-	def immediateShutdown(self,chip,logger,cmd,args):
+	def immediateShutdown(self,logger,args, silent=False):
 		"""
 		Initiate the shutdown proceedure on the pi and then shut it down. Will send a status to the WTC
 		The moment before it actually shuts down.
@@ -539,7 +539,7 @@ class Command():
 		Parameters
 		----------
 		chip - SC16IS750 - an SC16IS750 object which handles the WTC Connection
-		cmd,args - string, array of args (seperated by ' ') - the actual command, the args for the command
+		args - string, array of args (seperated by ' ') - the actual command, the args for the command
 
 		Raises
 		------

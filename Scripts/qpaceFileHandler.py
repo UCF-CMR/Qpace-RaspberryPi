@@ -222,14 +222,13 @@ class Defaults():
 
 class Transmitter():
 
-	def __init__(self, chip, pathname, route,
+	def __init__(self, pathname, route,
 				# useFEC =			Defaults.useFEC_DEFAULT,
 				ppa = 				Defaults.packetsPerAck_DEFAULT,
 				firstPacket = 		Defaults.firstPacket_DEFAULT,
 				lastPacket = 		Defaults.lastPacket_DEFAULT,
 				xtea = 				Defaults.xtea_DEFAULT,
 				packetQueue =		None):
-		self.chip = chip
 		self.pathname = pathname
 		# self.useFEC = useFEC
 		self.firstPacket = firstPacket if firstPacket > 0 else 0

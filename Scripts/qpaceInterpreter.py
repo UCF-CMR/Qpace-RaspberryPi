@@ -324,7 +324,7 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent, log
 			else:
 				logger.logSystem("Interpreter: Command Received! <{}>".format(command))
 				LastCommand.set(command, str(datetime.datetime.now()), fromWhom)
-				COMMANDS[fieldData['command']](chip,logger,command,arguments) # Run the command
+				COMMANDS[fieldData['command']](logger,arguments) # Run the command
 
 	def isValidTag(tag):
 		"""
