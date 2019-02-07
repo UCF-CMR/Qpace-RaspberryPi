@@ -284,7 +284,8 @@ class Command():
 		status_file = str(timestamp) if thread else 'Save Failed' # Save the timestamp inwhich this status file will be saved as.
 		status += b'F('+ status_file.encode('ascii') +b')' # the File where the major status stuff should be being saved in.
 		data += status + b' '*(111-len(status)) # 111 defined in packet structure document r4a
-		CMDPacket(opcode='STATS',data=data).send()
+		if not silent:
+			CMDPacket(opcode='STATS',data=data).send()
 		if thread:
 			thread.join() # Make sure we wait for the thread to close if it's still going.
 
@@ -296,10 +297,11 @@ class Command():
 		tag = b"AA"
 
 		lenstr = str(len(os.listdir(pathname))) # Get the number of files/directories in this directory.
-		padding = CMDPacket.padding_byte*(PrivilegedPacket.encoded_data_length-len(lenstr)) #98 due to specification of packet structure
-		plainText = lenstr.encode('ascii')
-		plainText += padding
-		PrivilegedPacket(opcode="NOOP*",tag=tag,plainText=plainText).send()
+		if not silent:
+			padding = CMDPacket.padding_byte*(PrivilegedPacket.encoded_data_length-len(lenstr)) #98 due to specification of packet structure
+			plainText = lenstr.encode('ascii')
+			plainText += padding
+			PrivilegedPacket(opcode="NOOP*",tag=tag,plainText=plainText).send()
 
 	def directoryList(self,logger,args, silent=False):
 		"""
@@ -318,10 +320,11 @@ class Command():
 			filestore.write("Timestamp: {}\n".format(strftime("%Y%m%d-%H%M%S",gmtime())))
 			for line in pathList:
 				filestore.write(line + '\n')
-		padding = CMDPacket.padding_byte * (PrivilegedPacket.encoded_data_length - len(filepath))
-		plainText = filepath.encode('ascii')
-		plainText += padding
-		PrivilegedPacket(opcode="NOOP*", tag=tag,plainText=plainText).send()
+		if not silent:
+			padding = CMDPacket.padding_byte * (PrivilegedPacket.encoded_data_length - len(filepath))
+			plainText = filepath.encode('ascii')
+			plainText += padding
+			PrivilegedPacket(opcode="NOOP*", tag=tag,plainText=plainText).send()
 
 	def splitVideo(self,logger,args, silent=False):
 		args = args.decode('ascii').split(' ')
@@ -333,7 +336,8 @@ class Command():
 		second = args[2]
 
 		os.system('cd ffmpeg -i {} -c copy -map 0 -segment_time 00:{}:{} -f segment {}_%03d.mp4 &> /dev/null'.format(pathname,hour,second,filename))
-		self.directoryList(logger,path[:nam_i]) # pass in the path stated above without the file to get the directory list.
+		if not silent:
+			self.directoryList(logger,path[:nam_i]) # pass in the path stated above without the file to get the directory list.
 		#NOTE: self.directoryList() will send a PrivilegedPacket back to the ground. This calls the directoryList command because we want the same behaviour
 
 	def convertVideo(self,logger,args, silent=False):
@@ -346,7 +350,8 @@ class Command():
 		os.system('MP4Box -add {}{}.h264 {}{}.mp4 &> /dev/null'.format(pathToVideo,filename,pathToVideo,filename))
 		returnValue = check_output(['ls','-la',"{}{}.mp4".format(pathToVideo,filename)])
 		returnValue += returnValue.encode('ascii') + CMDPacket.padding_byte*(CMDPacket.data_size - len(returnValue))
-		CMDPacket(opcode='TOMP4',data=returnValue).send()
+		if not silent:
+			CMDPacket(opcode='TOMP4',data=returnValue).send()
 
 	def move(self,logger,args, silent=False):
 		"""
@@ -375,14 +380,15 @@ class Command():
 			logger.logSystem(m)
 			if exception: filestore.write('[{}] {}\n'.format(timestamp,exception))
 
-		wasMoved = "{} {} moved.".format(originalFile, wasMoved)
-		if exception:
-			wasMoved += " {}".format(exception)
-		wasMoved = wasMoved[:PrivilegedPacket.encoded_data_length]
-		padding = CMDPacket.padding_byte * (PrivilegedPacket.encoded_data_length - len(wasMoved))
-		plainText = wasMoved.encode('ascii')
-		plainText += padding
-		PrivilegedPacket(opcode="NOOP*",tag=tag,plainText=plainText).send()
+		if not silent:
+			wasMoved = "{} {} moved.".format(originalFile, wasMoved)
+			if exception:
+				wasMoved += " {}".format(exception)
+			wasMoved = wasMoved[:PrivilegedPacket.encoded_data_length]
+			padding = CMDPacket.padding_byte * (PrivilegedPacket.encoded_data_length - len(wasMoved))
+			plainText = wasMoved.encode('ascii')
+			plainText += padding
+			PrivilegedPacket(opcode="NOOP*",tag=tag,plainText=plainText).send()
 
 	def tarExtract(self,logger,args, silent=False):
 		"""
@@ -399,9 +405,9 @@ class Command():
 			message = b'Done'
 		except:
 			message = b'Failed'
-
-		plainText = message + CMDPacket.padding_byte * (PrivilegedPacket.encoded_data_length-len(message))
-		PrivilegedPacket(opcode="NOOP*",tag=b'AA',plainText=plainText).send()
+		if not silent:
+			plainText = message + CMDPacket.padding_byte * (PrivilegedPacket.encoded_data_length-len(message))
+			PrivilegedPacket(opcode="NOOP*",tag=b'AA',plainText=plainText).send()
 
 	def tarCreate(self,logger,args, silent=False):
 		"""
@@ -413,17 +419,20 @@ class Command():
 		# The name of the new file will be whatever was input, but since the path could be long
 		# create the {}.tar.gz at the filename. Since it could be a directory with a /
 		# look for the 2nd to last / and then slice it. Then remove and trailing /'s
-		newFile = args[0][args[0].rfind('/') + 1:].replace('/','')
-		tarDir = '{}{}.tar.gz'.format(ROOTPATH,newFile)
+		if args[0].endswith('/'):
+			args[0] = args[0][:-1]
+		newFile = ROOTPATH + args[0][args[0].rfind('/')+1:]
+		tarDir = '{}.tar.gz'.format(ROOTPATH,newFile)
 		try:
-			with tarfile.open(tarDir, "w:gz") as tar:
-				tar.add(args[0], arcname=os.path.basename(args[0]))
+			with tarfile.open(newFile, "w:gz") as tar:
+				tar.add(ROOTPATH+args[0])
 			plainText = tarDir.encode('ascii')
 		except:
 			plainText = 'Failed to tar.'
 
-		plainText +=  CMDPacket.padding_byte*(CMDPacket.data_size - len(tarDir))
-		PrivilegedPacket(opcode='NOOP*',tag=b'AA',plainText=plainText).send()
+		if not silent:
+			plainText +=  CMDPacket.padding_byte*(CMDPacket.data_size - len(tarDir))
+			PrivilegedPacket(opcode='NOOP*',tag=b'AA',plainText=plainText).send()
 
 	def dlReq(self,logger,args, silent=False):
 		"""
@@ -445,9 +454,10 @@ class Command():
 			data += check_output(['ls','-la',"{}{}".format(ROOTPATH,path)])
 		else:
 			data += ('FileNotFound:{}{}'.format(ROOTPATH,path)).encode('ascii')
-		padding = CMDPacket.data_size - len(data)
-		data += CMDPacket.padding_byte * padding if padding > 0 else 0
-		CMDPacket(opcode='DOWNR',data=data).send()
+		if not silent:
+			padding = CMDPacket.data_size - len(data)
+			data += CMDPacket.padding_byte * padding if padding > 0 else 0
+			CMDPacket(opcode='DOWNR',data=data).send()
 
 	def dlFile(self,logger,args, silent=False):
 		"""
@@ -464,24 +474,25 @@ class Command():
 		print('STR:',start)
 		print('END:',end)
 		print('FNM:',filename)
-		try:
-			transmitter = qfh.Transmitter(
-											filename.decode('ascii'),
-											0x01,
-											# useFEC = fec == b' FEC',
-											ppa=ppa,
-											firstPacket = start,
-											lastPacket = end,
-											xtea = False,
-											packetQueue = self._packetQueue
-										)
-		except FileNotFoundError:
-			logger.logSystem('Transmitter: Could not find the file requested for: {}'.format(filename.decode('ascii')))
-		else:
-			transmitter.run()
-			# For however many transactions the WTC can handle, enqueue a SENDPACKET so when the WTC asks "WHATISNEXT" the Pi can tell it it wants to send packets.
-			for x in range((len(self._packetQueue)//qfh.WTC_PACKET_BUFFER_SIZE) + 1):
-				self.nextQueue.enqueue('SENDPACKET') # taken from qpaceControl
+		if not silent:
+			try:
+				transmitter = qfh.Transmitter(
+												filename.decode('ascii'),
+												0x01,
+												# useFEC = fec == b' FEC',
+												ppa=ppa,
+												firstPacket = start,
+												lastPacket = end,
+												xtea = False,
+												packetQueue = self._packetQueue
+											)
+			except FileNotFoundError:
+				logger.logSystem('Transmitter: Could not find the file requested for: {}'.format(filename.decode('ascii')))
+			else:
+				transmitter.run()
+				# For however many transactions the WTC can handle, enqueue a SENDPACKET so when the WTC asks "WHATISNEXT" the Pi can tell it it wants to send packets.
+				for x in range((len(self._packetQueue)//qfh.WTC_PACKET_BUFFER_SIZE) + 1):
+					self.nextQueue.enqueue('SENDPACKET') # taken from qpaceControl
 
 	def upReq(self,logger,args, silent=False):
 		"""
@@ -495,12 +506,12 @@ class Command():
 			logger.logSystem("UploadRequest: Redundant Request? ({})".format(str(filename)))
 		qfh.UploadRequest.set(filename=filename.decode('ascii'))
 		logger.logSystem("UploadRequest: Upload Request has been received. ({})".format(str(filename)))
-
-		response = b'up'
-		response += b'Active Requests: ' + bytes([len(qfh.UploadRequest.received)])
-		response += b' Using Scaffold: ' + filename
-		response += PrivilegedPacket.padding_byte * (PrivilegedPacket.encoded_data_length - len(response))
-		PrivilegedPacket('NOOP*',tag=b'AA',plainText=response).send()
+		if not silent:
+			response = b'up'
+			response += b'Active Requests: ' + bytes([len(qfh.UploadRequest.received)])
+			response += b' Using Scaffold: ' + filename
+			response += PrivilegedPacket.padding_byte * (PrivilegedPacket.encoded_data_length - len(response))
+			PrivilegedPacket('NOOP*',tag=b'AA',plainText=response).send()
 
 	def runHandbrake(self,logger,args, silent=False):
 		args = args.split(b' ')
@@ -510,9 +521,10 @@ class Command():
 		# the '&' is so the command runs in the background.
 		handbrakeCommand = 'HandBrakeCLI -a none -q 10 -vfr -g -i {} -o {} -e x264 > /dev/null 2>&1 &'.format(inputFile,outputFile)
 		os.system(handbrakeCommand)
-		data = 'HandBrake: In({}) Out({})'.format(inputFile,outputFile)
-		data = data.encode('ascii') + PrivilegedPacket.padding_byte * (PrivilegedPacket.encoded_data_length - len(data))
-		CMDPacket(opcode='HANDB',data=data).send()
+		if not silent:
+			data = 'HandBrake: In({}) Out({})'.format(inputFile,outputFile)
+			data = data.encode('ascii') + PrivilegedPacket.padding_byte * (PrivilegedPacket.encoded_data_length - len(data))
+			CMDPacket(opcode='HANDB',data=data).send()
 
 	def startExperiment(self,logger,args, silent=False):
 
@@ -526,10 +538,10 @@ class Command():
 		logger.logSystem("Command recieved: Running an experiment.", filename) # Placeholder
 		parserThread = threading.Thread(name='experimentParser',target=exp.run, args=(filename,self.experimentEvent,runEvent,logger,self.nextQueue))
 		parserThread.start()
-
-		data = 'Attempting to start experiment <{}> if it exists.'.format(filename)
-		data += CMDPacket.padding_byte * (CMDPacket.data_size - len(data))
-		CMDPacket(opcode='EXPMT',data=data).send()
+		if not silent:
+			data = 'Attempting to start experiment <{}> if it exists.'.format(filename)
+			data += CMDPacket.padding_byte * (CMDPacket.data_size - len(data))
+			CMDPacket(opcode='EXPMT',data=data).send()
 
 	def immediateShutdown(self,logger,args, silent=False):
 		"""

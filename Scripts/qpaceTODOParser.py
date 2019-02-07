@@ -115,7 +115,7 @@ def sortTodoList(todo_list,logger):
 		#updateTodoFile(todo_list,logger)
 	return todo_list
 
-def _processTask(chip,task,experimentEvent,runEvent,nextQueue,logger):
+def _processTask(chip,task,shutdownEvent,experimentEvent,runEvent,nextQueue,logger):
 	"""
 		This function handles processing a specific command given. This is what does the real "parsing"
 
@@ -160,7 +160,7 @@ def _processTask(chip,task,experimentEvent,runEvent,nextQueue,logger):
 				logger.logError('TodoParser: Task failed',e)
 				return False
 
-		elif currentTask == "BACKUP":  #Back up a file
+		elif currentTask == "COPY":  #Back up a file
 			logger.logSystem("Attempting to create a backup.", ROOTPATH + task[2], ROOTPATH + task[3]) # Placeholder
 			try:
 				copy(ROOTPATH + task[2], ROOTPATH + task[3]) #Copy the file from task[2] to task[3]
@@ -174,7 +174,20 @@ def _processTask(chip,task,experimentEvent,runEvent,nextQueue,logger):
 			except:
 				logger.logError('TodoParser: Task failed',e)
 				return False # The task failed
-		elif currentTask == 'COMPRESS': # Compress a file
+		elif currentTask == 'SPLIT':
+			logger.logSystem('TodoParser: Splitting a video...')
+			cmd.Command().splitVideo(logger," ".join(task[2:]).encode('ascii'),silent=True)
+		elif currentTask == 'CONVERT':
+			logger.logSystem('TodoParser: Converting a video...')
+			cmd.Command().convertVideo(logger," ".join(task[2:]).encode('ascii'),silent=True)
+		elif currentTask == 'SHUTDOWN':
+			logger.logSystem('TodoParser: Shutdown!')
+			os.system('sleep 5 && sudo halt &')
+			self.shutdownEvent.set()
+		elif currentTask == 'HANDBRAKE':
+			logger.logSystem('TodoParser: Running handbrake on a video...')
+			cmd.Command().runHandbrake(logger," ".join(task[2:]).encode('ascii'),silent=True)
+		elif currentTask == 'BACKUP': # Compress a file
 			try:
 				import tarfile
 				# The name of the new file will be whatever was input, but since the path could be long
@@ -259,7 +272,7 @@ def executeTodoList(chip,nextQueue,todo_list, shutdownEvent, experimentEvent, ru
 				time.sleep(sleep_time)
 			runEvent.wait() # Pause if we need to wait for something.
 			# run the next item on the todolist.
-			taskCompleted = _processTask(chip,todo_list[0],experimentEvent,runEvent,nextQueue,logger)
+			taskCompleted = _processTask(chip,todo_list[0],shutdownEvent,experimentEvent,runEvent,nextQueue,logger)
 			if taskCompleted:
 				logger.logSystem("TodoParser: Task completed.")
 				todo_list.pop(0) # pop the first item off the list.
