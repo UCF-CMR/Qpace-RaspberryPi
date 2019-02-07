@@ -38,6 +38,15 @@ try:
 except:
 	gpio = None
 
+
+MISCPATH = '/home/pi/data/misc/'
+TEXTPATH = '/home/pi/data/text/'
+TEMPPATH = '/home/pi/temp/'
+ROOTPATH = '/home/pi/'
+MISCPATH = '/mnt/c/users/jonat/desktop/cmr/pi/data/misc/'
+TEXTPATH = '/mnt/c/users/jonat/desktop/cmr/pi/data/text/'
+ROOTPATH= '/mnt/c/users/jonat/desktop/cmr/pi/'
+TEMPPATH = '/mnt/c/users/jonat/desktop/cmr/pi/temp/'
 ALLOW_SHUTDOWN = False
 REBOOT_ON_EXIT = False
 CONN_ATTEMPT_MAX = 3 # 5 attempts to connect to WTC via SC16IS750
@@ -367,25 +376,21 @@ def healthCheck(logger):
 	criticalFiles = ('qpaceExperiment.py','qpaceExperimentParser.py','qpaceFileHandler.py','qpaceInterpreter.py','qpaceLogger.py','qpaceMain.py',
 					'qpacePiCommands.py','qpaceControl.py', 'qpaceTODOParser.py', 'SC16IS750.py')
 	# Paths/files that must exist for proper operation. Create them if necessary. Non-critical
-	importantPaths = ('../graveyard/grave.ledger')
+	importantPaths = ('graveyard/grave.ledger')
 	# Directories that must exist for proper operation. Create them if necessary. Critical to have, but can be created at runtime.
-	importantDir = ('../data','../data/exp','../data/misc','../data/pic','../data/text','../data/vid',
-					'../graveyard', '../logs', '../Scripts', '../temp')
+	importantDir = ('data','data/backup','data/exp','data/misc','data/pic','data/text','data/vid',
+					'graveyard', 'logs', 'Scripts', 'temp')
 	paths = []
 	directories = []
 	files = []
-	for path,dirlist,filelist in os.walk('..'):
+	for path,dirlist,filelist in os.walk(ROOTPATH):
 		paths += [path]
 		directories += dirlist
 		files += filelist
 
-	criticalNotFound = []
-	for crit in criticalFiles:
-		if crit not in files:
-			criticalNotFound.append(crit)
 
 	for dir in importantDir:
-		if dir not in paths:
+		if ROOTPATH+dir not in paths:
 			logger.logSystem('HealthCheck: Can not find {}. Creating it...'.format(dir))
 			try:
 				os.makedirs(dir,exist_ok=True)
@@ -393,6 +398,10 @@ def healthCheck(logger):
 				logger.logSystem('HealthCheck: Failed to create {}'.format(dir))
 				return False
 
+	criticalNotFound = []
+	for crit in criticalFiles:
+		if crit not in files:
+			criticalNotFound.append(crit)
 	if criticalNotFound:
 		logger.logSystem('HealthCheck: Fatal. Can not find {}.'.format(criticalNotFound))
 		return False

@@ -30,7 +30,8 @@ class Errors():
 class Logger():
 
     # Defined Paths.
-    LOG_PATH = "../logs/"
+    LOG_PATH = "/home/pi/logs/"
+    LOG_PATH = "/mnt/c/users/jonat/desktop/cmr/pi/"
     # Default error if systemLog() doesn't work properly.
     SYSTEMLOG_ERROR_DESCRIPTION = "Unable to write to the log."
 
@@ -91,7 +92,6 @@ class Logger():
             stringBuilder = []
             for string in strings:
                 stringBuilder.append('{} > [{}] {}'.format(type,self.fileName if self._boot else str(round(time())),string))
-
 
             with open('{}{}_{}.log'.format(Logger.LOG_PATH,self.filename,self.counter),'a') as f:
                 f.write('\n'.join(stringBuilder))

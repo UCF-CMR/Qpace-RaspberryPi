@@ -24,8 +24,8 @@ except:
 
 CMD_DEFAULT_TIMEOUT = 5 #seconds
 CMD_POLL_DELAY = .35 #seconds
-MISCPATH = 'home/pi/data/misc/'
-TEXTPATH = 'home/pi/data/text/'
+MISCPATH = '/home/pi/data/misc/'
+TEXTPATH = '/home/pi/data/text/'
 TEMPPATH = '/home/pi/temp/'
 ROOTPATH = '/home/pi/'
 MISCPATH = '/mnt/c/users/jonat/desktop/cmr/pi/data/misc/'

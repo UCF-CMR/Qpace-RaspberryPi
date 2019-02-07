@@ -20,8 +20,8 @@ except:
 	pass
 
 # Go pro items are depreciated
-GoProDirectory = '/home/pi/gopro/DCIM/101GOPRO/'
-MountPoint = '/home/pi/gopro'
+# GoProDirectory = '/home/pi/gopro/DCIM/101GOPRO/'
+# MountPoint = '/home/pi/gopro'
 PICTUREPATH = '/home/pi/data/pic/'
 VIDEOPATH = '/home/pi/data/vid/'
 VIDEOPATH = '/mnt/c/users/jonat/desktop/cmr/pi/data/vid/'

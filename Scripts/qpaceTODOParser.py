@@ -19,11 +19,11 @@ import qpaceExperimentParser as exp
 import qpacePiCommands as cmd
 from qpaceControl import QPCONTROL
 
-TODO_PATH = "../data/text/"
+TODO_PATH = "/home/pi/data/text/"
 TODO_FILE = "todo.txt"
 TODO_FILE_PATH = TODO_PATH + TODO_FILE
 TODO_TEMP = "todo.tmp"
-GRAVEYARD_PATH = '../graveyard/'
+GRAVEYARD_PATH = '/home/pi/graveyard/'
 EXPERIMENT_DELTA = 600 # SECONDS
 
 WTC_IRQ = 7
@@ -146,32 +146,46 @@ def _processTask(chip,task,experimentEvent,runEvent,nextQueue,logger):
 	currentTask = task[1].upper()
 	try:
 		if currentTask == "EXPERIMENT":
-			# If experimentEvent exists and is not set, then let's run an experiment.
-			if experimentEvent is None or experimentEvent.is_set():
-				raise StopIteration('experimentEvent is None or experimentEvent is set.') # If experimentEvent does not exist or is set, return False to know there is a failure.
 
-			# Run an experiment file from the experiment directory
-			logger.logSystem("TodoParser: Running an experiment.", task[2]) # Placeholder
-			parserThread = threading.Thread(name='experimentParser',target=exp.run, args=(task[2],experimentEvent,runEvent,logger,nextQueue))
-			parserThread.start()
+			try:
+				# If experimentEvent exists and is not set, then let's run an experiment.
+				if experimentEvent is None or experimentEvent.is_set():
+					raise StopIteration('experimentEvent is None or experimentEvent is set.') # If experimentEvent does not exist or is set, return False to know there is a failure.
+
+				# Run an experiment file from the experiment directory
+				logger.logSystem("TodoParser: Running an experiment.", task[2]) # Placeholder
+				parserThread = threading.Thread(name='experimentParser',target=exp.run, args=(task[2],experimentEvent,runEvent,logger,nextQueue))
+				parserThread.start()
+			except Exception as e:
+				logger.logError('TodoParser: Task failed',e)
+				return False
 
 		elif currentTask == "BACKUP":  #Back up a file
-
-			logger.logSystem("Attempting to create a backup.",task[2],task[3]) # Placeholder
-			copy(task[2],task[3]) #Copy the file from task[2] to task[3]
+			logger.logSystem("Attempting to create a backup.", ROOTPATH + task[2], ROOTPATH + task[3]) # Placeholder
+			try:
+				copy(ROOTPATH + task[2], ROOTPATH + task[3]) #Copy the file from task[2] to task[3]
+			except Exception as e:
+				logger.logError('TodoParser: Task failed',e)
+				return False # The task failed
 		elif currentTask == "REPORT":  #Get the status
 			logger.logSystem("TodoParser: Saving status to file.")
-			cmd.Command.saveStatus(None,None,None)
+			try:
+				cmd.Command().saveStatus(logger)
+			except:
+				logger.logError('TodoParser: Task failed',e)
+				return False # The task failed
 		elif currentTask == 'COMPRESS': # Compress a file
 			try:
 				import tarfile
 				# The name of the new file will be whatever was input, but since the path could be long
 				# create the {}.tar.gz at the filename. Since it could be a directory with a /
 				# look for the 2nd to last / and then slice it. Then remove and trailing /'s
-				newFile = task[2][task[2].rfind('/',o,len(task[2])-1):].replace('/','')
-				tarDir = '../data/backup/{}.tar.gz'.format(newFile)
+				if task[2].endswith('/'):
+					task[2] = task[2][:-1]
+				newFile = ROOTPATH + task[2][task[2].rfind('/')+1:]
+				tarDir = ROOTPATH + 'data/backup/{}.tar.gz'.format(newFile)
 				with tarfile.open(tarDir, "w:gz") as tar:
-					tar.add(task[2], arcname=os.path.basename(task[2]))
+					tar.add(ROOTPATH+task[2])
 			except ImportError as e:
 				logger.logSystem('TodoParser: The task could not be completed due to an import error.')
 			except Exception as e:

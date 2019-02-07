@@ -18,7 +18,12 @@ import os
 
 WTC_PACKET_BUFFER_SIZE = 10
 
+MISCPATH = '/home/pi/data/misc/'
+TEXTPATH = '/home/pi/data/text/'
+TEMPPATH = '/home/pi/temp/'
+ROOTPATH = '/home/pi/'
 MISCPATH = '/mnt/c/users/jonat/desktop/cmr/pi/data/misc/'
+TEXTPATH = '/mnt/c/users/jonat/desktop/cmr/pi/data/text/'
 ROOTPATH= '/mnt/c/users/jonat/desktop/cmr/pi/'
 TEMPPATH = '/mnt/c/users/jonat/desktop/cmr/pi/temp/'
 # This is 2GB. In testing, a file that is 3GB will only cause less than 300MB of RAM usage in python. Don't ask me how that works.
