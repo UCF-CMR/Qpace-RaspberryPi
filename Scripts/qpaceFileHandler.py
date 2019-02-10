@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# qpaceFileHandler.py by Jonathan Kessluk
+# qpaceFileHandler.py by Jonathan Kessluk with controbutions from Taesung Yoon and Eric Prather
 # 6-22-2018, Rev. 2
 # Q-Pace project, Center for Microgravity Research
 # University of Central Florida
@@ -19,6 +19,7 @@ import os
 WTC_PACKET_BUFFER_SIZE = 10
 
 MISCPATH = '/home/pi/data/misc/'
+GRAVEPATH = '/home/pi/graveyard/'
 TEXTPATH = '/home/pi/data/text/'
 TEMPPATH = '/home/pi/temp/'
 ROOTPATH = '/home/pi/'
@@ -26,10 +27,15 @@ MISCPATH = '/mnt/c/users/jonat/desktop/cmr/pi/data/misc/'
 TEXTPATH = '/mnt/c/users/jonat/desktop/cmr/pi/data/text/'
 ROOTPATH= '/mnt/c/users/jonat/desktop/cmr/pi/'
 TEMPPATH = '/mnt/c/users/jonat/desktop/cmr/pi/temp/'
+GRAVEPATH = '/mnt/c/users/jonat/desktop/cmr/pi/graveyard/'
 # This is 2GB. In testing, a file that is 3GB will only cause less than 300MB of RAM usage in python. Don't ask me how that works.
 # Therefore, we will only allow files that are 2GB.
 MAX_FILE_SIZE = 2147483648
 MAX_RAM_ALLOTMENT = 419430400 # This is how many bytes are in 400MB. Restrict file sizes to this because of RAM.,///
+
+
+
+
 
 class DataPacket():#Packet):
 	"""
@@ -257,6 +263,9 @@ class Transmitter():
 		# 	self.data_size = DataPacket.max_size - DataPacket.header_size
 		self.data_size = DataPacket.max_size - DataPacket.header_size
 		self.expected_packets = ceil(self.filesize / self.data_size)
+		self.ppa = ppa
+		self.xtea = xtea
+		self._updateFileProgress()
 
 	def run(self):
 		packetData = self.getPacketData()
@@ -277,6 +286,10 @@ class Transmitter():
 				# 	if i == self.packetsPerAck:
 				# 		raise StopIteration("All done!")
 				# sleep(self.delayPerTransmit/1000) # handled by wtc?
+
+				# Update the progress list.
+				if pid % self.ppa:
+					self._updateFileProgress(pid)
 		except StopIteration as e:
 			#StopIteration to stop iterating :) we are done here.
 			print(e)
@@ -295,7 +308,6 @@ class Transmitter():
 		self.packetQueue.enqueue(allDone)
 		DataPacket.last_id = 0
 
-
 	def getPacketData(self):
 		packetData = []
 		with open("{}{}".format(ROOTPATH,self.pathname),'rb') as f:
@@ -306,6 +318,30 @@ class Transmitter():
 				else:
 					break
 		return packetData
+
+	def _updateFileProgress(self,sent=0):
+		try:
+			progress = {
+				'filename':self.pathname,
+				'direction':'Transmit',
+				'checksum':self.checksum,
+				'sent_packets':sent,
+				'expected_packets':self.expected_packets,
+				'file_size':self.filesize,
+				'ppa':self.ppa,
+				'first_packet':self.firstPacket,
+				'last_packet':self.lastPacket,
+				'xtea':self.xtea
+			}
+			text_to_write = 'PROGRESS REPORT FOR {}\n{}\n'.format(info['filename'],'-'*30)
+			text_to_write = 'Progress: {}%\n\n'.format(round(100*(info['sent_packets']/info['expected_packets'])))
+			for key in progress:
+				text_to_write += "{}: {}\n".format(key,str(dictionary[key]))
+
+			with open('{}{}_tr.log'.format(TEMPPATH,self.pathname),'w') as f:
+				f.write(text_to_write)
+		except:
+			pass
 
 class Scaffold():
 
@@ -323,9 +359,10 @@ class Scaffold():
 	@staticmethod
 	def construct(pid,newData):
 		pid = int.from_bytes(pid,byteorder='big')
+		missed_packets = []
 		filename = UploadRequest.filename
 		# useFEC = UploadRequest.useFEC
-		with open(TEMPPATH + filename+".scaffold","rb+") as scaffold:
+		with open("{}{}.scaffold".format(TEMPPATH,filename),"rb+") as scaffold:
 			scaffoldData = scaffold.read()
 			size = Scaffold.determineDataSize()
 			scaffoldData = [scaffoldData[i:i + size] for i in range(0, len(scaffoldData), size)]
@@ -335,11 +372,18 @@ class Scaffold():
 			except IndexError: # If we can't, make room for it.
 				# If we are way ahead, pad the file.
 				# print(pid,Scaffold.last_pid+1)
+				if pid < Scaffold.last_pid + 1:
+					_removeMissedPacket(pid,filename)
 				if pid > Scaffold.last_pid + 1:
 					appendCount = pid - len(scaffoldData) # Get the distance between the current pid placement and the length of all the packets
+
 					# print(appendCount)
 					for i in range(appendCount):
 						scaffoldData.append(b' '*size) #Put some kind of padding byte there
+						missed_packets.append(pid+i)
+
+					_updateMissedPackets(missed_packets,filename)
+
 					# print(pid,Scaffold.last_pid+1,appendCount)
 
 				#DEBUG For some reason during testing, if these two operations change order, sometimes it won't order the data properly.
@@ -351,6 +395,28 @@ class Scaffold():
 			scaffold.seek(0)
 			scaffold.write(scaffoldData)
 
+	def _updateMissedPackets(missed_packets,filename):
+		try:
+			with open('{}{}.nore'.format(TEMPPATH,filename),'a+') as f:
+				to_write = f.read()
+				if to_write:
+					to_write += ','
+				to_write += str(missed_packets)[1:-1].replace(' ','')
+				f.write()
+		except:
+			pass
+	def _removeMissedPacket(received_packet,filename):
+		try:
+			with open('{}{}.nore'.format(TEMPPATH,filename),'r+') as f:
+				to_write = f.read()
+				to_write = to_write.split(',')
+				try:
+					to_write.remove(received_packet)
+				except:
+					pass
+				f.write(str(received_packet)[1:-1].replace(' ',''))
+		except:
+			pass
 	@staticmethod
 	def finish(information):
 		if UploadRequest.isActive():
@@ -368,7 +434,11 @@ class Scaffold():
 					f.write(info)
 			print(generateChecksum(open(TEMPPATH+filename+'.scaffold','rb').read()))
 			checksumMatch = checksum == generateChecksum(open(TEMPPATH+filename+'.scaffold','rb').read())
-			os.rename(TEMPPATH+filename+'.scaffold',ROOTPATH + filename.replace('@','/'))
+			try:
+				os.rename('{}{}.scaffold'.format(TEMPPATH,filename),ROOTPATH + filename.replace('@','/'))
+				os.rename('{}{}.nore'.format(TEMPPATH,filename),"{}{}.nore".format(GRAVEPATH,filename))
+			except:
+				pass
 			return checksumMatch,UploadRequest.finished(filename)
 
 class UploadRequest():
