@@ -175,17 +175,17 @@ def _processTask(chip,task,shutdownEvent,experimentEvent,runEvent,nextQueue,logg
 				logger.logError('TodoParser: Task failed',e)
 				return False # The task failed
 		elif currentTask == 'SPLIT':
-			logger.logSystem('TodoParser: Splitting a video...')
+			logger.logSystem('TodoParser: Splitting a video...',str(task))
 			cmd.Command().splitVideo(logger," ".join(task[2:]).encode('ascii'),silent=True)
 		elif currentTask == 'CONVERT':
-			logger.logSystem('TodoParser: Converting a video...')
+			logger.logSystem('TodoParser: Converting a video...',str(task))
 			cmd.Command().convertVideo(logger," ".join(task[2:]).encode('ascii'),silent=True)
 		elif currentTask == 'SHUTDOWN':
 			logger.logSystem('TodoParser: Shutdown!')
 			os.system('sleep 5 && sudo halt &')
 			self.shutdownEvent.set()
 		elif currentTask == 'HANDBRAKE':
-			logger.logSystem('TodoParser: Running handbrake on a video...')
+			logger.logSystem('TodoParser: Running handbrake on a video...',str(task))
 			cmd.Command().runHandbrake(logger," ".join(task[2:]).encode('ascii'),silent=True)
 		elif currentTask == 'BACKUP': # Compress a file
 			try:

@@ -373,7 +373,7 @@ def graveyardHandler(runEvent,shutdownEvent,logger):
 def healthCheck(logger):
 	#logger.logSystem('HealthCheck: Beginning health check to ensure all directories and files exist.')
 	# Important scripts. If one of them are missing, then abort.
-	criticalFiles = ('qpaceExperiment.py','qpaceExperimentParser.py','qpaceFileHandler.py','qpaceInterpreter.py','qpaceLogger.py','qpaceMain.py',
+	criticalFiles = ('qpaceExperiment.py','qpaceExperimentParser.py','qpaceTagChecker.py','qpaceFileHandler.py','qpaceInterpreter.py','qpaceLogger.py','qpaceMain.py',
 					'qpacePiCommands.py','qpaceControl.py', 'qpaceTODOParser.py', 'SC16IS750.py')
 	# Paths/files that must exist for proper operation. Create them if necessary. Non-critical
 	importantPaths = ('graveyard/grave.ledger')

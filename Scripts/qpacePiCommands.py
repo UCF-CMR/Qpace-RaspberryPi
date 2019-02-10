@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # qpacePiCommands.py by Jonathan Kessluk and Minh Pham
+# qpaceTagChecker by Eric Prather
 # 9-3-2018, Rev. 2.5
 # Q-Pace project, Center for Microgravity Research
 # University of Central Florida
@@ -64,6 +65,7 @@ class Command():
 	"""
 	_packetQueue = None
 	_nextQueue = None
+	_tagChecker = None
 
 	def __init__(self,packetQueue=None,nextQueue=None,experimentEvent=None,shutdownEvent = None):
 		Command._packetQueue = packetQueue
@@ -80,6 +82,14 @@ class Command():
 	@packetQueue.setter
 	def packetQueue(self,queue):
 		Command._packetQueue = queue
+
+	@property
+	def tagChecker(self):
+		return Command._tagChecker
+
+	@tagChecker.setter
+	def tagChecker(self,tagChecker):
+		Command._tagChecker = tagChecker
 
 	# Getters and Setters for self.nextQueue
 	@property
@@ -185,7 +195,7 @@ class Command():
 		enc_iv = None
 		tryEncryption = True
 
-		def __init__(self,opcode,tag=None, cipherText = None,plainText=None):
+		def __init__(self,opcode, cipherText = None,plainText=None):
 			"""
 			Constructor for a PrivilegedPacket
 
@@ -204,6 +214,7 @@ class Command():
 			------
 			Any exception gets popped up the stack.
 			"""
+			tag = Command.tagChecker.getTag()
 			if PrivilegedPacket.tryEncryption:
 				PrivilegedPacket.getEncryptionKeys()
 
@@ -295,14 +306,14 @@ class Command():
 		Create a DirectoryListingPacket and respond with the response packet.
 		"""
 		pathname = ROOTPATH + args.decode('ascii').split(' ')[0]
-		tag = b"AA"
+
 
 		lenstr = str(len(os.listdir(pathname))) # Get the number of files/directories in this directory.
 		if not silent:
 			padding = CMDPacket.padding_byte*(PrivilegedPacket.encoded_data_length-len(lenstr)) #98 due to specification of packet structure
 			plainText = lenstr.encode('ascii')
 			plainText += padding
-			PrivilegedPacket(opcode="NOOP*",tag=tag,plainText=plainText).send()
+			PrivilegedPacket(opcode="NOOP*",plainText=plainText).send()
 
 	def directoryList(self,logger,args, silent=False):
 		"""
@@ -310,7 +321,7 @@ class Command():
 		Create a SendDirectoryList packet and respond with the response packet.
 		"""
 		pathname = ROOTPATH + args.decode('ascii').split(' ')[0]
-		tag = b"AA"
+
 		self.pathname = pathname
 		filepath = TEXTPATH
 		try:
@@ -325,7 +336,7 @@ class Command():
 			padding = CMDPacket.padding_byte * (PrivilegedPacket.encoded_data_length - len(filepath))
 			plainText = filepath.encode('ascii')
 			plainText += padding
-			PrivilegedPacket(opcode="NOOP*", tag=tag,plainText=plainText).send()
+			PrivilegedPacket(opcode="NOOP*",plainText=plainText).send()
 
 	def splitVideo(self,logger,args, silent=False):
 		args = args.decode('ascii').split(' ')
@@ -363,7 +374,7 @@ class Command():
 		# Remove the 'doubledot' this way you can't modify or move or change anything outside of the working directory.
 		originalFile = (ROOTPATH + args[0]).replace('..','')
 		pathToNewFile = (ROOTPATH + args[1]).replace('..','')
-		tag = b'AA'
+
 		try:
 			import shutil
 			shutil.move(originalFile, pathToNewFile)
@@ -389,7 +400,7 @@ class Command():
 			padding = CMDPacket.padding_byte * (PrivilegedPacket.encoded_data_length - len(wasMoved))
 			plainText = wasMoved.encode('ascii')
 			plainText += padding
-			PrivilegedPacket(opcode="NOOP*",tag=tag,plainText=plainText).send()
+			PrivilegedPacket(opcode="NOOP*",plainText=plainText).send()
 
 	def tarExtract(self,logger,args, silent=False):
 		"""
@@ -408,7 +419,7 @@ class Command():
 			message = b'Failed'
 		if not silent:
 			plainText = message + CMDPacket.padding_byte * (PrivilegedPacket.encoded_data_length-len(message))
-			PrivilegedPacket(opcode="NOOP*",tag=b'AA',plainText=plainText).send()
+			PrivilegedPacket(opcode="NOOP*",plainText=plainText).send()
 
 	def tarCreate(self,logger,args, silent=False):
 		"""
@@ -433,7 +444,7 @@ class Command():
 
 		if not silent:
 			plainText +=  CMDPacket.padding_byte*(CMDPacket.data_size - len(tarDir))
-			PrivilegedPacket(opcode='NOOP*',tag=b'AA',plainText=plainText).send()
+			PrivilegedPacket(opcode='NOOP*',plainText=plainText).send()
 
 	def dlReq(self,logger,args, silent=False):
 		"""
@@ -512,7 +523,7 @@ class Command():
 			response += b'Active Requests: ' + bytes([len(qfh.UploadRequest.received)])
 			response += b' Using Scaffold: ' + filename
 			response += PrivilegedPacket.padding_byte * (PrivilegedPacket.encoded_data_length - len(response))
-			PrivilegedPacket('NOOP*',tag=b'AA',plainText=response).send()
+			PrivilegedPacket('NOOP*',plainText=response).send()
 
 	def runHandbrake(self,logger,args, silent=False):
 		args = args.split(b' ')

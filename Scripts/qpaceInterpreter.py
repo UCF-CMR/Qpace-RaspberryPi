@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # qpaceInterpreter.py by Jonathan Kessluk
+# qpaceTagChecker by Eric Prather
 # 9-30-2018, Rev. 2
 # Q-Pace project, Center for Microgravity Research
 # University of Central Florida
@@ -28,6 +29,7 @@ import tstSC16IS750 as SC16IS750
 import SC16IS750
 import qpaceControl
 import qpaceFileHandler as fh
+import qpaceTagChecker as tagChecker
 
 qpStates = qpaceControl.QPCONTROL
 
@@ -170,9 +172,16 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent, log
 	packetBuffer = []
 	callback = None
 
+	checker = tagChecker.TagChecker()
+	try:
+		checker.initTags()
+	except Exception as e:
+		logger.logError('Interpreter: Could not import tags for some reason.',e)
+
 	cmd.packetQueue = packetQueue # set the packet queue so we can append packets.
 	cmd.nextQueue = nextQueue
 	cmd.shutdownEvent = shutdownEvent
+	cmd.tagChecker = checker
 	lastPacketsSent = []
 
 	def decodeXTEA(packetData):
@@ -325,26 +334,6 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent, log
 				LastCommand.set(fieldData['command'].decode('ascii'), str(datetime.datetime.now()), fromWhom)
 				COMMANDS[fieldData['command']](logger,arguments) # Run the command
 
-	def isValidTag(tag):
-		"""
-		To be implemented.
-		Will check the tag to see if it is a valid tag coming in and if it hasn't been used in the recent past.
-
-		Parameters
-		----------
-		tag - bytes - a 2 byte tag.
-
-		Returns
-		-------
-		True if the tag is valid
-		False if the tag is invalid
-
-		Raises
-		------
-		Any exception gets popped up the stack.
-		"""
-		return True
-
 	def checkValidity(fieldData):
 		"""
 		Check to see if a packet coming in is valid.
@@ -377,11 +366,14 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent, log
 					response = b'GOOD'
 				else:
 					response = b'REPT'
-				packetQueue.enqueue(cmd.PrivilegedPacket(opcode='NOOP>',tag='AA',plainText=fieldData['pid'] + response + cmd.PrivilegedPacket.returnRandom(86)))
+				packetQueue.enqueue(cmd.PrivilegedPacket(opcode='NOOP>',tag=checker.getTag(),plainText=fieldData['pid'] + response + cmd.PrivilegedPacket.returnRandom(86)))
 				nextQueue.enqueue('SENDPACKET')
 		elif fieldData['TYPE'] == 'NORM':
-			#TODO tag implementation
-			pass
+			validTag =  checker.isValidTag(fieldData['tag'])
+			if isValid and not validTag:
+				logger.logSystem('Interpeter: A valid packet came in, but the tag was wrong. The packet is being dropped.')
+			isValid = isValid and validTag
+
 		elif fieldData['TYPE'] == 'DLACK':
 			# Honestly, I don't think there's anything to do here...
 			pass
