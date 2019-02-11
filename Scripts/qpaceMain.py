@@ -25,7 +25,7 @@ except:
 try:
 	import qpaceExperiment as exp
 	import qpaceInterpreter as qpi
-	import qpaceTODOParser as todo
+	import qpaceScheduler as schedule
 	import tstSC16IS750 as SC16IS750
 	#import SC16IS750
 	import qpaceControl as states
@@ -374,7 +374,7 @@ def healthCheck(logger):
 	#logger.logSystem('HealthCheck: Beginning health check to ensure all directories and files exist.')
 	# Important scripts. If one of them are missing, then abort.
 	criticalFiles = ('qpaceExperiment.py','qpaceExperimentParser.py','qpaceTagChecker.py','qpaceFileHandler.py','qpaceInterpreter.py','qpaceLogger.py','qpaceMain.py',
-					'qpacePiCommands.py','qpaceControl.py', 'qpaceTODOParser.py', 'SC16IS750.py')
+					'qpacePiCommands.py','qpaceControl.py', 'qpaceScheduler.py', 'SC16IS750.py')
 	# Paths/files that must exist for proper operation. Create them if necessary. Non-critical
 	importantPaths = ('graveyard/grave.ledger')
 	# Directories that must exist for proper operation. Create them if necessary. Critical to have, but can be created at runtime.
@@ -393,7 +393,7 @@ def healthCheck(logger):
 		if ROOTPATH+dir not in paths:
 			logger.logSystem('HealthCheck: Can not find {}. Creating it...'.format(dir))
 			try:
-				os.makedirs(dir,exist_ok=True)
+				os.makedirs(ROOTPATH+dir,exist_ok=True)
 			except:
 				logger.logSystem('HealthCheck: Failed to create {}'.format(dir))
 				return False
@@ -465,17 +465,17 @@ def run(logger):
 
 			# Initialize threads
 			interpreter = threading.Thread(target=qpi.run,args=(chip,nextQueue,packetQueue,experimentRunningEvent,runEvent,shutdownEvent,logger))
-			todoParser = threading.Thread(target=todo.run,args=(chip,nextQueue,packetQueue,experimentRunningEvent,runEvent,shutdownEvent,parserEmpty,logger))
+			scheduler = threading.Thread(target=schedule.run,args=(chip,nextQueue,packetQueue,experimentRunningEvent,runEvent,shutdownEvent,parserEmpty,logger))
 			graveyardThread = threading.Thread(target=graveyardHandler,args=(runEvent,shutdownEvent,logger))
 
 			logger.logSystem("Main: Starting up threads.")
 			interpreter.start() # Run the Interpreter
-			todoParser.start() # Run the TodoParser
+			scheduler.start() # Run the Scheduler
 			graveyardThread.start() # Run the graveyard
 
 
 			interpreterAttempts = 0
-			todoParserAttempts = 0
+			schedulerAttempts = 0
 			graveyardAttempts = 0
 			# The big boy main loop. Good luck QPACE.
 			while True:
@@ -491,12 +491,12 @@ def run(logger):
 						interpreter.start()
 						interpreterAttempts += 1
 
-					# Check the TodoParser, restart it if necessary. The TodoParser is allowed to be shutdown early.
-					if not todoParser.isAlive() and not parserEmpty.is_set() and todoParserAttempts < THREAD_ATTEMPT_MAX:
-						logger.logSystem('Main: TodoParser is shutdown when it should not be.  Attempt {} at restart.'.format(todoParserAttempts + 1))
-						todoParser = threading.Thread(target=todo.run,args=(chip,nextQueue,packetQueue,experimentRunningEvent,runEvent,shutdownEvent,parserEmpty,logger))
-						todoParser.start()
-						todoParserAttempts += 1
+					# Check the Scheduler, restart it if necessary. The Scheduler is allowed to be shutdown early.
+					if not scheduler.isAlive() and not parserEmpty.is_set() and schedulerAttempts < THREAD_ATTEMPT_MAX:
+						logger.logSystem('Main: Scheduler is shutdown when it should not be.  Attempt {} at restart.'.format(schedulerAttempts + 1))
+						scheduler = threading.Thread(target=todo.run,args=(chip,nextQueue,packetQueue,experimentRunningEvent,runEvent,shutdownEvent,parserEmpty,logger))
+						scheduler.start()
+						scheduler += 1
 
 					# Check the graveyard, restart it if necessary. The graveyard shouldn't be shutdown but it doesn't really matter
 					if not graveyardThread.isAlive() and graveyardAttempts < THREAD_ATTEMPT_MAX:
@@ -506,7 +506,7 @@ def run(logger):
 						graveyardAttempts += 1
 
 					# If all the threads have tried to start and they couln't then just thrown an exception and leave. there's not point to life anymore.
-					if interpreterAttempts + todoParserAttempts + graveyardAttempts == THREAD_ATTEMPT_MAX * 3:
+					if interpreterAttempts + schedulerAttempts + graveyardAttempts == THREAD_ATTEMPT_MAX * 3:
 						welp_oh_no = "Main: All threads are closed and could not be started. Exiting."
 						logger.logSystem(welp_oh_no)
 						logger.logError(welp_oh_no)
@@ -541,7 +541,7 @@ def run(logger):
 	shutdownEvent.set()
 	# If the thread has ever been started before, make sure we join it and wait until it ends
 	if interpreter.ident is not None: interpreter.join()
-	if todoParser.ident is not None: todoParser.join()
+	if scheduler.ident is not None: scheduler.join()
 	if graveyardThread.ident is not None: graveyardThread.join()
 
 	# If we want the pi to shutdown automattically, then do so.
