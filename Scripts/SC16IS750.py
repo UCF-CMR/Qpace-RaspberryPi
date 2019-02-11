@@ -333,7 +333,7 @@ class SC16IS750:
 	# Write I2C byte to specified register and read it back
 	# Return tuple indicating (boolean success, new value in register)
 	def byte_write_verify(self, reg, byte):
-		n, d = self.pi.i2c_zip(self.i2c, [I2C_WRITE, 2, self.reg_conv(reg), byte, self.reg_conv(reg), I2C_READ, 1, I2C_END])
+		n, d = self.pi.i2c_zip(self.i2c, [I2C_WRITE, 2, self.reg_conv(reg), byte, I2C_READ, 1, I2C_END])
 		if n < 0: raise pigpio.error(pigpio.error_text(n))
 		elif n != 1: raise ValueError("unexpected number of bytes received")
 		d = int(d[0])
