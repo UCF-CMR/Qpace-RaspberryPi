@@ -184,6 +184,34 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent, log
 	cmd.tagChecker = checker
 	lastPacketsSent = []
 
+	def WTCRXBufferHandler(gpio,level,tick):
+		"""
+		Callback method to handle data coming from the SC16IS750. When the interrupt is fired
+		this method gets called and will push data onto the buffer.
+
+		Parameters
+		----------
+		gpio, level, tick - required to be passed by the pigpio.callback
+
+		Returns
+		-------
+		Void
+
+		Raises
+		------
+		Any exception gets popped up the stack.
+		"""
+		packetData = chip.block_read(SC16IS750.REG_RHR,chip.byte_read(SC16IS750.REG_RXLVL))
+		print("Data came in: ", packetData)
+		packetBuffer.append(packetData)
+
+	# Set up the callback.
+	if gpio:
+		callback = gpio.callback(CCDR_IRQ, pigpio.FALLING_EDGE, WTCRXBufferHandler)
+		logger.logSystem('Interpreter: Callback active. Waiting for data from the SC16IS750.')
+	else:
+		logger.logSystem("Interpreter: Callback is not active. PIGPIO was not defined.")
+
 	def decodeXTEA(packetData):
 		header = packetData[:10]
 		footer = packetData[104:]
@@ -380,27 +408,6 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent, log
 
 		return isValid, fieldData
 
-	def WTCRXBufferHandler(gpio,level,tick):
-		"""
-		Callback method to handle data coming from the SC16IS750. When the interrupt is fired
-		this method gets called and will push data onto the buffer.
-
-		Parameters
-		----------
-		gpio, level, tick - required to be passed by the pigpio.callback
-
-		Returns
-		-------
-		Void
-
-		Raises
-		------
-		Any exception gets popped up the stack.
-		"""
-		packetData = chip.block_read(SC16IS750.REG_RHR,chip.byte_read(SC16IS750.REG_RXLVL))
-		print("Data came in: ", packetData)
-		packetBuffer.append(packetData)
-
 	def wtc_respond(response):
 		"""
 		Respond to the WTC with a control character.
@@ -487,7 +494,7 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent, log
 					# Wait for a response from the WTC.
 					logger.logSystem('PseudoSM: Waiting {}s for a response from WTC'.format(WHATISNEXT_WAIT))
 					# Possibly might need to cancel the callback and restart it here.
-					# callback.cancel()
+					callback.cancel()
 					if waitForBytesFromCCDR(chip,1,timeout=WHATISNEXT_WAIT): # Wait for 15s for a response from the WTC
 						response = chip.byte_read(SC16IS750.REG_RHR)
 						# If SENDPACKET was queued, but a BUFFERFUL came in as a response, then re-queue the SENDPACKET
@@ -501,7 +508,7 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent, log
 					if not nextQueue.isEmpty():
 						nextQueue.dequeue() # After "waiting" for the bytes, dequeue the items.
 					# If we cancel the callback earlier, re-initialize it here.
-					# callback = gpio.callback(CCDR_IRQ, pigpio.FALLING_EDGE, WTCRXBufferHandler)
+					callback = gpio.callback(CCDR_IRQ, pigpio.FALLING_EDGE, WTCRXBufferHandler)
 
 				elif byte == qpStates['NEXTPACKET']:
 					nextPacket = packetQueue.dequeue()
@@ -514,7 +521,6 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent, log
 						lastPacketsSent.append(dummy)
 
 				elif byte == qpStates['BUFFERFULL']:
-
 					wtc_respond('DONE')
 				elif byte == qpStates['ACCEPTED']:
 					wtc_respond('DONE')
@@ -529,12 +535,7 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent, log
 
 		return None,configureTimestamp # Return nothing if the packetData was handled as a WTC control
 
-	# Set up the callback.
-	if gpio:
-		callback = gpio.callback(CCDR_IRQ, pigpio.FALLING_EDGE, WTCRXBufferHandler)
-		logger.logSystem('Interpreter: Callback active. Waiting for data from the SC16IS750.')
-	else:
-		logger.logSystem("Interpreter: Callback is not active. PIGPIO was not defined.")
+
 
 	# Begin main loop.
 	while not shutdownEvent.is_set(): # While we are NOT in shutdown mode
