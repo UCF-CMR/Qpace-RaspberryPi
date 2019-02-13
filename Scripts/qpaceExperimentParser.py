@@ -52,7 +52,7 @@ def run(filename, isRunningEvent, runEvent,logger,nextQueue):
 	GOPRO STOP
 	GOPRO TRANSFER
 
-	CAMERA OPTION:VALUE OPTION:VALUE OPTION:VALUE....
+	CAMERA SET OPTION:VALUE OPTION:VALUE OPTION:VALUE....
 	CAMERA RECORD MILLISECONDS [FILENAME]
 	CAMERA ESTOP
 	CAMERA CAPTURE
@@ -60,7 +60,7 @@ def run(filename, isRunningEvent, runEvent,logger,nextQueue):
 	STEPPER QTURN [N] [Delay_in_ms_per_qturn]
 	STEPPER STEP [N] [Delay_in_ms_per_step]
 	SOLENOID [GROUP] TAP
-	SOLENOID [GROUP] [HZ] [DURATION] <OVERRIDE>
+	SOLENOID [GROUP] RUN [HZ] [DURATION] <OVERRIDE>
 	SOLENOID [GROUP] RAMP [START_HZ] [END_HZ] [ACCURACY] <OVERRIDE>
 
 	Also supports inline comments.
@@ -69,7 +69,7 @@ def run(filename, isRunningEvent, runEvent,logger,nextQueue):
 	picam = expModule.Camera()
 	exp = expModule.Action(logger=logger,queue=nextQueue)
 	comment_tuple = ('#','//') # These are what will be used to have comments in the profile.
-	logLocation = '/home/pi/logs/'
+	logLocation = '/home/pi/data/text/'
 	expLocation = '/home/pi/data/exp/'
 	experimentStartTime = datetime.datetime.now() # Just in case the parser gets invoked on an empty file, seed the start time.
 	experimentLog = None
@@ -131,19 +131,22 @@ def run(filename, isRunningEvent, runEvent,logger,nextQueue):
 							logMessage = 'ExpParser: Starting Experiment "{}" ({}).'.format(filename,title)
 							logger.logSystem(logMessage)
 							experimentLog.write('{}\n'.format(logMessage))
+							exp.reset() # Reset the pins
 						elif(instruction[0] == 'END' or instruction[0] == 'EXIT'):
 							# End the experiment if one is running.
+							logger.logSystem('ExpParser: Ending the experiment..')
+							exp.reset()
 							break
-						elif(instruction[0] == 'INIT'):
-							if isRunningEvent.is_set():
-								# Initialize an Experiment.
-								# Reset pins, turn on LED, start camera recording.
-								logMessage = 'ExpParser: Initializing an Experiment. (Reset,LED,GoPro)'
-								logger.logSystem(logMessage)
-								experimentLog.write('{}\n'.format(logMessage))
-								exp.reset()
-								exp.led(1)
-								exp.gopro_on()
+						# elif(instruction[0] == 'INIT'):
+						# 	if isRunningEvent.is_set():
+						# 		# Initialize an Experiment.
+						# 		# Reset pins, turn on LED, start camera recording.
+						# 		logMessage = 'ExpParser: Initializing an Experiment. (Reset,LED,GoPro)'
+						# 		logger.logSystem(logMessage)
+						# 		experimentLog.write('{}\n'.format(logMessage))
+						# 		exp.reset()
+						# 		exp.led(1)
+						# 		# exp.gopro_on()
 						elif(instruction[0] == 'COMMENT' or instruction[0] == 'LOG'):
 							if isRunningEvent.is_set():
 								# Write to the log whatever comment is here.
@@ -173,13 +176,13 @@ def run(filename, isRunningEvent, runEvent,logger,nextQueue):
 								logger.logSystem(logMessage)
 								experimentLog.write('{}\n'.format(logMessage))
 								exp.reset(group)
-						elif(instruction[0] == 'CLEANUP'):
-							if isRunningEvent.is_set():
-								# Clean up will turn off the LED, GoPro, and reset the pins.
-								exp.reset()
-								logMessage = 'ExpParser: Cleanup. I.e. reset the pins.'
-								logger.logSystem(logMessage)
-								experimentLog.write('{}\n'.format(logMessage))
+						# elif(instruction[0] == 'CLEANUP'):
+						# 	if isRunningEvent.is_set():
+						# 		# Clean up will turn off the LED, GoPro, and reset the pins.
+						# 		exp.reset()
+						# 		logMessage = 'ExpParser: Cleanup. I.e. reset the pins.'
+						# 		logger.logSystem(logMessage)
+						# 		experimentLog.write('{}\n'.format(logMessage))
 						elif(instruction[0] == 'DELAY'):
 							if isRunningEvent.is_set():
 								# Do a delay in ms
@@ -206,33 +209,33 @@ def run(filename, isRunningEvent, runEvent,logger,nextQueue):
 									elif instruction[1] == 'STROBE':
 										# TODO: Write a seperate process for this to happen in the background.
 										pass
-						elif(instruction[0] == 'GOPRO'):
-							if isRunningEvent.is_set():
-								# Modify gopro attributes
-								if len(instruction)>1:
-									startTime = datetime.datetime.now()
-									logMessage = 'ExpParser: The GoPro has been set to {}.'.format(instruction[1])
-									logger.logSystem(logMessage)
-									experimentLog.write('{}\n'.format(logMessage))
-									if instruction[1] == 'ON':
-										if not exp.read(expModule.PIN.GOPPWR):
-											exp.gopro_on()
-									elif instruction[1] == 'OFF':
-										if exp.read(expModule.PIN.GOPPWR):
-											exp.reset(expModule.PINGROUP.gopro)
-									elif instruction[1] == 'START':
-										if exp.read(expModule.PIN.GOPPWR) and not isRecording:
-											exp.press_capture()
-									elif instruction[1] == 'STOP':
-										if exp.read(expModule.PIN.GOPPWR) and isRecording:
-											exp.press_capture()
-									elif instruction[1] == 'TRANSFER':
-										if exp.read(expModule.PIN.GOPPWR):
-											exp.goProTransfer()
-									duration = (datetime.datetime.now() - startTime).seconds
-									logMessage = 'ExpControl: GoPro done. This took {} seconds.'.format(duration)
-									logger.logSystem(logMessage)
-									experimentLog.write('{}\n'.format(logMessage))
+						# elif(instruction[0] == 'GOPRO'):
+						# 	if isRunningEvent.is_set():
+						# 		# Modify gopro attributes
+						# 		if len(instruction)>1:
+						# 			startTime = datetime.datetime.now()
+						# 			logMessage = 'ExpParser: The GoPro has been set to {}.'.format(instruction[1])
+						# 			logger.logSystem(logMessage)
+						# 			experimentLog.write('{}\n'.format(logMessage))
+						# 			if instruction[1] == 'ON':
+						# 				if not exp.read(expModule.PIN.GOPPWR):
+						# 					exp.gopro_on()
+						# 			elif instruction[1] == 'OFF':
+						# 				if exp.read(expModule.PIN.GOPPWR):
+						# 					exp.reset(expModule.PINGROUP.gopro)
+						# 			elif instruction[1] == 'START':
+						# 				if exp.read(expModule.PIN.GOPPWR) and not isRecording:
+						# 					exp.press_capture()
+						# 			elif instruction[1] == 'STOP':
+						# 				if exp.read(expModule.PIN.GOPPWR) and isRecording:
+						# 					exp.press_capture()
+						# 			elif instruction[1] == 'TRANSFER':
+						# 				if exp.read(expModule.PIN.GOPPWR):
+						# 					exp.goProTransfer()
+						# 			duration = (datetime.datetime.now() - startTime).seconds
+						# 			logMessage = 'ExpControl: GoPro done. This took {} seconds.'.format(duration)
+						# 			logger.logSystem(logMessage)
+						# 			experimentLog.write('{}\n'.format(logMessage))
 						elif(instruction[0] == 'STEPPER'):
 							if isRunningEvent.is_set():
 								if len(instruction) > 3 and instruction[1] in ('QTURN','STEP'):
@@ -258,25 +261,43 @@ def run(filename, isRunningEvent, runEvent,logger,nextQueue):
 							try:
 								filename = 'exp_{}_{}'.format(title,str(round(time.time())))
 								if instruction[1] == 'CAPTURE':
-									picam.capture(filename=filename)
+									try:
+										capFile = instruction[2]
+									except:
+										capFile = filename
+									picam.capture(filename=capFile)
+
 								elif instruction[1] == 'RECORD':
 									try:
 										toRec = int(instruction[2])
 									except:
-										pass
-									else:
-										# This becomes a forked process... It can be shutdown by sending a signal to it with linux 'Kill'
-										picam.record(time=toRec,filename=filename)
+										toRec = 300000 # 5 minutes
+									try:
+										recFile = instruction[3]
+									except:
+										recFile = filename
+
+									# This becomes a forked process... It can be shutdown by sending a signal to it with linux 'Kill'
+									picam.record(time=toRec,filename=recFile)
 								elif instruction[1] == 'SET':
 									for inst in instruction[2:]:
 										option,value = inst.split(':')
+										if option =='cfx':
+											value = value.split(',')
+											try:
+												value = (int(value[0]),int(value[1]))
+											except:
+												value = (0,0)
 										if option in picam.attr:
 											picam.attr[option] = value
 
 										picam.verifySettings()
-							except CameraConfigurationError as cce:
+							except picam.CameraConfigurationError as cce:
 								pass
 								#TODO do something with the error. back out of the experiment. log it.
+							except picam.CameraProcessFailed as cpe:
+								pass
+								#TODO Handle this
 						elif(instruction[0] == 'SOLENOID'):
 							if isRunningEvent.is_set():
 								logMessage = 'ExpParser: Solenoid group {} will {} with these paramaters: {}'.format(instruction[1],instruction[2],instruction[3:])
@@ -325,8 +346,8 @@ def run(filename, isRunningEvent, runEvent,logger,nextQueue):
 		logger.logError('ExpParser: Aborted the experiment. Error: {}'.format(e.__class__),e)
 	finally:
 		# Clean up and close out all nicely.
-		if isRecording: # Ensure the gopro isn't recording anymore
-			exp.press_capture()
+		# if isRecording: # Ensure the gopro isn't recording anymore
+		# 	exp.press_capture()
 
 		if isRunningEvent.is_set(): # Ensure we are no longer running an experiment
 			isRunningEvent.clear()
@@ -345,6 +366,6 @@ def run(filename, isRunningEvent, runEvent,logger,nextQueue):
 		if experimentLog: # Close the experiment Log
 			experimentLog.close()
 
-		exp.reset() # Reset all the pins
+		# exp.reset() # Reset all the pins
 
 		logger.logSystem("ExpParser: Closing ExpParser and returning to normal function...")

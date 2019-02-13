@@ -51,21 +51,19 @@ ALLOW_SHUTDOWN = False
 REBOOT_ON_EXIT = False
 CONN_ATTEMPT_MAX = 3 # 5 attempts to connect to WTC via SC16IS750
 THREAD_ATTEMPT_MAX = 3 # 5 attempts to restart threads, otherwise don't restart. When all have reached max, shutdown.
+
 def initWTCConnection():
 	"""
 	This function Initializes and returns the SC16IS750 object to interact with the registers.
 
-	Parameters
-	----------
-	Nothing
+	Parameters:
+		Nothing
 
-	Returns
-	-------
-	"chip" - SC16IS750 - the chip data to be used for reading and writing to registers.
+	Returns:
+		"chip" - SC16IS750 - the chip data to be used for reading and writing to registers.
 
-	Raises
-	------
-	Any exceptions are passed up the call stack.
+	Raises:
+		Any exceptions are passed up the call stack.
 	"""
 
 	I2C_BUS = 1 # I2C bus identifier
@@ -101,14 +99,39 @@ def initWTCConnection():
 
 class Queue():
 	"""
-	Reason for Implementation
-	-------------------------
-	This is a generic queue used for the NextQueue, PacketQueue, and ResponseQueue
+	A generic queue used for the NextQueue and the packet Queue. provides helper methods special
+	to the needs of QPACE.
+
+	Attributes:
+		internalQueue - where the data is stored
+		enqueueCount - how many items are queued
+		cv - a threading.Condition() object to provide locks on the data
+		name - a string name for the queue. Mainly used for logging
+		suppress - If true do not write to log
+		response - stores the last response from the WTC if we are to 'wait' for it to respond.
+		logger - a Logger() object for logging.
+
+	Raises:
+		Most exceptions are passed up the stack.
 	"""
 	WAIT_TIME = 5 #in seconds
 	# MAX = 10
 
 	def __init__(self,logger=None,name="Queue",suppressLog=False):
+		"""
+		Constructor for Queue()
+
+		Parameters:
+			logger - the Logger() object to handle logging
+			name - the name of the queue. mainly used for logging
+			suppressLog - If true do not write to the log
+
+		Returns:
+			None
+
+		Raises:
+			All exceptions are passed up the stack.
+		"""
 		self.internalQueue = []
 		self.enqueueCount = 0
 		self.cv = threading.Condition()
@@ -116,9 +139,22 @@ class Queue():
 		self.suppress = suppressLog
 		self.response = None
 		self.logger=logger
-		self.logger.logSystem('{}: Initializing...'.format(name))
+		if self.logger and not self.suppress:
+			self.logger.logSystem('{}: Initializing...'.format(name))
 
 	def __len__(self):
+		"""
+		Override for the len() method.
+
+		Parameters:
+			None
+
+		Returns:
+			The length of the internalQueue
+
+		Raises:
+			all exceptions passed by len()
+		"""
 		return len(self.internalQueue)
 
 	def isEmpty(self):
@@ -133,6 +169,16 @@ class Queue():
 		"""
 		Enqueue an item to the queue.
 		Set up a threading.Condition variable for use by NextQueue. This is only useful for the "wait" feature.
+
+		Parameters:
+			item - object ot enqueue
+			prepend - if True, the item gets added to the front of the list instead of the end
+
+		Returns:
+			None
+
+		Raises:
+			all exceptions are raised up the stack
 		"""
 		if self.isEmpty():
 			self.cv.acquire() # If we are putting something in for the first time, set up the Lock
@@ -156,7 +202,16 @@ class Queue():
 
 	def peek(self):
 		"""
-		Just look at the top of the queue.
+		Get the item at the top of the queue, but do not touch the queue.
+
+		Parameters:
+			None
+
+		Returns:
+			The head of the queue.
+
+		Raises:
+			All exceptions are raised up the stack.
 		"""
 		if self.isEmpty():
 			return []
@@ -165,7 +220,16 @@ class Queue():
 
 	def dequeue(self):
 		"""
-		Remove an item from the queue. If empty, return None
+		Remove an item from the head of the queue.
+
+		Parameters:
+			None
+
+		Returns:
+			The head of the queue.
+
+		Raises:
+			All exceptions are passed up the stack.
 		"""
 		if self.isEmpty():
 			return None
@@ -452,12 +516,12 @@ def run(logger):
 			experimentRunningEvent = threading.Event()
 			runEvent = threading.Event()
 			shutdownEvent = threading.Event()
-			parserEmpty = threading.Event()
+			scheduleEmpty = threading.Event()
 			# Ensure these are in the state we want them in.
 			runEvent.set()
 			experimentRunningEvent.clear()
 			shutdownEvent.clear()
-			parserEmpty.clear()
+			scheduleEmpty.clear()
 
 			# Initialize the nextQueue for WHATISNEXT operations
 			nextQueue = Queue(logger=logger,name='NextQueue')
@@ -465,7 +529,7 @@ def run(logger):
 
 			# Initialize threads
 			interpreter = threading.Thread(target=qpi.run,args=(chip,nextQueue,packetQueue,experimentRunningEvent,runEvent,shutdownEvent,logger))
-			scheduler = threading.Thread(target=schedule.run,args=(chip,nextQueue,packetQueue,experimentRunningEvent,runEvent,shutdownEvent,parserEmpty,logger))
+			scheduler = threading.Thread(target=schedule.run,args=(chip,nextQueue,packetQueue,experimentRunningEvent,runEvent,shutdownEvent,scheduleEmpty,logger))
 			graveyardThread = threading.Thread(target=graveyardHandler,args=(runEvent,shutdownEvent,logger))
 
 			logger.logSystem("Main: Starting up threads.")
@@ -492,9 +556,9 @@ def run(logger):
 						interpreterAttempts += 1
 
 					# Check the Scheduler, restart it if necessary. The Scheduler is allowed to be shutdown early.
-					if not scheduler.isAlive() and not parserEmpty.is_set() and schedulerAttempts < THREAD_ATTEMPT_MAX:
+					if not scheduler.isAlive() and not scheduleEmpty.is_set() and schedulerAttempts < THREAD_ATTEMPT_MAX:
 						logger.logSystem('Main: Scheduler is shutdown when it should not be.  Attempt {} at restart.'.format(schedulerAttempts + 1))
-						scheduler = threading.Thread(target=todo.run,args=(chip,nextQueue,packetQueue,experimentRunningEvent,runEvent,shutdownEvent,parserEmpty,logger))
+						scheduler = threading.Thread(target=todo.run,args=(chip,nextQueue,packetQueue,experimentRunningEvent,runEvent,shutdownEvent,scheduleEmpty,logger))
 						scheduler.start()
 						scheduler += 1
 

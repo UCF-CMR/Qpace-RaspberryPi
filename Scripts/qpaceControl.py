@@ -4,8 +4,7 @@
 # Q-Pace project, Center for Microgravity Research
 # University of Central Florida
 #
-# The location of the list of different WTC states. This was derived from SurfSat. It has since
-# been changed slightly.
+# This file only contains a dictionary with the control characters between the WTC and Pi.
 
 QPCONTROL = {
 	"NOOP":			  0x0F, # No-operation. Has no use. More like a "ping" than anything else

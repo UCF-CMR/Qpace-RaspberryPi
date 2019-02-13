@@ -28,6 +28,8 @@ VIDEOPATH = '/mnt/c/users/jonat/desktop/cmr/pi/data/vid/'
 PICTUREPATH = '/mnt/c/users/jonat/desktop/cmr/pi/data/pic/'
 MAX_PENDING_DELTA = 300 # in seconds
 
+
+
 class Camera():
 	"""
 	View documentation https://www.raspberrypi.org/documentation/raspbian/applications/camera.md
@@ -63,6 +65,7 @@ class Camera():
 			'q': None, # Only used for images
 			'sh': None,
 			'ci': None,
+			'co': None,
 			'br': None,
 			'sa': None,
 			'vs': False,
@@ -92,34 +95,34 @@ class Camera():
 				self.attr[key] = value
 
 
-	def verifySettings():
-		if self.attr['sh'] and self.attr['sh'] < -100 or self.attr['sh'] > 100:
+	def verifySettings(self):
+		if self.attr['sh'] and (self.attr['sh'] < -100 or self.attr['sh'] > 100):
 			raise CameraConfigurationError('Sharpness must be set between -100 and 100.')
-		if self.attr['co'] and self.attr['co'] < -100 or self.attr['co'] > 100:
+		if self.attr['co'] and (self.attr['co'] < -100 or self.attr['co'] > 100):
 			raise CameraConfigurationError('Contrast must be set between -100 and 100.')
-		if self.attr['br'] and self.attr['br'] < 0 or self.attr['br'] > 100:
+		if self.attr['br'] and (self.attr['br'] < 0 or self.attr['br'] > 100):
 			raise CameraConfigurationError('Brightness must be set between 0 and 100.')
-		if self.attr['sa'] and self.attr['sa'] < -100 or self.attr['sa'] > 100:
+		if self.attr['sa'] and (self.attr['sa'] < -100 or self.attr['sa'] > 100):
 			raise CameraConfigurationError('Saturation must be set between -100 and 100.')
-		if self.attr['vs'] and self.attr['vs'] is not True and self.attr['vs'] is not False:
+		if self.attr['vs'] and (self.attr['vs'] is not True and self.attr['vs'] is not False):
 			raise CameraConfigurationError('Video stabilisation must be set to True or False.')
-		if self.attr['ex'] and self.attr['ex'] not in exposureModes:
+		if self.attr['ex'] and (self.attr['ex'] not in exposureModes):
 			raise CameraConfigurationError('Exposure must be set to a value in exposureModes.')
-		if self.attr['awb'] and self.attr['awb'] not in whiteBalanceModes:
+		if self.attr['awb'] and (self.attr['awb'] not in whiteBalanceModes):
 			raise CameraConfigurationError('White balance must be set to a value in whiteBalanceModes.')
-		if self.attr['ifx'] and self.attr['ifx'] not in imxfxModes:
+		if self.attr['ifx'] and (self.attr['ifx'] not in imxfxModes):
 			raise CameraConfigurationError('Image effects must be set to a value in imxfxModes.')
 		if self.attr['cfx']:
-			if type(self.attr['cfx']) is tuple and len(selfattr['.cfx']) is 2:
+			if type(self.attr['cfx']) is tuple and len(self.attr['cfx']) is 2:
 				if self.attr['cfx'][0] < 0 or self.attr['cfx'][0] > 255 or self.attr['cfx'][1] < 0 or self.attr['cfx'][1] > 255 :
 					raise CameraConfigurationError('U or Y value must be between 0 and 255.')
 			else:
 				raise CameraConfigurationError('Color effects must be set as a tuple where the values are (U,Y) for the U or Y channels of the image.')
-		if self.attr['rot'] and self.attr['rot'] < 0 or self.attr['.rot'] > 359:
+		if self.attr['rot'] and (self.attr['rot'] < 0 or self.attr['rot'] > 359):
 			self.attr['rot'] = self.attr['rot'] % 360
-		if self.attr['hf'] and self.attr['hf'] is not True and self.attr['hf'] is not False:
+		if self.attr['hf'] and (self.attr['hf'] is not True and self.attr['hf'] is not False):
 			raise CameraConfigurationError('Horizontal Flip must be True or False.')
-		if self.attr['vs'] and self.attr['vf'] is not True and self.attr['vf'] is not False:
+		if self.attr['vs'] and (self.attr['vf'] is not True and self.attr['vf'] is not False):
 			raise CameraConfigurationError('Vertical Flip must be True or False.')
 		if self.attr['roi']:
 			if type(self.attr['roi']) is tuple and len(self.attr['roi']) is 4:
@@ -444,7 +447,7 @@ class Action():
 				GPIO.setup(PIN.GOPBUT, GPIO.OUT, initial=1)				#On Button
 				GPIO.setup(PIN.GOPCAP, GPIO.OUT, initial=1)				#Capture Button
 				GPIO.setup(PIN.GOPDEN, GPIO.OUT, initial=0)
-				gopro_off(True) # Flip the data enable to ensure that the gopro is off.
+				#gopro_off(True) # Flip the data enable to ensure that the gopro is off.
 
 
 	def gopro_on(self):
@@ -646,7 +649,7 @@ class Action():
 		"""
 		self.put(PIN.LEDPWR,state)
 
-	def solenoid_run(self,solenoidPins,hz,duration,override = False):
+	def solenoid_run(self,solenoidPins,hz=1,duration=0,override = False):
 		if hz < 1:
 			self.logger.logSystem('Solenoid: Hz was set <1. This makes no sense.')
 			return

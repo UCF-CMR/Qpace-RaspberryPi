@@ -55,6 +55,9 @@ class Logger():
 
         self.filename = 'unknownBootTime' # Must be 15 characters for the serialization.
 
+    def bootWasSet(self):
+        return self._boot
+
     def setBoot(self,newTimestamp=None):
         self._boot = True
         #newTimestamp is an integer that represents the 4 byte timestamp

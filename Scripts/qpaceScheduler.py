@@ -163,7 +163,7 @@ def _processTask(chip,task,shutdownEvent,experimentEvent,runEvent,nextQueue,logg
 				return False
 
 		elif currentTask == "COPY":  #Back up a file
-			logger.logSystem("Attempting to create a backup.", ROOTPATH + task[2], ROOTPATH + task[3]) # Placeholder
+			logger.logSystem("Attempting to create a copy.", ROOTPATH + task[2], ROOTPATH + task[3]) # Placeholder
 			try:
 				copy(ROOTPATH + task[2], ROOTPATH + task[3]) #Copy the file from task[2] to task[3]
 			except Exception as e:
@@ -350,7 +350,16 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent,pars
 			# We will assume the Schedule-list is NOT sorted, and sort it.
 			sortScheduleList(schedule_list,logger)
 			if chip is not None:
-				schedule_list = executeScheduleList(chip,nextQueue,schedule_list,shutdownEvent,experimentEvent,runEvent,logger)
+				if not logger.bootWasSet():
+					logger.logSystem('Scheduler: Waiting until the time is set...')
+				while not logger.bootWasSet():
+					if shutdownEvent.is_set():
+						break
+					else:
+						time.sleep(.25)
+				if not shutdownEvent.is_set():
+					logger.logSystem('Scheduler: Beginning execution of tasks.')
+					schedule_list = executeScheduleList(chip,nextQueue,schedule_list,shutdownEvent,experimentEvent,runEvent,logger)
 
 			if schedule_list:
 				logger.logSystem("Scheduler: The ScheduleParser has terminated early. Updating the Schedule file.")
