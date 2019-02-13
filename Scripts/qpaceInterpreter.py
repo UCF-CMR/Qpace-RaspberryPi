@@ -24,6 +24,7 @@ import time
 import datetime
 import os
 from struct import pack
+import threading
 from  qpacePiCommands import generateChecksum, Command
 #import tstSC16IS750 as SC16IS750
 import SC16IS750
@@ -117,7 +118,7 @@ def waitForBytesFromCCDR(chip,n,timeout = 2.5,interval = 0.25):
 			time.sleep(interval)
 	return True
 
-def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent, logger):
+def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent,disableCallback, logger):
 	"""
 	This function is the "main" purpose of this module. Placed into a function so that it can be called in another module.
 
@@ -205,12 +206,31 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent, log
 		print("Data came in: ", packetData)
 		packetBuffer.append(packetData)
 
-	# Set up the callback.
-	if gpio:
-		callback = gpio.callback(CCDR_IRQ, pigpio.FALLING_EDGE, WTCRXBufferHandler)
-		logger.logSystem('Interpreter: Callback active. Waiting for data from the SC16IS750.')
-	else:
-		logger.logSystem("Interpreter: Callback is not active. PIGPIO was not defined.")
+
+	def callbackHandler(disableCallback,shutdownEvent):
+		if gpio:
+			callBackIsSet=True
+			callback = gpio.callback(CCDR_IRQ, pigpio.FALLING_EDGE, WTCRXBufferHandler)
+			logger.logSystem('Interpreter: Callback active. Waiting for data from the SC16IS750.')
+			while not shutdownEvent.is_set():
+				time.sleep(.17)
+				if callBackIsSet and disableCallback.is_set(): # If the callback is running and we want to disable it, cancel it.
+					callback.cancel()
+					callBackIsSet = False
+					logger.logSystem('Interpreter: Callback Disabled.')
+				if not callBackIsSet and not diableCallback.is_set(): # If the callback is not running and we want to not disable it, start it up again.
+					callback = gpio.callback(CCDR_IRQ, pigpio.FALLING_EDGE, WTCRXBufferHandler)
+					callBackIsSet = True
+					logger.logSystem('Interpreter: Callback Enabled.')
+			if callBackIsSet:
+				callback.cancel()
+		else:
+			logger.logSystem("Interpreter: Callback is not active. PIGPIO was not defined.")
+
+
+	# Start up the thread for the callbackHandler
+	cb_hndlr=threading.Thread(name='callbackHandler',target=callbackHandler,args=(disableCallback,shutdownEvent))
+	cb_hndlr.start()
 
 	def decodeXTEA(packetData):
 		header = packetData[:10]
@@ -225,6 +245,7 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent, log
 			logger.logError('Not using XTEA.',e)
 
 		return header + information + footer
+
 
 
 
@@ -492,7 +513,7 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent, log
 					# Wait for a response from the WTC.
 					logger.logSystem('PseudoSM: Waiting {}s for a response from WTC'.format(WHATISNEXT_WAIT))
 					# Possibly might need to cancel the callback and restart it here.
-					callback.cancel()
+					disableCallback.set()
 					if waitForBytesFromCCDR(chip,1,timeout=WHATISNEXT_WAIT): # Wait for 15s for a response from the WTC
 						response = chip.byte_read(SC16IS750.REG_RHR)
 
@@ -501,11 +522,11 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent, log
 
 					if not nextQueue.isEmpty():
 						# If SENDPACKET was queued, but a BUFFERFUL came in as a response, then dont dequeue the SENDPACKET
-						if (next == 'SENDPACKET' or next == qpStates['SENDPACKET']) and response == qpStates['BUFFERFULL'] not:
+						if (next == 'SENDPACKET' or next == qpStates['SENDPACKET']) and response == qpStates['BUFFERFULL']:
 							nextQueue.dequeue() # After "waiting" for the bytes, dequeue the items.
 
 					# If we cancel the callback earlier, re-initialize it here.
-					callback = gpio.callback(CCDR_IRQ, pigpio.FALLING_EDGE, WTCRXBufferHandler)
+					disableCallback.clear()
 					wtc_respond('DONE') # Always respond with done for an "ACCEPTED or PENDING"
 
 				elif byte == qpStates['NEXTPACKET']:
@@ -611,8 +632,5 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent, log
 		except StopIteration:	  # Used for control flow.
 			break
 	logger.logSystem("Interpreter: Starting cleanup for shutdown.")
-
-	if gpio:
-		callback.cancel()
-		gpio.stop()
+	cb_hndlr.join()
 	logger.logSystem("Interpreter: Shutting down...")

@@ -67,12 +67,13 @@ class Command():
 	_nextQueue = None
 	_tagChecker = None
 
-	def __init__(self,packetQueue=None,nextQueue=None,experimentEvent=None,shutdownEvent = None):
+	def __init__(self,packetQueue=None,nextQueue=None,experimentEvent=None,shutdownEvent = None,disableCallback=None):
 		Command._packetQueue = packetQueue
 		Command._nextQueue = nextQueue
 		self.experimentEvent = experimentEvent
 		self.shutdownEvent = shutdownEvent
 		self.shutdownAllowed = None
+		self.disableCallback = disableCallback
 
 	# Getters and Setters for self.packetQueue
 	@property
@@ -548,8 +549,7 @@ class Command():
 		runEvent.set()
 		# Run an experiment file from the experiment directory
 		logger.logSystem("Command recieved: Running an experiment.", filename) # Placeholder
-		# parserThread = threading.Thread(name='experimentParser',target=exp.run, args=(filename,self.experimentEvent,runEvent,logger,self.nextQueue,cbmtd=(callback,callbackMethod)))
-		parserThread = threading.Thread(name='experimentParser',target=exp.run, args=(filename,self.experimentEvent,runEvent,logger,self.nextQueue))
+		parserThread = threading.Thread(name='experimentParser',target=exp.run, args=(filename,self.experimentEvent,runEvent,logger,self.nextQueue,self.disableCallback))
 		parserThread.start()
 		if not silent:
 			data = 'Attempting to start experiment <{}> if it exists.'.format(filename)

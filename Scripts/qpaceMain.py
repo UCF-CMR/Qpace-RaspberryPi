@@ -517,9 +517,11 @@ def run(logger):
 			runEvent = threading.Event()
 			shutdownEvent = threading.Event()
 			scheduleEmpty = threading.Event()
+			disableCallback = threading.Event()
 			# Ensure these are in the state we want them in.
 			runEvent.set()
 			experimentRunningEvent.clear()
+			disableCallback.clear()
 			shutdownEvent.clear()
 			scheduleEmpty.clear()
 
@@ -528,8 +530,8 @@ def run(logger):
 			packetQueue = Queue(logger=logger,name='PacketQueue',suppressLog=True)
 
 			# Initialize threads
-			interpreter = threading.Thread(target=qpi.run,args=(chip,nextQueue,packetQueue,experimentRunningEvent,runEvent,shutdownEvent,logger))
-			scheduler = threading.Thread(target=schedule.run,args=(chip,nextQueue,packetQueue,experimentRunningEvent,runEvent,shutdownEvent,scheduleEmpty,logger))
+			interpreter = threading.Thread(target=qpi.run,args=(chip,nextQueue,packetQueue,experimentRunningEvent,runEvent,shutdownEvent,disableCallback,logger))
+			scheduler = threading.Thread(target=schedule.run,args=(chip,nextQueue,packetQueue,experimentRunningEvent,runEvent,shutdownEvent,scheduleEmpty,disableCallback,logger))
 			graveyardThread = threading.Thread(target=graveyardHandler,args=(runEvent,shutdownEvent,logger))
 
 			logger.logSystem("Main: Starting up threads.")
@@ -551,14 +553,14 @@ def run(logger):
 					# Check the interpreter, restart if necessary. The Interpreter should always be running and never shutdown early.
 					if not interpreter.isAlive() and interpreterAttempts < THREAD_ATTEMPT_MAX:
 						logger.logSystem("Main: Interpreter is shutdown when it should not be. Attempt {} at restart.".format(interpreterAttempts + 1))
-						interpreter = threading.Thread(target=qpi.run,args=(chip,nextQueue,packetQueue,experimentRunningEvent,runEvent,shutdownEvent,logger))
+						interpreter = threading.Thread(target=qpi.run,args=(chip,nextQueue,packetQueue,experimentRunningEvent,runEvent,shutdownEvent,disableCallback,logger))
 						interpreter.start()
 						interpreterAttempts += 1
 
 					# Check the Scheduler, restart it if necessary. The Scheduler is allowed to be shutdown early.
 					if not scheduler.isAlive() and not scheduleEmpty.is_set() and schedulerAttempts < THREAD_ATTEMPT_MAX:
 						logger.logSystem('Main: Scheduler is shutdown when it should not be.  Attempt {} at restart.'.format(schedulerAttempts + 1))
-						scheduler = threading.Thread(target=todo.run,args=(chip,nextQueue,packetQueue,experimentRunningEvent,runEvent,shutdownEvent,scheduleEmpty,logger))
+						scheduler = threading.Thread(target=todo.run,args=(chip,nextQueue,packetQueue,experimentRunningEvent,runEvent,shutdownEvent,scheduleEmpty,disableCallback,logger))
 						scheduler.start()
 						scheduler += 1
 

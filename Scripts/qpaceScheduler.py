@@ -117,7 +117,7 @@ def sortScheduleList(schedule_list,logger):
 		#updateScheduleFile(schedule_list,logger)
 	return schedule_list
 
-def _processTask(chip,task,shutdownEvent,experimentEvent,runEvent,nextQueue,logger):
+def _processTask(chip,task,shutdownEvent,experimentEvent,runEvent,nextQueue,disableCallback,logger):
 	"""
 		This function handles processing a specific command given. This is what does the real "parsing"
 
@@ -156,7 +156,7 @@ def _processTask(chip,task,shutdownEvent,experimentEvent,runEvent,nextQueue,logg
 
 				# Run an experiment file from the experiment directory
 				logger.logSystem("Scheduler: Running an experiment.", task[2]) # Placeholder
-				parserThread = threading.Thread(name='experimentParser',target=exp.run, args=(task[2],experimentEvent,runEvent,logger,nextQueue))
+				parserThread = threading.Thread(name='experimentParser',target=exp.run, args=(task[2],experimentEvent,runEvent,logger,nextQueue,disableCallback))
 				parserThread.start()
 			except Exception as e:
 				logger.logError('Scheduler: Task failed',e)
@@ -217,7 +217,7 @@ def _processTask(chip,task,shutdownEvent,experimentEvent,runEvent,nextQueue,logg
 
 	return True # If we reach here, assume everything was a success.
 
-def executeScheduleList(chip,nextQueue,schedule_list, shutdownEvent, experimentEvent, runEvent,logger):
+def executeScheduleList(chip,nextQueue,schedule_list, shutdownEvent, experimentEvent, runEvent,disableCallback,logger):
 	"""
 		This function will execute the ScheduleList in order. If it is interrupted, it will return the Schedulelist
 
@@ -279,7 +279,7 @@ def executeScheduleList(chip,nextQueue,schedule_list, shutdownEvent, experimentE
 				time.sleep(sleep_time)
 			runEvent.wait() # Pause if we need to wait for something.
 			# run the next item on the Schedulelist.
-			taskCompleted = _processTask(chip,schedule_list[0],shutdownEvent,experimentEvent,runEvent,nextQueue,logger)
+			taskCompleted = _processTask(chip,schedule_list[0],shutdownEvent,experimentEvent,runEvent,nextQueue,disableCallback,logger)
 			if taskCompleted:
 				logger.logSystem("Scheduler: Task completed.")
 				schedule_list.pop(0) # pop the first item off the list.
@@ -322,7 +322,7 @@ def updateScheduleFile(schedule_list,logger):
 		return False
 	return True
 
-def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent,parserEmpty,logger):
+def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent,parserEmpty,disableCallback,logger):
 	"""
 	Method to handle the Schedule parser when running it. This allows the parser to be used when calling
 	it from another module.
@@ -359,7 +359,7 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent,pars
 						time.sleep(.25)
 				if not shutdownEvent.is_set():
 					logger.logSystem('Scheduler: Beginning execution of tasks.')
-					schedule_list = executeScheduleList(chip,nextQueue,schedule_list,shutdownEvent,experimentEvent,runEvent,logger)
+					schedule_list = executeScheduleList(chip,nextQueue,schedule_list,shutdownEvent,experimentEvent,runEvent,disableCallback,logger)
 
 			if schedule_list:
 				logger.logSystem("Scheduler: The ScheduleParser has terminated early. Updating the Schedule file.")

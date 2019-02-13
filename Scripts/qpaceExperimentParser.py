@@ -9,7 +9,7 @@ import time
 import qpaceExperiment as expModule
 import qpaceLogger as qpLog
 
-def run(filename, isRunningEvent, runEvent,logger,nextQueue):
+def run(filename, isRunningEvent, runEvent,logger,nextQueue,disableCallback):
 	"""
 	This function handles the parsing and execution of the raw text experiment files.
 
@@ -91,6 +91,8 @@ def run(filename, isRunningEvent, runEvent,logger,nextQueue):
 				if solenoidRequest and stepperRequest:
 					break
 
+			disableCallback.set()
+			time.sleep(.35)
 			# If we want the solenoids, let's request them. Failure to enable will abort the experiment.
 			if solenoidRequest:
 				logger.logSystem('ExpParser: WTC... may I have the solenoids please?')
@@ -102,6 +104,7 @@ def run(filename, isRunningEvent, runEvent,logger,nextQueue):
 				logger.logSystem('ExpParser: WTC... may I have the steppers please?')
 				if not exp.wtc_request('STEPON'):
 					raise StopIteration('WTC denied access to the steppers.')
+			disableCallback.clear()
 
 
 			# At this point the solenoids and steppers should be enabled. NOW we can do some science!
