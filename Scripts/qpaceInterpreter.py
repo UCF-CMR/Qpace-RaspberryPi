@@ -25,7 +25,7 @@ import datetime
 import os
 from struct import pack
 from  qpacePiCommands import generateChecksum, Command
-import tstSC16IS750 as SC16IS750
+#import tstSC16IS750 as SC16IS750
 import SC16IS750
 import qpaceControl
 import qpaceFileHandler as fh
@@ -472,14 +472,12 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent, log
 					wtc_respond('DONE')
 				elif byte == qpStates['SHUTDOWN']:
 					logger.logSystem('PseudoSM: Shutdown was set!')
-					#nextQueue.enqueue('SHUTDOWN') # Just in case the interrupt is fired before shutting down.
 					wtc_respond('DONE')
 					shutdownEvent.set()	# Set for shutdown
 				elif byte == qpStates['REBOOT']:
 					logger.logSystem('PseudoSM: Reboot was set!')
-					#nextQueue.enqueue('SHUTDOWN')
 					wtc_respond('DONE')
-					shutdownEvent.set()
+					shutdownEvent.set() # Set for shutdown
 				elif byte == qpStates['TIMESTAMP']:
 					logger.logSystem('PseudoSM: TIMESTAMP from WTC.')
 					wtc_respond('TIMESTAMP')
@@ -497,18 +495,18 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent, log
 					callback.cancel()
 					if waitForBytesFromCCDR(chip,1,timeout=WHATISNEXT_WAIT): # Wait for 15s for a response from the WTC
 						response = chip.byte_read(SC16IS750.REG_RHR)
-						# If SENDPACKET was queued, but a BUFFERFUL came in as a response, then re-queue the SENDPACKET
-						if (next == 'SENDPACKET' or next == qpStates['SENDPACKET']) and response == qpStates['BUFFERFULL']:
-							nextQueue.enqueue('SENDPACKET',prepend=True)
 
-						wtc_respond('DONE') # Always respond with done for an "ACCEPTED or PENDING"
 						# THIS IS A BLOCKING CALL
-						nextQueue.blockWithResponse(response,timeout=5) # Blocking until the response is read or timeout.
+						nextQueue.blockWithResponse(response,timeout=1) # Blocking until the response is read or timeout.
 
 					if not nextQueue.isEmpty():
-						nextQueue.dequeue() # After "waiting" for the bytes, dequeue the items.
+						# If SENDPACKET was queued, but a BUFFERFUL came in as a response, then dont dequeue the SENDPACKET
+						if (next == 'SENDPACKET' or next == qpStates['SENDPACKET']) and response == qpStates['BUFFERFULL'] not:
+							nextQueue.dequeue() # After "waiting" for the bytes, dequeue the items.
+
 					# If we cancel the callback earlier, re-initialize it here.
 					callback = gpio.callback(CCDR_IRQ, pigpio.FALLING_EDGE, WTCRXBufferHandler)
+					wtc_respond('DONE') # Always respond with done for an "ACCEPTED or PENDING"
 
 				elif byte == qpStates['NEXTPACKET']:
 					nextPacket = packetQueue.dequeue()

@@ -26,8 +26,8 @@ try:
 	import qpaceExperiment as exp
 	import qpaceInterpreter as qpi
 	import qpaceScheduler as schedule
-	import tstSC16IS750 as SC16IS750
-	#import SC16IS750
+	# import tstSC16IS750 as SC16IS750
+	import SC16IS750
 	import qpaceControl as states
 except Exception as e:
 	raise SystemExit('There was a problem importing critical modules on line 25 of qpaceMain.py:',e)
@@ -43,10 +43,10 @@ MISCPATH = '/home/pi/data/misc/'
 TEXTPATH = '/home/pi/data/text/'
 TEMPPATH = '/home/pi/temp/'
 ROOTPATH = '/home/pi/'
-MISCPATH = '/mnt/c/users/jonat/desktop/cmr/pi/data/misc/'
-TEXTPATH = '/mnt/c/users/jonat/desktop/cmr/pi/data/text/'
-ROOTPATH= '/mnt/c/users/jonat/desktop/cmr/pi/'
-TEMPPATH = '/mnt/c/users/jonat/desktop/cmr/pi/temp/'
+# MISCPATH = '/mnt/c/users/jonat/desktop/cmr/pi/data/misc/'
+# TEXTPATH = '/mnt/c/users/jonat/desktop/cmr/pi/data/text/'
+# ROOTPATH= '/mnt/c/users/jonat/desktop/cmr/pi/'
+# TEMPPATH = '/mnt/c/users/jonat/desktop/cmr/pi/temp/'
 ALLOW_SHUTDOWN = False
 REBOOT_ON_EXIT = False
 CONN_ATTEMPT_MAX = 3 # 5 attempts to connect to WTC via SC16IS750

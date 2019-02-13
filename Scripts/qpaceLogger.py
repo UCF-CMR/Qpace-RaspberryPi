@@ -31,7 +31,7 @@ class Logger():
 
     # Defined Paths.
     LOG_PATH = "/home/pi/logs/"
-    LOG_PATH = "/mnt/c/users/jonat/desktop/cmr/pi/logs/"
+    # LOG_PATH = "/mnt/c/users/jonat/desktop/cmr/pi/logs/"
     # Default error if systemLog() doesn't work properly.
     SYSTEMLOG_ERROR_DESCRIPTION = "Unable to write to the log."
 

@@ -29,10 +29,10 @@ MISCPATH = '/home/pi/data/misc/'
 TEXTPATH = '/home/pi/data/text/'
 TEMPPATH = '/home/pi/temp/'
 ROOTPATH = '/home/pi/'
-MISCPATH = '/mnt/c/users/jonat/desktop/cmr/pi/data/misc/'
-TEXTPATH = '/mnt/c/users/jonat/desktop/cmr/pi/data/text/'
-ROOTPATH= '/mnt/c/users/jonat/desktop/cmr/pi/'
-TEMPPATH = '/mnt/c/users/jonat/desktop/cmr/pi/temp/'
+# MISCPATH = '/mnt/c/users/jonat/desktop/cmr/pi/data/misc/'
+# TEXTPATH = '/mnt/c/users/jonat/desktop/cmr/pi/data/text/'
+# ROOTPATH= '/mnt/c/users/jonat/desktop/cmr/pi/'
+# TEMPPATH = '/mnt/c/users/jonat/desktop/cmr/pi/temp/'
 
 def generateChecksum(data):
 	"""
@@ -548,6 +548,7 @@ class Command():
 		runEvent.set()
 		# Run an experiment file from the experiment directory
 		logger.logSystem("Command recieved: Running an experiment.", filename) # Placeholder
+		# parserThread = threading.Thread(name='experimentParser',target=exp.run, args=(filename,self.experimentEvent,runEvent,logger,self.nextQueue,cbmtd=(callback,callbackMethod)))
 		parserThread = threading.Thread(name='experimentParser',target=exp.run, args=(filename,self.experimentEvent,runEvent,logger,self.nextQueue))
 		parserThread.start()
 		if not silent:

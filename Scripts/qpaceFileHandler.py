@@ -8,8 +8,8 @@
 
 from  qpacePiCommands import generateChecksum,Command
 import qpaceInterpreter as interp
-import tstSC16IS750 as SC16IS750
-#import SC16IS750
+#import tstSC16IS750 as SC16IS750
+import SC16IS750
 from time import sleep
 from datetime import datetime,timedelta
 from math import ceil
@@ -23,11 +23,11 @@ GRAVEPATH = '/home/pi/graveyard/'
 TEXTPATH = '/home/pi/data/text/'
 TEMPPATH = '/home/pi/temp/'
 ROOTPATH = '/home/pi/'
-MISCPATH = '/mnt/c/users/jonat/desktop/cmr/pi/data/misc/'
-TEXTPATH = '/mnt/c/users/jonat/desktop/cmr/pi/data/text/'
-ROOTPATH= '/mnt/c/users/jonat/desktop/cmr/pi/'
-TEMPPATH = '/mnt/c/users/jonat/desktop/cmr/pi/temp/'
-GRAVEPATH = '/mnt/c/users/jonat/desktop/cmr/pi/graveyard/'
+# MISCPATH = '/mnt/c/users/jonat/desktop/cmr/pi/data/misc/'
+# TEXTPATH = '/mnt/c/users/jonat/desktop/cmr/pi/data/text/'
+# ROOTPATH= '/mnt/c/users/jonat/desktop/cmr/pi/'
+# TEMPPATH = '/mnt/c/users/jonat/desktop/cmr/pi/temp/'
+# GRAVEPATH = '/mnt/c/users/jonat/desktop/cmr/pi/graveyard/'
 # This is 2GB. In testing, a file that is 3GB will only cause less than 300MB of RAM usage in python. Don't ask me how that works.
 # Therefore, we will only allow files that are 2GB.
 MAX_FILE_SIZE = 2147483648

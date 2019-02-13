@@ -19,7 +19,7 @@ class TagChecker:
 	LOCK_CALLS = 3; #The amount of inputs or outputs to this class required before a tag is freed for re-use. Should be shorter than MINIMUM_TAGS
 	TAG_DELIMINATOR = b'/' #The character to split tags by when reading from a file
 	DEFAULT_FILEPATH = "/valid_tags.secret" #The filename the tags are expected to be found in if a specific one is not provided
-	DEFAULT_FILEPATH = "/mnt/c/users/jonat/desktop/cmr/pi/Scripts/valid_tags.secret"
+	# DEFAULT_FILEPATH = "/mnt/c/users/jonat/desktop/cmr/pi/Scripts/valid_tags.secret"
 
 
 	##METHODS
