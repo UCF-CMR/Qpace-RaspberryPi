@@ -279,6 +279,7 @@ class Transmitter():
 
 				# try:
 				packet = DataPacket(data=packetData[pid], pid=pid, route=self.route, opcode=None)
+				self.pkt_padding = self.data_size - len(packetData[pid])
 				self.packetQueue.enqueue(packet.build()) #ADD PACKET TO BUFFER
 				# except IndexError:
 				# 	# IndexError when we don't have enough packets for the current set of acknoledgements
@@ -294,7 +295,7 @@ class Transmitter():
 			#StopIteration to stop iterating :) we are done here.
 			print(e)
 		#When it's done it needs to send a DONE packet
-		temp = [self.checksum,bytes([self.expected_packets]),self.pathname.encode('ascii')[self.pathname.rfind('/')+1:]]
+		temp = [self.checksum,bytes([self.expected_packets]),self.pathname.encode('ascii')[self.pathname.rfind('/')+1:],self.pkt_padding]
 		data = b' '.join(temp)
 		# if useFEC:
 		# 	data += (36 - len(data)) * b'\x04' if len(data) < 36 else b''
@@ -325,8 +326,8 @@ class Transmitter():
 				'filename':self.pathname,
 				'direction':'Transmit',
 				'checksum':self.checksum,
-				'sent_packets':sent,
-				'expected_packets':self.expected_packets,
+				'generated_packets': sent,
+				'expected_packets': self.expected_packets,
 				'file_size':self.filesize,
 				'ppa':self.ppa,
 				'first_packet':self.firstPacket,
@@ -334,7 +335,7 @@ class Transmitter():
 				'xtea':self.xtea
 			}
 			text_to_write = 'PROGRESS REPORT FOR {}\n{}\n'.format(info['filename'],'-'*30)
-			text_to_write = 'Progress: {}%\n\n'.format(round(100*(info['sent_packets']/info['expected_packets'])))
+			text_to_write = 'Progress: {}%\n\n'.format(round(100*(info['generated_packets']/info['expected_packets'])))
 			for key in progress:
 				text_to_write += "{}: {}\n".format(key,str(dictionary[key]))
 

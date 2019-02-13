@@ -319,9 +319,9 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent, log
 				match,who = fh.Scaffold.finish(fieldData['information'])
 				logger.logSystem('UploadRequest: Upload Request has been cleared for {}'.format(who))
 				if match:
-					logger.logSystem('Scaffold: The Upload was successful')
+					logger.logSystem('Interpreter: The Upload was successful')
 				else:
-					logger.logSystem('Scaffold: The Uploaded file does not match the checksum with ground')
+					logger.logSystem('Interpreter: The Uploaded file does not match the checksum with ground')
 
 			elif fieldData['noop'] == b'NOOP>':
 				fh.Scaffold.construct(fieldData['pid'],fieldData['information'])
@@ -399,7 +399,7 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent, log
 		elif fieldData['TYPE'] == 'NORM':
 			validTag =  checker.isValidTag(fieldData['tag'])
 			if isValid and not validTag:
-				logger.logSystem('Interpeter: A valid packet came in, but the tag was wrong. The packet is being dropped.')
+				logger.logSystem('Interpreter: A valid packet came in, but the tag was wrong. The packet is being dropped.')
 			isValid = isValid and validTag
 
 		elif fieldData['TYPE'] == 'DLACK':

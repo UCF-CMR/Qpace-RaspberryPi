@@ -18,7 +18,7 @@ class TagChecker:
 	MINIMUM_TAGS = 4; #The minimum number of tags which can be in the master list
 	LOCK_CALLS = 3; #The amount of inputs or outputs to this class required before a tag is freed for re-use. Should be shorter than MINIMUM_TAGS
 	TAG_DELIMINATOR = b'/' #The character to split tags by when reading from a file
-	DEFAULT_FILEPATH = "/home/pi/valid_tags.secret" #The filename the tags are expected to be found in if a specific one is not provided
+	DEFAULT_FILEPATH = "/valid_tags.secret" #The filename the tags are expected to be found in if a specific one is not provided
 	DEFAULT_FILEPATH = "/mnt/c/users/jonat/desktop/cmr/pi/Scripts/valid_tags.secret"
 
 

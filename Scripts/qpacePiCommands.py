@@ -195,7 +195,7 @@ class Command():
 		enc_iv = None
 		tryEncryption = True
 
-		def __init__(self,opcode, cipherText = None,plainText=None):
+		def __init__(self,opcode="NOOP*", cipherText = None,plainText=None):
 			"""
 			Constructor for a PrivilegedPacket
 
@@ -313,7 +313,7 @@ class Command():
 			padding = CMDPacket.padding_byte*(PrivilegedPacket.encoded_data_length-len(lenstr)) #98 due to specification of packet structure
 			plainText = lenstr.encode('ascii')
 			plainText += padding
-			PrivilegedPacket(opcode="NOOP*",plainText=plainText).send()
+			PrivilegedPacket(plainText=plainText).send()
 
 	def directoryList(self,logger,args, silent=False):
 		"""
@@ -336,7 +336,7 @@ class Command():
 			padding = CMDPacket.padding_byte * (PrivilegedPacket.encoded_data_length - len(filepath))
 			plainText = filepath.encode('ascii')
 			plainText += padding
-			PrivilegedPacket(opcode="NOOP*",plainText=plainText).send()
+			PrivilegedPacket(plainText=plainText).send()
 
 	def splitVideo(self,logger,args, silent=False):
 		args = args.decode('ascii').split(' ')
@@ -400,7 +400,7 @@ class Command():
 			padding = CMDPacket.padding_byte * (PrivilegedPacket.encoded_data_length - len(wasMoved))
 			plainText = wasMoved.encode('ascii')
 			plainText += padding
-			PrivilegedPacket(opcode="NOOP*",plainText=plainText).send()
+			PrivilegedPacket(plainText=plainText).send()
 
 	def tarExtract(self,logger,args, silent=False):
 		"""
@@ -419,7 +419,7 @@ class Command():
 			message = b'Failed'
 		if not silent:
 			plainText = message + CMDPacket.padding_byte * (PrivilegedPacket.encoded_data_length-len(message))
-			PrivilegedPacket(opcode="NOOP*",plainText=plainText).send()
+			PrivilegedPacket(plainText=plainText).send()
 
 	def tarCreate(self,logger,args, silent=False):
 		"""
@@ -444,7 +444,7 @@ class Command():
 
 		if not silent:
 			plainText +=  CMDPacket.padding_byte*(CMDPacket.data_size - len(tarDir))
-			PrivilegedPacket(opcode='NOOP*',plainText=plainText).send()
+			PrivilegedPacket(plainText=plainText).send()
 
 	def dlReq(self,logger,args, silent=False):
 		"""
@@ -513,7 +513,7 @@ class Command():
 		"""
 		# Numbers based on Packet Specification Document.
 		import qpaceFileHandler as qfh
-		filename = args.replace(CMDPacket.padding_byte,b'').replace(b' ',b'').replace(b'/',b'@')
+		filename = args.replace(CMDPacket.padding_byte,b'').replace(b' ',b'').replace(b'/',b'@').replace('..','')
 		if qfh.UploadRequest.isActive():
 			logger.logSystem("UploadRequest: Redundant Request? ({})".format(str(filename)))
 		qfh.UploadRequest.set(filename=filename.decode('ascii'))
@@ -521,9 +521,9 @@ class Command():
 		if not silent:
 			response = b'up'
 			response += b'Active Requests: ' + bytes([len(qfh.UploadRequest.received)])
-			response += b' Using Scaffold: ' + filename
+			response += b' Using Scaffold: ' + qfh.UploadRequest.filename.encode('ascii')
 			response += PrivilegedPacket.padding_byte * (PrivilegedPacket.encoded_data_length - len(response))
-			PrivilegedPacket('NOOP*',plainText=response).send()
+			PrivilegedPacket(plainText=response).send()
 
 	def runHandbrake(self,logger,args, silent=False):
 		args = args.split(b' ')
