@@ -19,7 +19,6 @@ class TagChecker:
 	LOCK_CALLS = 3; #The amount of inputs or outputs to this class required before a tag is freed for re-use. Should be shorter than MINIMUM_TAGS
 	TAG_DELIMINATOR = b'/' #The character to split tags by when reading from a file
 	DEFAULT_FILEPATH = "/valid_tags.secret" #The filename the tags are expected to be found in if a specific one is not provided
-	# DEFAULT_FILEPATH = "/mnt/c/users/jonat/desktop/cmr/pi/Scripts/valid_tags.secret"
 
 
 	##METHODS
@@ -48,14 +47,13 @@ class TagChecker:
 				self.tags.append(t)
 		if len(self.tags) < TagChecker.MINIMUM_TAGS:
 			raise RuntimeError('File did not have at least ' + str(TagChecker.MINIMUM_TAGS) + ' tags: '  + filename)
-		self.tags = tuple(self.tags)
 
 	def getTag(self):
-		"""Gets a tag from the hardcoded tuple which has not been utilized recently"""
+		"""Gets a tag from the hardcoded list which has not been utilized recently"""
 		options = self._validTags()
 		selected = random.choice(options)
 		self._pushUsed(selected)
-		return tuple(selected)
+		return selected
 
 	def isValidTag(self, toCheck):
 		"""Checks to see if a tag is formatted correctly, and if it is, marks it as used."""

@@ -24,8 +24,6 @@ except:
 # MountPoint = '/home/pi/gopro'
 PICTUREPATH = '/home/pi/data/pic/'
 VIDEOPATH = '/home/pi/data/vid/'
-# VIDEOPATH = '/mnt/c/users/jonat/desktop/cmr/pi/data/vid/'
-# PICTUREPATH = '/mnt/c/users/jonat/desktop/cmr/pi/data/pic/'
 MAX_PENDING_DELTA = 300 # in seconds
 
 

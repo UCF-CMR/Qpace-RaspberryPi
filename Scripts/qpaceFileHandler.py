@@ -23,11 +23,6 @@ GRAVEPATH = '/home/pi/graveyard/'
 TEXTPATH = '/home/pi/data/text/'
 TEMPPATH = '/home/pi/temp/'
 ROOTPATH = '/home/pi/'
-# MISCPATH = '/mnt/c/users/jonat/desktop/cmr/pi/data/misc/'
-# TEXTPATH = '/mnt/c/users/jonat/desktop/cmr/pi/data/text/'
-# ROOTPATH= '/mnt/c/users/jonat/desktop/cmr/pi/'
-# TEMPPATH = '/mnt/c/users/jonat/desktop/cmr/pi/temp/'
-# GRAVEPATH = '/mnt/c/users/jonat/desktop/cmr/pi/graveyard/'
 # This is 2GB. In testing, a file that is 3GB will only cause less than 300MB of RAM usage in python. Don't ask me how that works.
 # Therefore, we will only allow files that are 2GB.
 MAX_FILE_SIZE = 2147483648
@@ -37,7 +32,7 @@ MAX_RAM_ALLOTMENT = 419430400 # This is how many bytes are in 400MB. Restrict fi
 
 
 
-class DataPacket():#Packet):
+class DataPacket():
 	"""
 	Packet structure for QPACE:
 	---------------------------------------------------------------------
@@ -167,10 +162,8 @@ class DummyPacket(DataPacket):
 		self.opcode = b'DUMMY'
 		self.rid = b'\x00'
 	def build(self):
-		return self.rid + self.opcode + self.data
-
-class XTEAPacket():
-	pass
+		toSend =  self.rid + self.opcode + self.data
+		return toSend + generateChecksum(toSend)
 
 class ChunkPacket():
 	TIMEDELAYDELTA = 1.5 # in seconds
@@ -243,7 +236,14 @@ class Transmitter():
 		self.packetQueue = packetQueue
 		# Attempt to get the file size. Pop up the stack if it cannot be found.
 		# Since this happens first, if this succeeds, then the rest of the methods will be fine.
-		self.filesize = os.path.getsize("{}{}".format(ROOTPATH,pathname))
+		try:
+			self.filesize = os.path.getsize("{}{}".format(ROOTPATH,pathname))
+		except Exception as e:
+			noDownloadMessage = b'There was an issue with the file: {}'.format(e)
+			noDownloadPacket = DataPacket(noDownloadMessage, pid, self.route).build()
+			self.packetQueue.enqueue(noDownloadPacket)
+			DataPacket.last_id = 0
+
 
 		if self.filesize > MAX_FILE_SIZE:
 			noDownloadMessage = b'You cannot download this file. It is too big. Break it up first.'
@@ -278,7 +278,7 @@ class Transmitter():
 				sessionPackets = []
 
 				# try:
-				packet = DataPacket(data=packetData[pid], pid=pid, route=self.route, opcode=None)
+				packet = DataPacket(data=packetData[pid], pid=pid, rid=self.route, opcode=None)
 				self.pkt_padding = self.data_size - len(packetData[pid])
 				self.packetQueue.enqueue(packet.build()) #ADD PACKET TO BUFFER
 				# except IndexError:
@@ -289,13 +289,13 @@ class Transmitter():
 				# sleep(self.delayPerTransmit/1000) # handled by wtc?
 
 				# Update the progress list.
-				if pid % self.ppa:
+				if pid % self.ppa == 0:
 					self._updateFileProgress(pid)
 		except StopIteration as e:
 			#StopIteration to stop iterating :) we are done here.
 			print(e)
 		#When it's done it needs to send a DONE packet
-		temp = [self.checksum,bytes([self.expected_packets]),self.pathname.encode('ascii')[self.pathname.rfind('/')+1:],self.pkt_padding]
+		temp = [self.checksum,bytes([self.expected_packets]),self.pathname.encode('ascii')[self.pathname.rfind('/')+1:],bytes([self.pkt_padding])]
 		data = b' '.join(temp)
 		# if useFEC:
 		# 	data += (36 - len(data)) * b'\x04' if len(data) < 36 else b''
@@ -433,7 +433,6 @@ class Scaffold():
 					f.write(info[:-paddingUsed])
 				else:
 					f.write(info)
-			print(generateChecksum(open(TEMPPATH+filename+'.scaffold','rb').read()))
 			checksumMatch = checksum == generateChecksum(open(TEMPPATH+filename+'.scaffold','rb').read())
 			try:
 				os.rename('{}{}.scaffold'.format(TEMPPATH,filename),ROOTPATH + filename.replace('@','/'))
@@ -452,11 +451,10 @@ class UploadRequest():
 	"""
 	received = []
 	# useFEC = None
-	totalPackets = None
 	filename = None
 
 	@staticmethod
-	def set(pak = None, filename = None):
+	def set(filename = None):
 		"""
 		Make an UploadRequest. If there is already an active request IGNORE all future requests.
 		If there is not a request going on, then set all the required data and touch the scaffold
@@ -480,10 +478,7 @@ class UploadRequest():
 		try:
 			filename = str(filename)
 			from pathlib import Path
-			#Path('{}{}.scaffold'.format(TEMPPATH,filename)).touch()
-			with open('{}{}.scaffold'.format(TEMPPATH,filename),'wb') as fi:
-				for x in range(pak):
-					fi.write(b'\x00'*DataPacket.max_size)
+			Path('{}{}.scaffold'.format(TEMPPATH,filename)).touch()
 		except:
 			#open(filename.decode('ascii') + '.scaffold','wb').close() #Fallback method to make sure it works
 			pass
@@ -491,7 +486,6 @@ class UploadRequest():
 		if not filename in UploadRequest.received:
 			UploadRequest.received.append(filename)
 		# UploadRequest.useFEC = fec
-		UploadRequest.totalPackets = pak
 		UploadRequest.filename = filename
 
 	@staticmethod

@@ -22,15 +22,14 @@ except:
 			pass
 	qpaceLogger = Logger()
 
-try:
-	import qpaceExperiment as exp
-	import qpaceInterpreter as qpi
-	import qpaceScheduler as schedule
-	# import tstSC16IS750 as SC16IS750
-	import SC16IS750
-	import qpaceControl as states
-except Exception as e:
-	raise SystemExit('There was a problem importing critical modules on line 25 of qpaceMain.py:',e)
+
+import qpaceExperiment as exp
+import qpaceInterpreter as qpi
+import qpaceScheduler as schedule
+#import tstSC16IS750 as SC16IS750
+import SC16IS750
+import qpaceControl as states
+
 
 try:
 	import pigpio
@@ -43,10 +42,6 @@ MISCPATH = '/home/pi/data/misc/'
 TEXTPATH = '/home/pi/data/text/'
 TEMPPATH = '/home/pi/temp/'
 ROOTPATH = '/home/pi/'
-# MISCPATH = '/mnt/c/users/jonat/desktop/cmr/pi/data/misc/'
-# TEXTPATH = '/mnt/c/users/jonat/desktop/cmr/pi/data/text/'
-# ROOTPATH= '/mnt/c/users/jonat/desktop/cmr/pi/'
-# TEMPPATH = '/mnt/c/users/jonat/desktop/cmr/pi/temp/'
 ALLOW_SHUTDOWN = False
 REBOOT_ON_EXIT = False
 CONN_ATTEMPT_MAX = 3 # 5 attempts to connect to WTC via SC16IS750
@@ -67,7 +62,6 @@ def initWTCConnection():
 	"""
 
 	I2C_BUS = 1 # I2C bus identifier
-	CCDR_IRQ = 16 #BCM 16, board 36
 	# QPACE IS 0X48
 	I2C_ADDR_WTC = 0x48#0x4c # I2C addresses for WTC comm chips
 	# QPACE IS 115200
@@ -79,23 +73,27 @@ def initWTCConnection():
 	PARITY_BITS = SC16IS750.LCR_PARITY_NONE
 
 	# init the chip
-	chip = SC16IS750.SC16IS750(gpio,I2C_BUS,I2C_ADDR_WTC, XTAL_FREQ, I2C_BAUD_WTC, DATA_BITS, STOP_BITS, PARITY_BITS)
-	chip.packetBuffer = []
+	try:
+		chip = SC16IS750.SC16IS750(gpio,I2C_BUS,I2C_ADDR_WTC, XTAL_FREQ, I2C_BAUD_WTC, DATA_BITS, STOP_BITS, PARITY_BITS)
+	except Exception as e:
+		raise SystemExit('Failed to create a connection to the SC16IS740: {}'.format(str(e)))
+	else:
+		chip.packetBuffer = []
 
-	# Reset TX and RX FIFOs
-	fcr = SC16IS750.FCR_TX_FIFO_RESET | SC16IS750.FCR_RX_FIFO_RESET
-	chip.byte_write(SC16IS750.REG_FCR, fcr)
-	time.sleep(2.0/XTAL_FREQ)
+		# Reset TX and RX FIFOs
+		fcr = SC16IS750.FCR_TX_FIFO_RESET | SC16IS750.FCR_RX_FIFO_RESET
+		chip.byte_write(SC16IS750.REG_FCR, fcr)
+		time.sleep(2.0/XTAL_FREQ)
 
-	# Enable FIFOs and set RX FIFO trigger level
-	fcr = SC16IS750.FCR_FIFO_ENABLE | SC16IS750.FCR_RX_TRIGGER_56_BYTES
-	chip.byte_write(SC16IS750.REG_FCR, fcr)
+		# Enable FIFOs and set RX FIFO trigger level
+		fcr = SC16IS750.FCR_FIFO_ENABLE | SC16IS750.FCR_RX_TRIGGER_56_BYTES
+		chip.byte_write(SC16IS750.REG_FCR, fcr)
 
-	# Enable RX error and RX ready interrupts
-	ier = SC16IS750.IER_RX_ERROR | SC16IS750.IER_RX_READY
-	chip.byte_write_verify(SC16IS750.REG_IER, ier)
+		# Enable RX error and RX ready interrupts
+		ier = SC16IS750.IER_RX_ERROR | SC16IS750.IER_RX_READY
+		chip.byte_write_verify(SC16IS750.REG_IER, ier)
 
-	return chip
+		return chip
 
 class Queue():
 	"""
@@ -139,8 +137,10 @@ class Queue():
 		self.suppress = suppressLog
 		self.response = None
 		self.logger=logger
-		if self.logger and not self.suppress:
+		if self.logger:
 			self.logger.logSystem('{}: Initializing...'.format(name))
+		else:
+			self.suppress = True
 
 	def __len__(self):
 		"""
@@ -253,9 +253,9 @@ class Queue():
 
 
 	def stackPop(self, n):
-		response = self.internalQueue[-popN:]
-		NextQueue.internalQueue = NextQueue.internalQueue[:-popN]
-		return response
+		retVal = self.internalQueue[-n:]
+		NextQueue.internalQueue = NextQueue.internalQueue[:-n]
+		return retVal
 
 	def getCount(self):
 		return self.enqueueCount
@@ -347,8 +347,6 @@ def graveyardHandler(runEvent,shutdownEvent,logger):
 	GRAVEYARD_MINUTES = .2 # Minutes
 	GRAVEYARD_PATH = '../graveyard/' # Make sure to include the ending slash.
 	GRAVEYARD_LEDGER = '../data/misc/grave.ledger'
-
-	previous_graveyard_size = 0
 
 	logger.logSystem('GraveKeeper: Starting...')
 	try:
@@ -470,7 +468,6 @@ def healthCheck(logger):
 		logger.logSystem('HealthCheck: Fatal. Can not find {}.'.format(criticalNotFound))
 		return False
 	return True
-
 
 def run(logger):
 	"""

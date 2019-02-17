@@ -29,10 +29,6 @@ MISCPATH = '/home/pi/data/misc/'
 TEXTPATH = '/home/pi/data/text/'
 TEMPPATH = '/home/pi/temp/'
 ROOTPATH = '/home/pi/'
-# MISCPATH = '/mnt/c/users/jonat/desktop/cmr/pi/data/misc/'
-# TEXTPATH = '/mnt/c/users/jonat/desktop/cmr/pi/data/text/'
-# ROOTPATH= '/mnt/c/users/jonat/desktop/cmr/pi/'
-# TEMPPATH = '/mnt/c/users/jonat/desktop/cmr/pi/temp/'
 
 def generateChecksum(data):
 	"""
@@ -67,14 +63,14 @@ class Command():
 	_nextQueue = None
 	_tagChecker = None
 
-	def __init__(self,packetQueue=None,nextQueue=None,experimentEvent=None,shutdownEvent = None,disableCallback=None):
+	def __init__(self,packetQueue=None,nextQueue=None,experimentEvent=None,shutdownEvent = None,disableCallback=None,tagChecker=None):
 		Command._packetQueue = packetQueue
 		Command._nextQueue = nextQueue
+		Command._tagChecker = tagChecker
 		self.experimentEvent = experimentEvent
 		self.shutdownEvent = shutdownEvent
 		self.shutdownAllowed = None
 		self.disableCallback = disableCallback
-
 	# Getters and Setters for self.packetQueue
 	@property
 	def packetQueue(self):
@@ -215,17 +211,18 @@ class Command():
 			------
 			Any exception gets popped up the stack.
 			"""
-			tag = Command.tagChecker.getTag()
-			if PrivilegedPacket.tryEncryption:
-				PrivilegedPacket.getEncryptionKeys()
+			print(self)
+			tag = Command._tagChecker.getTag()
+			if self.tryEncryption:
+				self.getEncryptionKeys()
 
 			if cipherText:
-				data = PrivilegedPacket.returnRandom(4) + cipherText + PrivilegedPacket.returnRandom(6) + b'\x00'*12
+				data = self.returnRandom(4) + cipherText + self.returnRandom(6) + b'\x00'*12
 			elif plainText:
-				data = PrivilegedPacket.returnRandom(4) + PrivilegedPacket.encodeXTEA(plainText + tag) + PrivilegedPacket.returnRandom(6) + b'\x00'*12
+				data = self.returnRandom(4) + self.encodeXTEA(plainText + tag) + self.returnRandom(6) + b'\x00'*12
 			else:
-				data = PrivilegedPacket.returnRandom(4) + CMDPacket.padding_byte * PrivilegedPacket.encoded_data_length + PrivilegedPacket.returnRandom(6) + b'\x00'*12
-			CMDPacket.__init__(self,opcode=opcode,data=data)
+				data = self.returnRandom(4) + Command.CMDPacket.padding_byte * self.encoded_data_length + self.returnRandom(6) + b'\x00'*12
+			Command.CMDPacket.__init__(self,opcode=opcode,data=data)
 
 		@staticmethod
 		def encodeXTEA(plainText):
@@ -235,7 +232,7 @@ class Command():
 			try:
 				if not PrivilegedPacket.enc_key or not PrivilegedPacket.enc_iv:
 					raise RuntimeError('No encryption key or IV')
-				cipherText = xtea.new(PrivilegedPacket.enc_key,mode=xtea.MODE_OFB,IV=PrivilegedPacket.enc_iv).encrypt(plaintext)
+				cipherText = xtea3.new(PrivilegedPacket.enc_key,mode=xtea3.MODE_OFB,IV=PrivilegedPacket.enc_iv).encrypt(plaintext)
 			except:
 				cipherText = plainText
 
@@ -273,11 +270,12 @@ class Command():
 			try:
 				# This file will be found in the root directory.
 				with open(SECRETS,'rb') as fi:
-					PrivilegedPacket.enc_key = fi.readline()
-					PrivilegedPacket.enc_iv = fi.readline()
+					PrivilegedPacket.enc_key = fi.readline().rstrip()
+					PrivilegedPacket.enc_iv = fi.readline().rstrip()
 			except Exception as e:
 				# If we can't even attempt to decode XTEA packets, then there's no reason to run QPACE though...
-				logger.logError('Interpreter: Unable to import keys. XTEA Encoding is disabled.',e)
+				pass
+				print(e)
 
 	def status(self,logger,args, silent=False):
 		"""
@@ -482,7 +480,7 @@ class Command():
 		ppa = int.from_bytes(args[1:5],byteorder='big')
 		start = int.from_bytes(args[5:9], byteorder='big')
 		end = int.from_bytes(args[9:13], byteorder='big')
-		filename = args[13:].replace(CMDPacket.padding_byte,b'')
+		filename = args[13:].replace(Command.CMDPacket.padding_byte,b'')
 		# print('FEC:',fec)
 		print('STR:',start)
 		print('END:',end)
@@ -574,13 +572,13 @@ class Command():
 		logger.logSystem('immediateShutdown: A shutdown packet was received. shutdownAllowed is {}set.'.format('' if self.shutdownAllowed else 'not '))
 		if self.shutdownAllowed:
 			if (datetime.datetime.now() - self.shutdownAllowed) > datetime.timedelta(seconds = 120): # If we tried after two minutes:
-				self.shutdownAllowed = None
+				self.shutdownAllowed = datetime.datetime.now() # Reset it to now and don't do anything.
 			else: # If we tried and it's withing 2 minutes
 				logger.logSystem('immediateShutdown: Shutting down...')
 				os.system('sleep 5 && sudo halt &') # fork a process that sleeps for 5 seconds, then does a sudo halt.
 				self.shutdownEvent.set() # Close the interpreter and clean up the buffers before reboot happens.
 		else:
-			self.shutdownAllowed = datetime.datetime.now()
+			self.shutdownAllowed = datetime.datetime.now() # Set the time to now so we can check it on the next packet.
 
 	# Not a command to be envoked by the Interpreter
 	def saveStatus(self,logger,timestamp = strftime("%Y%m%d-%H%M%S",gmtime())):

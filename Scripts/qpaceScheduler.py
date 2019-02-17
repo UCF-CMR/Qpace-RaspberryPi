@@ -24,8 +24,6 @@ Schedule_FILE = "todo.txt"
 Schedule_TEMP = "Schedule.tmp"
 GRAVEYARD_PATH = '/home/pi/graveyard/'
 ABORT_DELTA = 450 # SECONDS
-# Schedule_PATH = '/mnt/c/users/jonat/desktop/cmr/pi/data/text/'
-# GRAVEYARD_PATH = '/mnt/c/users/jonat/desktop/cmr/pi/graveyard/'
 Schedule_FILE_PATH = Schedule_PATH + Schedule_FILE
 
 WTC_IRQ = 7
