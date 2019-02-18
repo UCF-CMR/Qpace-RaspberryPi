@@ -318,16 +318,16 @@ class Transmitter():
 		try:
 			self.filesize = os.path.getsize("{}{}".format(ROOTPATH,pathname))
 		except Exception as e:
-			noDownloadMessage = b'There was an issue with the file: {}'.format(e)
-			noDownloadPacket = DataPacket(noDownloadMessage, pid, self.route).build()
+			noDownloadMessage = 'There was an issue with the file: {}'.format(e)
+			noDownloadPacket = DataPacket(noDownloadMessage.encode('ascii'), 0, self.route).build()
 			self.packetQueue.enqueue(noDownloadPacket)
 			DataPacket.last_id = 0
 			return
 
 
 		if self.filesize > MAX_FILE_SIZE:
-			noDownloadMessage = b'You cannot download this file. It is too big. Break it up first.'
-			noDownloadPacket = DataPacket(noDownloadMessage, pid, self.route).build()
+			noDownloadMessage = 'You cannot download this file. It is too big. Break it up first.'
+			noDownloadPacket = DataPacket(noDownloadMessage.encode('ascii'), 0, self.route).build()
 			self.packetQueue.enqueue(noDownloadPacket)
 			DataPacket.last_id = 0
 			return

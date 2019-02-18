@@ -539,15 +539,15 @@ class Action():
 				GPIO.setup(PIN.STPENB, GPIO.OUT, initial=0)				#Step B Enable
 
 
-			elif pingroup == PINGROUP.gopro:
-				#GOPRO IS DEPRECIATED
-				self.logger.logSystem('GO PRO METHODS ARE DEPRECIATED')
-				#GoPro pin setup
-				#GPIO.setup(PIN.GOPPWR, GPIO.OUT, initial=0)				#Power
-				GPIO.setup(PIN.GOPBUT, GPIO.OUT, initial=1)				#On Button
-				GPIO.setup(PIN.GOPCAP, GPIO.OUT, initial=1)				#Capture Button
-				GPIO.setup(PIN.GOPDEN, GPIO.OUT, initial=0)
-				#gopro_off(True) # Flip the data enable to ensure that the gopro is off.
+			# elif pingroup == PINGROUP.gopro:
+			# 	#GOPRO IS DEPRECIATED
+			# 	self.logger.logSystem('GO PRO METHODS ARE DEPRECIATED')
+			# 	#GoPro pin setup
+			# 	#GPIO.setup(PIN.GOPPWR, GPIO.OUT, initial=0)				#Power
+			# 	GPIO.setup(PIN.GOPBUT, GPIO.OUT, initial=1)				#On Button
+			# 	GPIO.setup(PIN.GOPCAP, GPIO.OUT, initial=1)				#Capture Button
+			# 	GPIO.setup(PIN.GOPDEN, GPIO.OUT, initial=0)
+			# 	#gopro_off(True) # Flip the data enable to ensure that the gopro is off.
 
 
 	def gopro_on(self):

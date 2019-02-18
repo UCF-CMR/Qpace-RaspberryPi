@@ -285,8 +285,8 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent,disa
 					"contents":	   packetData[6:124],
 					'command':	   None
 				}
-		except Excecption as e:
-			print(e)
+		except Exception as e:
+			logger.logError('Interpreter: Could not format a packet.',e)
 		else:
 			return packet #based on packet definition document
 
@@ -356,6 +356,9 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent,disa
 			else:
 				packetString = bytes([fieldData['route']]) + fieldData['opcode'] + fieldData['contents']
 				isValid = fieldData['route'] in validRoutes and fieldData['checksum'] == generateChecksum(packetString)
+
+			if fieldData['TYPE'] == 'DATA':
+				pass
 			elif fieldData['TYPE'] == 'NORM':
 				validTag =  checker.isValidTag(fieldData['tag'])
 				if isValid and not validTag:
@@ -519,12 +522,13 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent,disa
 
 							if not nextQueue.isEmpty():
 								# If SENDPACKET was queued, but a BUFFERFUL came in as a response, then dont dequeue the SENDPACKET
-								if (next == 'SENDPACKET' or next == qpStates['SENDPACKET']) and response == qpStates['BUFFERFULL']:
+								if (next == 'SENDPACKET' or next == qpStates['SENDPACKET']) and response != qpStates['BUFFERFULL']:
 									nextQueue.dequeue() # After "waiting" for the bytes, dequeue the items.
 
 						# If we cancel the callback earlier, re-initialize it here.
 						disableCallback.clear()
-						wtc_respond('DONE') # Always respond with done for an "ACCEPTED or PENDING"
+						if next != 'SENDPACKET' and next != qpStates['SENDPACKET']:
+							wtc_respond('DONE') # Always respond with done for an "ACCEPTED or PENDING"
 				elif byte == qpStates['NEXTPACKET']:
 					sendPacketToWTC()
 				elif byte == qpStates['BUFFERFULL']:

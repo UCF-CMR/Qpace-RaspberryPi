@@ -588,6 +588,7 @@ def run(logger):
 					# Check the interpreter, restart if necessary. The Interpreter should always be running and never shutdown early.
 					if not interpreter.isAlive() and interpreterAttempts < THREAD_ATTEMPT_MAX:
 						logger.logSystem("Main: Interpreter is shutdown when it should not be. Attempt {} at restart.".format(interpreterAttempts + 1))
+						disableCallback.clear()
 						interpreter = threading.Thread(target=qpi.run,args=(chip,nextQueue,packetQueue,experimentRunningEvent,runEvent,shutdownEvent,disableCallback,logger))
 						interpreter.start()
 						interpreterAttempts += 1
