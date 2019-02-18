@@ -16,7 +16,11 @@ def run(filename, isRunningEvent, runEvent,logger,nextQueue,disableCallback):
 	Parameters
 	----------
 	filename - string - The name of the experiment file to be parsed.
-	isRunningEvent - threading.event - If an experiment is running, isRunningEvent should be .set()
+	isRunningEvent - threading.Event() - If an experiment is running, isRunningEvent should be .set()
+	runEvent - threading.Event() - pause if runEvent is .clear()
+	logger - qpaceLogger.Logger() -  used for writing log messages
+	nextQueue - qpaceMain.Queue() -  the nextQueue to enqueue control characters for the solenoids and steppers
+	disableCallback - threading.Event() - If we want to disable the callback, this should be .set()
 
 	Returns
 	-------

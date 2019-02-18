@@ -15,6 +15,7 @@ import json # Used for the graveyard
 try:
 	import qpaceLogger
 except:
+	print('Failed to import Logger. Everything will be silent.')
 	class Logger():
 		def __init__(self):
 			pass
@@ -132,7 +133,6 @@ class Queue():
 		"""
 		self.internalQueue = []
 		self.enqueueCount = 0
-		self.cv = threading.Condition()
 		self.name = name
 		self.suppress = suppressLog
 		self.response = None
@@ -180,8 +180,6 @@ class Queue():
 		Raises:
 			all exceptions are raised up the stack
 		"""
-		if self.isEmpty():
-			self.cv.acquire() # If we are putting something in for the first time, set up the Lock
 
 		if not self.suppress:
 			if not isinstance(item,int) and len(item) > 32:# If we are logging something quite long, don't include it in the log
@@ -243,54 +241,51 @@ class Queue():
 					logMessage = "'{}'".format(item)
 				self.logger.logSystem("{}: Removed item from queue: {}".format(self.name,logMessage))
 
-
-			if self.isEmpty():
-				try:
-					self.cv.release() # If there is nothing in the queue, release the lock.
-				except RuntimeError:
-					pass # If it's already released for some reason, ignore it.
 			return item
 
 
 	def stackPop(self, n):
+		"""
+		Pops items off like a stack. Pops off the last n items.
+
+		Parameters: n - number of items to pop
+
+		Returns: those popped items
+
+		Raises: None
+
+		"""
 		retVal = self.internalQueue[-n:]
 		NextQueue.internalQueue = NextQueue.internalQueue[:-n]
 		return retVal
 
 	def getCount(self):
+		"""
+		Gets how many items have been enqueued total.
+
+		Parameters: None
+
+		Returns: how many items have been enqueued
+
+		Raises: None
+
+		"""
 		return self.enqueueCount
-
-
-	def waitUntilEmpty(self,popN=1,timeout=WAIT_TIME):
-		"""
-		This method waits until the queue is empty, and returns the result values of the queue.
-		Before returning, this method will pop the queue one time unless specified and return
-		Those values. Those values will be removed from the responseQueue.
-
-		WARNING: Be careful where this is placed. Depending on the thread it is placed in, an
-				 infinite wait is possible. The queue must be able to be dequeued for this wait to
-				 exit properly. To counter this, a timeout is set.
-		"""
-		self.logger.logSystem("{}: Entered a wait. pop={}, timeout={}".format(self.name,popN,str(timeout)))
-		try:
-			# Wait until the queue is empty.
-			while not self.isEmpty():
-				if not self.cv.wait(timeout):
-					self.logger.logSystem('{}: Wait timed out. Exiting wait.'.format(self.name))
-					# After the wait time, let's just continue going. Something held up.
-					return None
-			# pop the number of responses we want off the back and then return them.
-			self.logger.logSystem('{}: Wait completed.'.format(self.name))
-			return None
-		except RuntimeError as e:
-			self.logger.logError("{}: Lock was not aquired for wait".format(self.name),e)
-			return None # The lock was not aquired for some reason.
 
 	def blockWithResponse(self,response,timeout=WAIT_TIME):
 		"""
 		This method will block until the response is read by another thread.
 		Adds response to self.response; until self.response is null, this will block for a certain time
 		until a timeout.
+
+		Parameters:
+		response - add a response and wait until it is read.
+		timeout - time in seconds to wait before timing out and continuing anyway.
+
+		Returns: None
+
+		Raises: None
+
 		"""
 		if type(response) is int:
 			response = hex(response)
@@ -317,6 +312,13 @@ class Queue():
 		This method will block until the response is available.
 		reads response from self.response; until self.response is not null, this will block for a certain time
 		until a timeout.
+
+		Parameters:
+		timeout - time in seconds to wait until a response is read.
+		Returns: the response
+
+		Raises:None
+
 		"""
 		self.logger.logSystem("{}: Someone is waiting for the response to be read. (Timeout={})".format(self.name,timeout))
 		try:
@@ -339,11 +341,35 @@ class Queue():
 			self.logger.logError("{}: Was not able to wait for response to be read.".format(self.name))
 
 	def clearResponse(self):
+		"""
+		Sets response to None
+
+		Parameters: None
+
+		Returns: None
+
+		Raises: None
+
+		"""
 		self.response = None
 
 def graveyardHandler(runEvent,shutdownEvent,logger):
+	"""
+	See Pi Documentation for more information. Monitors a directory and deletes files out of it
+	if those files have been there for longer than GRAVEYARD_DAYS and GRAVEYARD_MINUTES
+
+	Parameters:
+	runEvent - threadding.Event() - if runEvent is .clear() then pause the thread
+	shutdownEvent - threading.Event() - if shutdownEvent is .set() then abort the thread and attempt to shutdown
+	logger - qpaceLogger.Logger() - used to write data to the log.
+
+	Returns:None
+
+	Raises: None
+
+	"""
 	GRAVEYARD_SLEEP = 1800 # Seconds    Every 30 minutes
-	GRAVEYARD_DAYS = 0#30 # Days
+	GRAVEYARD_DAYS = 14#30 # Days
 	GRAVEYARD_MINUTES = .2 # Minutes
 	GRAVEYARD_PATH = '../graveyard/' # Make sure to include the ending slash.
 	GRAVEYARD_LEDGER = '../data/misc/grave.ledger'
@@ -433,6 +459,18 @@ def graveyardHandler(runEvent,shutdownEvent,logger):
 		logger.logSystem('GraveKeeper: Shutting down...')
 
 def healthCheck(logger):
+	"""
+	Check all the directories that the pi expects to exist. If one does not, then create it.
+	Abort QPACE if any one of the criticalFiles is not found in the file system where
+	we expect them to be.
+
+	Parameters: logger - the qpaceLogger.Logger() object that handles logging files.
+
+	Returns: True if successful, False if failed
+
+	Raises: None
+
+	"""
 	#logger.logSystem('HealthCheck: Beginning health check to ensure all directories and files exist.')
 	# Important scripts. If one of them are missing, then abort.
 	criticalFiles = ('qpaceExperiment.py','qpaceExperimentParser.py','qpaceTagChecker.py','qpaceFileHandler.py','qpaceInterpreter.py','qpaceLogger.py','qpaceMain.py',
@@ -475,7 +513,7 @@ def run(logger):
 
 	Parameters
 	----------
-	None
+	logger - qpaceLogger.Logger() - to log data
 
 	Returns
 	-------

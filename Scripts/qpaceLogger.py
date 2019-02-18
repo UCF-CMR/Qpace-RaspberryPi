@@ -13,6 +13,7 @@ import datetime
 from time import strftime,gmtime,time
 
 class Errors():
+    """ Helper class that counts how many errors are logged"""
     error_count = 0
 
     @staticmethod
@@ -28,7 +29,7 @@ class Errors():
         Errors.error_count = n
 
 class Logger():
-
+    """ Handles logging information to file and outputting to terminal during debug sessions"""
     # Defined Paths.
     LOG_PATH = "/home/pi/logs/"
     # Default error if systemLog() doesn't work properly.
@@ -39,6 +40,17 @@ class Logger():
     DEBUG = True
 
     def __init__(self):
+        """
+        Constructor for the Logger. Opens up a log called unknownBootTime_# where # is the
+        next number in the serialization of logs in the log directory.
+
+        Parameters: None
+
+        Returns: None
+
+        Raises: None
+
+        """
         self._boot = False
         # Create the filename. Count up from that number. The highest number is the latest log.
         # take everything after 15 characters. Log names are in the format YYYYmmdd-HHMMSS_C.log where C is the counter.
@@ -55,9 +67,30 @@ class Logger():
         self.filename = 'unknownBootTime' # Must be 15 characters for the serialization.
 
     def bootWasSet(self):
+        """
+        Check the _boot flag
+
+        Parameters: None
+
+        Returns: self._boot
+
+        Raises: None
+
+        """
         return self._boot
 
     def setBoot(self,newTimestamp=None):
+        """
+        Sets the _boot flag to True. Also renames the current log to the current timestamp.
+
+        Parameters:
+        newTimestamp - optional - if given it will rename the current log to the newTimestamp.
+
+        Returns: None
+
+        Raises: None
+
+        """
         self._boot = True
         #newTimestamp is an integer that represents the 4 byte timestamp
         if newTimestamp:
@@ -67,6 +100,16 @@ class Logger():
                 self.filename = newTimestamp
             except:pass
     def clearBoot(self):
+        """
+        Sets the _boot flag to false
+
+        Parameters: None
+
+        Returns: None
+
+        Raises: None
+
+        """
         self._boot = False
 
     def logData(self,type,*strings):

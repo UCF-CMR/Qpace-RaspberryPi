@@ -30,22 +30,14 @@ WTC_IRQ = 7
 
 def getScheduleList(logger):
 	"""
-		This function will gather the data from the Schedule list and parse it into a 2D array for manipulation and processing.
+	Get the schedule from the file we placed it in.
 
-		Parameters
-		----------
-		None!
+	Parameters: logger - just the Logger() to log data
 
-		Returns
-		-------
-		a List of Lists where the outer list is the "Schedule" task list and the inner lists are the individual commands. Each
-		index of the inner lists are the individual arguments passed to the command.
+	Returns: the list of items to schedule.
 
-		Note: if it cannot open the file for any reason the return will be empty.
+	Raises: None
 
-		Raises
-		------
-		None!
 	"""
 	schedule_list = []
 	try:
@@ -65,42 +57,18 @@ def getScheduleList(logger):
 
 def sortScheduleList(schedule_list,logger):
 	"""
-		This function will gather the data from the Schedule list and parse it into a 2D array for manipulation and processing.
+	Take the items in the list and sort them. If one fails to be converted to a sortable type, then remove it.
 
-		Parameters
-		----------
-		List - The unsorted Schedule list receceived from getScheduleList().
+	Parameters:
+	schedule_list - the list of items to be scheduled
+	logger - the logger object to log data
 
-		Returns
-		-------
-		List - The sorted Schedule list. Sorted by time to executed. If schedule_list is input as empty, the function will return empty.
+	Returns: the sorted schedule_list
 
-		Raises
-		------
-		None!
+	Raises: None
+
 	"""
 	if schedule_list:
-		# i = 0
-		# #This loop pushes all the queue/now/or wait commands to the front of the list
-		# #Schedule deterime if we even want the queue/now/wait functionality
-		# while i < len(schedule_list):
-		# 	offset = 0 # Start the offset at 0 because when wemove things the cmd was deleted so the position is really i-1
-		# 	pattern_qnw = re.compile("QUEUE|NOW|WAIT:\d+")
-		# 	pattern_nw = re.compile("QUEUE|WAIT:\d+")
-		# 	# if the time argument is QUEUE,NOW, or WAIT
-		# 	if pattern_qnw.match(schedule_list[i][0]):
-		# 		# if the time argument is NOW
-		# 		if schedule_list[i][0] == "NOW":
-		# 			# Move that NOW command to the front of the list to do it ASAP
-		# 			schedule_list.insert(0,schedule_list[i])
-		# 			del schedule_list[i]
-		# 			# Grab anything after the current NOW that is a QUEUE or WAIT and move it ahead of everyone
-		# 				# else but in the proper order following behind the current NOW.
-		# 			while(pattern_nw.match(schedule_list[i+offset][0])):
-		# 				schedule_list.insert(offset,schedule_list[i+offset])
-		# 				del schedule_list[i+offset]
-		# 				offset += 1
-		# 	i += offset+1
 		i = 0
 		while i < len(schedule_list):
 			try:
@@ -126,8 +94,13 @@ def _processTask(chip,task,shutdownEvent,experimentEvent,runEvent,nextQueue,disa
 			   task[0] is when the command should execute.
 			   task[1] is the name of the command.
 			   task[2:] is args for that command.
+		shutdownEvent - threading.Event - if set() then abort and shutdown gracefully
 		experimentEvent - threading.Event - if set() then there is an experiment going on.
 											if clear() there is no experiment running.
+		runEvent - threading.Event - if clear() then pause the threadd
+		nextQueue - queue to put control characters for the WTC
+		disableCallback - threading.Event - if set() disable the callback in the interpreter. If clear() start it
+		logger - the logging object for logging data
 
 		Returns
 		-------
@@ -137,10 +110,6 @@ def _processTask(chip,task,shutdownEvent,experimentEvent,runEvent,nextQueue,disa
 		Raises
 		------
 		Nothing!
-
-		Revisions
-		---------
-		Rev. 1.1 - 4/10/2018 Minh Pham (Added code execution to tasks.)
 	"""
 	logger.logSystem("Scheduler: Beginning execution of a task. {}".format(str(task[1:])))
 	currentTask = task[1].upper()
@@ -222,10 +191,14 @@ def executeScheduleList(chip,nextQueue,schedule_list, shutdownEvent, experimentE
 		Parameters
 		----------
 		chip - an SC16IS750 object.
+		nextQueue - queue to put control characters for the WTC
 		schedule_list - List - Sorted schedule_list. (Sorted by the timestamp to execute.)
 		shutdownEvent - threading.Event - if set() then we need to back out and shutdown.
 		experimentEvent - threading.Event - pass through an event object to determine whether or not an experiment
 										 is running.
+		runEvent - threading.Event - if clear() then pause the threadd
+		disableCallback - threading.Event - if set() disable the callback in the interpreter. If clear() start it
+		logger - the logging object for logging data
 
 		Returns
 		-------
@@ -237,7 +210,6 @@ def executeScheduleList(chip,nextQueue,schedule_list, shutdownEvent, experimentE
 		------
 		None!
 	"""
-	#signal.signal(STOP_SIGNAL, stop_handler)
 	completedTask = True
 	timeDelta = ABORT_DELTA
 
@@ -327,11 +299,15 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent,pars
 
 	Paramters
 	---------
-	chip - an SC16IS750 object
-	experimentEvent - threading.Event - pass through an event object to determine whether or not an experiment
-									 is running.
-	runEvent - threading.Event - acts as a wait-until-set object. If not set(), wait until set().
-	shutdownEvent - threading.Event - used to flag that we need to shutdown the Pi.
+		chip - an SC16IS750 object.
+		nextQueue - queue to put control characters for the WTC
+		experimentEvent - threading.Event - pass through an event object to determine whether or not an experiment
+		is running.
+		runEvent - threading.Event - if clear() then pause the threadd
+		shutdownEvent - threading.Event - if set() then we need to back out and shutdown.
+		parserEmpty - threading.Event - if set() then the schedule is empty. This lets main know that it's okay to exit.
+		disableCallback - threading.Event - if set() disable the callback in the interpreter. If clear() start it
+		logger - the logging object for logging data
 
 	Raises
 	-------

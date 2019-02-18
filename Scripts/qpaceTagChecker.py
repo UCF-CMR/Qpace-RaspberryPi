@@ -23,7 +23,16 @@ class TagChecker:
 
 	##METHODS
 	def __init__(self):
-		"""Starting out with no tags in use"""
+		"""
+		Constructor for TagChecker()
+
+		Parameters: None
+
+		Returns: None
+
+		Raises: None
+
+		"""
 		##PROPERTIES
 		self.tags = [] #File tag values will be placed here
 		self.used = [] #Keeps track of which tags have been used
@@ -32,8 +41,21 @@ class TagChecker:
 		random.seed()
 
 	def initTags(self, filename = DEFAULT_FILEPATH):
-		"""Reads tags from a file, as indicated by filename, for use in this class.
-		Throws an error if the filename does not have a sufficient number of tags"""
+		"""
+		Reads tags from a file, as indicated by filename, for use in this class.
+		Throws an error if the filename does not have a sufficient number of tags
+
+		Parameters:
+		filename - optional - implemented for configurable tag location.
+
+		Returns: None
+
+		Raises:
+		ValueError - if LOCK_CALLS is >= MINIMUM_TAGS
+		FileNotFoundError - if the file of tags cannot be found.
+		RuntimeError - if the file does not have the minimum amount of tags.
+
+		"""
 		tf = ""
 		if TagChecker.LOCK_CALLS >= TagChecker.MINIMUM_TAGS:
 			raise ValueError('LOCK_CALLS cannot be greater than MINIMUM_TAGS.')
@@ -49,14 +71,34 @@ class TagChecker:
 			raise RuntimeError('File did not have at least ' + str(TagChecker.MINIMUM_TAGS) + ' tags: '  + filename)
 
 	def getTag(self):
-		"""Gets a tag from the hardcoded list which has not been utilized recently"""
+		"""
+		Gets a valid tag randomly from the list of valid tags.
+
+		Parameters: None
+
+		Returns: 2-byte valid tag
+
+		Raises: None
+
+		"""
+
 		options = self._validTags()
 		selected = random.choice(options)
 		self._pushUsed(selected)
 		return selected
 
 	def isValidTag(self, toCheck):
-		"""Checks to see if a tag is formatted correctly, and if it is, marks it as used."""
+		"""
+		Checks if a tag is valid
+
+		Parameters:
+		toCheck - the 2-byte tag to check.
+
+		Returns: True if valid, false otherwise
+
+		Raises: None
+
+		"""
 		options = self._validTags()
 		if toCheck in options:
 			self._pushUsed(toCheck)
@@ -64,7 +106,16 @@ class TagChecker:
 		return False
 
 	def _validTags(self):
-		"""Returns a list of all of the valid (Currenetly unused) tags"""
+		"""
+		Put togehter a list of all valid tags
+
+		Parameters: None
+
+		Returns: a list of valid tags
+
+		Raises: None
+
+		"""
 		options = []
 		if self.tags:
 			for t in self.tags:
@@ -75,13 +126,32 @@ class TagChecker:
 			return []
 
 	def _isFormattedTag(toCheck):
-		"""Checks to see if a string is 2 characters long"""
+		"""
+		Check if a tag is formatted correctly.
+		May become more complex in the future.
+
+		Parameters:
+		toCheck - the data to check if it's a valid tag
+
+		Returns: True or false depending on if the tag meets all the conditions
+
+		Raises: None
+
+		"""
 		return len(toCheck) == 2
 
 	def _pushUsed(self, newTag):
-		"""Adds a tag to the list of used tags, pushing them off of the end if there are more than LOCK_CALLS tags in recent memory"""
-		#I know this isn't an actual queue but shh
+		"""
+		Push used tags onto the list. If the size of the list becomes greater than LOCK_CALLS
+		then pop off the least recently used tags.
 
+		Parameters: newTag - the tag to push onto the list
+
+		Returns: None
+
+		Raises: None
+
+		"""
 		#Dequeue until of appropriate size
 		while len(self.used) >= TagChecker.LOCK_CALLS:
 			for i in range(len(self.used) - 1):

@@ -61,10 +61,7 @@ COMMANDS = {
 
 class LastCommand():
 	"""
-	Reason for Implementation
-	-------------------------
 	Small handler class to help with figuring out which command was the last command received.
-	Similar to just using a struct in C.
 
 	"""
 	type = "No commands received"
@@ -81,26 +78,23 @@ class LastCommand():
 
 def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent,disableCallback, logger):
 	"""
-	This function is the "main" purpose of this module. Placed into a function so that it can be called in another module.
+	Main method for this module. Handles all data coming from the WTC and interprets what the Pi should do with it.
 
-	Parameters
-	----------
-	chip - an SC16IS750 object
-	experimentEvent - threading.Event - if set an Experiment is running.
-	runEvent - threading.Event - if set, do not wait. Otherwise, this acts like a wait-until-set flag
-								 used to pause execution.
-	shutdownEvent - threading.Event -  if set, begin shutdown procedures.
+	Parameters:
+	chip	- SC16IS750.SC16IS750() -  Used for communications with the WTC
+	nextQueue	- qpaceMain.Queue() - Used to store control characters for the WTC
+	packetQueue	- qpaceMain.Queue() - Used to store packet data to be sent to ground through the WTC
+	experimentEvent	- threading.Event() - Will be .set() if there's an experient running
+	runEvent	- threading.Event() - Will be .clear() if we need to pause the thread for any reason
+	shutdownEvent	- threading.Event() - will be .set() if we need to shutdown the Pi. All threads must respond to this immediately.
+	disableCallback	- threading.Event() - will be .set() if we want to disable the callback. .clear() will resume callback
+	logger	- qpaceLogger.Logger() - logging module object for logging module data
 
-	Returns
-	-------
-	Nothing
+	Returns:None
 
-	Raises
-	------
-	ConnectionError - if the CCDR cannot be connected to for some reason.
-	BufferError - if the FIFO in the WTC cannot be read OR the buffer was empty.
-	InterruptedError - if another InterruptedError was thrown.
-	All other exceptions raised by this function are passed up the stack or ignored and not raised at all.
+	Raises:
+	ConnectionError() - if the chip is None
+
 	"""
 	CCDR_IRQ = 16
 	logger.logSystem("Interpreter: Starting...")
@@ -150,20 +144,14 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent,disa
 
 	def WTCRXBufferHandler(gpio,level,tick):
 		"""
-		Callback method to handle data coming from the SC16IS750. When the interrupt is fired
-		this method gets called and will push data onto the buffer.
+		Callback method run by pigpio to handle data when the interrupt pin is fired. May be disabled and recreated at any time
 
-		Parameters
-		----------
-		gpio, level, tick - required to be passed by the pigpio.callback
+		Parameters: gpio, level, tick - required by pigpio
 
-		Returns
-		-------
-		Void
+		Returns: None
 
-		Raises
-		------
-		Any exception gets popped up the stack.
+		Raises: None
+
 		"""
 		packetData = chip.block_read(SC16IS750.REG_RHR,chip.byte_read(SC16IS750.REG_RXLVL))
 		print("Data came in: ", packetData)
@@ -171,6 +159,19 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent,disa
 
 
 	def callbackHandler(disableCallback,shutdownEvent):
+		"""
+		Gets its own thread. Monitors the disableCallback Event and if it is ever .set(), the callback gets disabled
+		re-enable to callback by .clear()
+
+		Parameters:
+		disableCallback - threading.Event() - If .set() disable callback. If .clear() enable callback
+		shutdownEvent - threading.Event() - If .set() exit immediately and prepare pi for shutdown.
+
+		Returns: None
+
+		Raises:None
+
+		"""
 		if gpio:
 			callBackIsSet=True
 			callback = gpio.callback(CCDR_IRQ, pigpio.FALLING_EDGE, WTCRXBufferHandler)
@@ -196,6 +197,17 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent,disa
 	cb_hndlr.start()
 
 	def decodeXTEA(packetData):
+		"""
+		take in a packet and decode the XTEA on the packet
+		NOTE: if there's not encryption key or iv, then the Pi will default to using no encryption at all.
+
+		Parameters:
+		packetData - dictionary - the dictionary returned by decodePacket should be passed into this method
+		Returns:
+
+		Raises: None
+
+		"""
 		header = packetData[:10]
 		footer = packetData[104:]
 		# Note if there's not key or IV that the packet gets passed through. If this happens and it's not decoded, it won't really do anything. It'll fail validation.
@@ -214,19 +226,15 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent,disa
 
 	def decodePacket(packetData):
 		"""
-		Takes a string of packet data and splits it up into a dictionary of fields.
+		Splits raw packet data into readable, usable fields
 
-		Parameters
-		----------
-		packetData - byte string - full 128 byte packet.
+		Parameters:
+		packetData - a raw bytestring of data
 
-		Returns
-		-------
-		dictionary
+		Returns: the packet dictionary
 
-		Raises
-		------
-		Any exception gets popped up the stack.
+		Raises: None
+
 		"""
 		# Magic numbers defined in Packet Specification Document
 		try:
@@ -284,21 +292,15 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent,disa
 
 	def processIncomingPacketData(chip, fieldData):
 		"""
-		Route data that comes in that is determined to be a packet of data.
-		Valid data packets are packets with a 'NOOP>' or 'NOOP!' opcode.
+		Figure out how to handle packet data if the data is determined to be for a file
 
-		Parameters
-		----------
-		chip - an SC16IS750 Object
-		fieldData - dictionary - dictionary created by calling decodePacket()
+		Parameters:
+		chip -  a chip object for interacting with the SC16IS740
+		fieldData - a dictionary returned by decodePacket
 
-		Returns
-		-------
-		Void
+		Returns: None
 
-		Raises
-		------
-		Any exception gets popped up the stack.
+		Raises: None
 
 		"""
 		if fh.UploadRequest.isActive():
@@ -315,57 +317,36 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent,disa
 			else:
 				logger.logSystem("Interpreter: A packet is interpreted as data, but its opcode isn't correct.")
 
-		#TODO Remove for flight!!!
-		if not fh.UploadRequest.isActive():
-			print('UPLOAD REQUEST NOT ACTIVE')
-
 	def processCommand(chip, fieldData, fromWhom = 'WTC'):
 		"""
-		Split the command from the arguments and then run the command as expected.
+		Figure out what to do with a packet if it's supposed to be a command
 
-		Parameters
-		----------
-		chip - SC16IS750() - an SC16IS750 object to read/write from/to
-		query- bytes - the command string.
-		fromWhom - string - a string to denote who sent the command. If fromWhom is not provided, assume the WTC.
+		Parameters:
+		fieldData - a dictonary returned by decodePacket
+		Returns: None
 
-		Raises
-		------
-		ConnectionError - If a connection to the WTC was not passed to the command
-		BufferError - Could not decode bytes to string for command query.
+		Raises: None
+
 		"""
-
-
-		if not chip:
-			raise ConnectionError("Connection to the CCDR not established.")
 		if fieldData:
-			try:
-				arguments = fieldData['information'] #These are bytes objects
-			except UnicodeError:
-				#TODO Alert ground of problem decoding command!
-				raise BufferError("Could not decode ASCII bytes to string for command query.")
-			else:
-				logger.logSystem("Interpreter: Command Received! <{}>".format(fieldData['command']))
-				LastCommand.set(fieldData['command'].decode('ascii'), str(datetime.datetime.now()), fromWhom)
-				COMMANDS[fieldData['command']](logger,arguments) # Run the command
+			arguments = fieldData['information'] #These are bytes objects
+			logger.logSystem("Interpreter: Command Received! <{}>".format(fieldData['command']))
+			LastCommand.set(fieldData['command'].decode('ascii'), str(datetime.datetime.now()), fromWhom)
+			COMMANDS[fieldData['command']](logger,arguments) # Run the command
 
 	def checkValidity(fieldData):
 		"""
-		Check to see if a packet coming in is valid.
+		Check to see if a packet is valid and not corrupt.
 
-		Parameters
-		----------
-		fieldData - dictionary - must be data that has come from decodePacket()
+		Parameters:
+		fieldData - dictonary returned by decodePacket
 
-		Returns
-		-------
-		isValid - Boolean - True: The packet is valid
-							False: The packet is not valid
-		fieldData - dictionary - Allows the dictionary to be passed through and edited.
+		Returns: tuple of data
+		tuple[0] = True if the packet is good, False if corrupted
+		tuple[1] = the fieldData passed in or modified data
 
-		Raises
-		------
-		Any exception gets popped up the stack.
+		Raises: None
+
 		"""
 		# Figure out the data without the checksum
 		if fieldData:
@@ -390,20 +371,14 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent,disa
 
 	def wtc_respond(response):
 		"""
-		Respond to the WTC with a control character.
+		Send a response to the WTC. if the response is a state, then send that state instead.
 
-		Parameters
-		----------
-		response - string - respond with a specific control character if it exists, otherwise
-							just block_write the data to the WTC
+		Parameters: response - what we want to send to the wtc
 
-		Returns
-		-------
-		Void
+		Returns: None
 
-		Raises
-		------
-		Any exception gets popped up the stack.
+		Raises: None
+
 		"""
 		if response in qpStates:
 			chip.byte_write(SC16IS750.REG_THR,qpStates[response])
@@ -413,6 +388,16 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent,disa
 			chip.write(response)
 
 	def sendPacketToWTC():
+		"""
+		Send a packet from the packetQueue to the WTC. Sends a dummy packet if a packet is not available to send.
+
+		Parameters: None
+
+		Returns: None
+
+		Raises: None
+
+		"""
 		nextPacket = packetQueue.dequeue()
 		if nextPacket:
 			wtc_respond(nextPacket)

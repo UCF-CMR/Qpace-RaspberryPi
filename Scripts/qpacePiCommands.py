@@ -55,9 +55,15 @@ def generateChecksum(data):
 
 class Command():
 	"""
-	Reason for Implementation
-	-------------------------
 	Handler class for all commands. These will be invoked from the Interpreter.
+
+	ALL Commands must have the following parameters OR have optional parameters after these:
+	(logger, args, silent = False)
+
+	logger - the qpaceLogger.Logger() object for logging data
+	args - a bytestring of arguments from the command packet
+	silent - optional - If True, then no response packets are sent. These commands are executed silently.
+
 	"""
 	_packetQueue = None
 	_nextQueue = None
@@ -72,6 +78,7 @@ class Command():
 		self.shutdownAllowed = None
 		self.disableCallback = disableCallback
 	# Getters and Setters for self.packetQueue
+
 	@property
 	def packetQueue(self):
 		return Command._packetQueue
@@ -99,8 +106,6 @@ class Command():
 
 	class CMDPacket():
 		"""
-		Reason for Implementation
-		-------------------------
 		This is a class dedicated to handling packets used in responding to commands from Ground.
 		"""
 
@@ -114,7 +119,7 @@ class Command():
 			Parameters
 			----------
 			opcode - bytes - set the opcode for the packet
-			chip - an SC16IS750 object.
+			data - data to store inside the packet
 
 			Returns
 			-------
@@ -136,7 +141,8 @@ class Command():
 
 		def send(self):
 			"""
-			This method sends the data to the WTC as a block write.
+			This method sends the data to the WTC  by enquing the data into the packetQueue and
+			then queining a SENDPACKET
 
 			Parameters
 			----------
@@ -144,8 +150,7 @@ class Command():
 
 			Returns
 			-------
-			True if successful
-			False if unsuccessful
+			None
 
 			Raises
 			------
@@ -198,10 +203,9 @@ class Command():
 
 			Parameters
 			----------
-			chip - an SC16IS750 object.
-			opcode - bytes - the 5 byte opcode
-			tag - bytes - the 2 byte tag
-			cipherText - if there is cipherText already for the packet it is automatically decoded.
+			opcode -optional- bytes - the 5 byte opcode
+			cipherText - if there is cipherText already then we don't touch it.
+			plainText - encode the plaintext if it is here for sending automaticall.
 
 			Returns
 			-------
@@ -228,6 +232,13 @@ class Command():
 		def encodeXTEA(plainText):
 			"""
 			Encode a plaintext into ciphertext.
+
+			Parameters: plainText - the plaintext to be encoded
+
+			Returns: the cipherText
+
+			Raises: None
+
 			"""
 			try:
 				if not PrivilegedPacket.enc_key or not PrivilegedPacket.enc_iv:
@@ -275,7 +286,6 @@ class Command():
 			except Exception as e:
 				# If we can't even attempt to decode XTEA packets, then there's no reason to run QPACE though...
 				pass
-				print(e)
 
 	def status(self,logger,args, silent=False):
 		"""

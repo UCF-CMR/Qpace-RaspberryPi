@@ -36,6 +36,7 @@ class Camera():
 	 Doing so should achieve the higher frame rates, but exposure time and gains will need to be set to fixed values supplied by the user."
 	"""
 
+
 	exposureModes = ['off','auto','night','sports','snow','beach','fixedfps','antishake']
 	whiteBalanceModes = ['off','auto','sun','cloud','tungsten','fluorescent','incandescent']
 	imxfxModes = ['none','negative','solarise','oilpaint','saturation','blackboard','whiteboard']
@@ -56,6 +57,16 @@ class Camera():
 			super().__init__('PiCam failed to {}. {}'.format(reason,exitCode))
 
 	def __init__(self):
+		"""
+		Constructor for the Camera() class
+
+		Parameters: None
+
+		Returns: None
+
+		Raises: None
+
+		"""
 		self.attr = {
 			'fps': None,
 			'w': None,
@@ -82,18 +93,61 @@ class Camera():
 
 	@classmethod
 	def getSettings():
+		"""
+		Get the settings from the raspiCam
+
+		Parameters: None
+
+		Returns: The output of the raspivid --settings command as a string
+
+		Raises: None
+
+		"""
 		return check_output(['raspivid','--settings'])
 
 	def getSettings(self):
+		"""
+		Get the settings from the raspiCam
+
+		Parameters: None
+
+		Returns: The output of the raspivid --settings command as a string
+
+		Raises: None
+
+		"""
 		return Camera.getSettings()
 
 	def set(self,**kwargs):
+		"""
+		Set settings for the piCam.
+
+		Parameters: kwargs that relate to the dictionary above.
+		            All the kwargs should be valid raspivid parameters.
+		            Furthermore, all kwargs should follow the shorthand or error checking will not take place.
+
+		Returns:
+
+		Raises:
+
+		"""
 		for key,value in kwargs.items():
 			if key in self.attr:
 				self.attr[key] = value
 
 
 	def verifySettings(self):
+		"""
+		Check all the settings if they were set and see if they fall within the valid range of the PiCam.
+		This is just to avoid errors when running the raspivid command.
+
+		Parameters: None
+
+		Returns: None
+
+		Raises: CameraConfigurationError() if a setting is invalid.
+
+		"""
 		if self.attr['sh'] and (self.attr['sh'] < -100 or self.attr['sh'] > 100):
 			raise CameraConfigurationError('Sharpness must be set between -100 and 100.')
 		if self.attr['co'] and (self.attr['co'] < -100 or self.attr['co'] > 100):
@@ -166,6 +220,19 @@ class Camera():
 				raise CameraConfigurationError('JPEG Quality must be set between 0-100. 100 is uncompressed.')
 
 	def capture(self,filename=None):
+		"""
+		Run raspistill and take a picture instead of a video
+
+		Parameters:
+		filename - optional - filename of the file to save
+
+		Returns: None
+
+		Raises:
+		CameraConfigurationError() if a setting is invalid
+		CameraProcessFailed() if it could not capture.
+
+		"""
 		self.verifySettings()
 		if not filename:
 			filename = 'picam_{}'.format(str(round(time.time()*100)))
@@ -189,6 +256,20 @@ class Camera():
 		if not ret:
 			raise CameraProcessFailed('capture',ret)
 	def record(self,time=None,filename=None):
+		"""
+		Run raspivid and record a video
+
+		Parameters:
+		Time - the time in milliseconds for the camera to record
+		filename - optional - the filename to save as
+
+		Returns: None
+
+		Raises:
+		CameraConfigurationError if no time is given or setting is invalid
+		CameraProcessFailed if it could not record
+
+		"""
 		self.verifySettings()
 		if not filename:
 			filename = 'picam_{}'.format(str(round(time.time()*100)))
@@ -226,8 +307,6 @@ class Camera():
 
 class PIN():
 	"""
-	Reason for Implementation
-	-------------------------
 	Pin handler class. Each class variable is an alias for the pin assignment.
 	"""
 	GOPPWR = 19 # Gopro power. No longer used.
@@ -244,8 +323,6 @@ class PIN():
 
 class PINGROUP():
 	"""
-	Reason for Implementation
-	-------------------------
 	Tuples that represent functional groups of the pins.
 	"""
 	gopro = (PIN.GOPBUT,PIN.GOPCAP,PIN.GOPDEN)#,PIN.GOPPWR)
@@ -254,6 +331,9 @@ class PINGROUP():
 	led = (PIN.LEDPWR,)
 
 class Stepper():
+	"""
+	Class that handles maintaining state for the stepper motors. featurs rotating forward and backwards.
+	"""
 	rotationStates = {
 		0: (0,0),
 		1: (1,0),
@@ -264,23 +344,58 @@ class Stepper():
 
 	@staticmethod
 	def forward(action):
+		"""
+		Rotates the stepper forward by one step.
+
+		Parameters: an Action object, can be self
+
+		Returns: None
+
+		Raises: None
+
+		"""
 		action.put(PIN.STPENA, Stepper.rotationStates[Stepper.nextState%4][0])
 		action.put(PIN.STPENB, Stepper.rotationStates[Stepper.nextState%4][1])
 		Stepper.nextState += 1
 
 	@staticmethod
 	def reverse(action):
+		"""
+		Rotates the stepper backwards by one step
+
+		Parameters: an Action object, can be self
+
+		Returns: None
+
+		Raises: None
+
+		"""
 		Stepper.nextState -= 2 # subtract 2 from the NEXT state to figure out the previous state
 		action.put(PIN.STPENA, Stepper.rotationStates[Stepper.nextState%4][0])
 		action.put(PIN.STPENB, Stepper.rotationStates[Stepper.nextState%4][1])
 		Stepper.nextState += 1
 
 class Action():
-
+	"""
+	Class that handles all the methods relating to the experiment control aspect of the spacecraft.
+	An object of this class must be created to run the ETC.
+	"""
 	#GoPro is Depreciated
 	GoProIsOn = False
 
 	def __init__(self,logger=None,queue=None):
+		"""
+		Constructor class for Action()
+
+		Parameters:
+		logger - optional - only useful for flight operation. For testing this can be omitted.
+		queue - optional - the nextQueue. Only useful for flight, not for testing.
+
+		Returns: None
+
+		Raises: None
+
+		"""
 		if logger is None:
 			class DummyLogger():
 				def logSystem(self,*x): print('System: {}'.format(x))
@@ -298,118 +413,105 @@ class Action():
 		"""
 		Set a pin to a specific state
 
+		Parameters:
+		pin - pin to set to the specific state
+		state - low or high, 0 or 1, true or false
 
-		Parameters
-		----------
-		pin - int - pin to set to a specific state
-		state - int - 0 for low, 1 for high
+		Returns: None
 
-		Returns
-		-------
-		Void
+		Raises: None
 
-		Raises
-		------
-		Any exception gets popped up the stack.
 		"""
 		GPIO.output(pin,state)
 
 	def low(self,pin):
 		"""
-		Clear a pin.
+		Clear a pin
 
-		Parameters
-		----------
-		pin - int - pin that you'd like to clear.
+		Parameters:
+		pin - the pin you'd like to clear
 
-		Returns
-		-------
-		Void
+		Returns: None
 
-		Raises
-		------
-		Any exception gets popped up the stack.
+		Raises: None
+
 		"""
 		self.put(pin,0)
 
 	def high(self,pin):
+
 		"""
-		Set a pin.
+		Set a pin
 
-		Parameters
-		----------
-		pin - int - pin that you'd like to set.
+		Parameters:
+		pin - the pin you'd like to set
 
-		Returns
-		-------
-		Void
+		Returns: None
 
-		Raises
-		------
-		Any exception gets popped up the stack.
+		Raises: None
+
 		"""
 		self.put(pin, 1)
 
 	def toggle(self,pin):
 		"""
-		Toggle a pin.
+		Toggle a pin
 
-		Parameters
-		----------
-		pin - int - pin that you'd like to toggle.
+		Parameters:
+		pin - the pin you'd like to toggle
 
-		Returns
-		-------
-		Void
+		Returns: None
 
-		Raises
-		------
-		Any exception gets popped up the stack.
+		Raises: None
+
 		"""
 		self.put(pin,GPIO.input(pin)^1)
 
 	def flip(self,pin,delay=.1):
 		"""
-		Toggle a pin, wait, and then reset the pin back to it's initial state.
+		Toggle a pin, wait, and then reset the pin bck to its initial state.
 		Similar to pressing a button.
 
-		Parameters
-		----------
-		pin - int - pin that you'd like to flip.
-		delay - int - Delay in seconds to wait before reverting the pin. DEFAULT: .1s
+		Parameters:
+		pin - the pin you'd like to flip
+		delay - optional - the delay in seconds to wait before reverting the pin.
 
-		Returns
-		-------
-		Void
 
-		Raises
-		------
-		Any exception gets popped up the stack.
+		Returns: None
+
+		Raises: None
+
 		"""
 		self.put(pin,GPIO.input(pin)^1) # Invert the pin
 		time.sleep(delay)
 		self.put(pin,GPIO.input(pin)^1) # Put it back
 
 	def read(self,pin):
+		"""
+		Read the current value of a pin
+
+		Parameters:
+		pin - the pin you'd like to read
+
+		Returns: The value low or high of the pin
+
+		Raises: None
+
+		"""
 		return GPIO.input(pin)
 
 	def reset(self,pingroup=None):
 		"""
-		Initialize the pins to their default states.
-		If a pingroup is supplied, then only reset that pin group.
+		Initialize the pins to their efault states.
+		If a pingroup is supplied, then only reset that pin group
 
-		Parameters
-		----------
-		pingroup - tupple - PINGROUP tupple you'd like to reset. DEFAULT: None
-							If None is supplied, reset ALL pins.
+		Parameters:
+		pingroup - pingroup tuple - the PINGROUP tuple you'd like to reset. If None is supplied, reset All
 
-		Returns
-		-------
-		Void
+		Returns: None
 
-		Raises
-		------
-		Any exception gets popped up the stack.
+		Raises: None
+
 		"""
 		try:
 			GPIO
@@ -449,9 +551,7 @@ class Action():
 
 
 	def gopro_on(self):
-		"""
-		Turn the Gopro on
-		"""
+		""" DEPRECIATED """
 		self.logger.logSystem('GO PRO METHODS ARE DEPRECIATED')
 		if not self.GoProIsOn:
 			self.flip(PIN.GOPBUT,delay=2.33)
@@ -459,10 +559,7 @@ class Action():
 
 
 	def gopro_off(self,forceOff=False):
-		"""
-		Turn off the GoPro
-
-		"""
+		""" DEPRECIATED """
 		self.logger.logSystem('GO PRO METHODS ARE DEPRECIATED')
 		if forceOff:
 			self.flip(PIN.GOPDEN,delay=2.33)
@@ -471,104 +568,29 @@ class Action():
 			time.sleep(1.75)
 
 	def press_capture(self):
-		"""
-		Press the capture button.
-
-		Parameters
-		----------
-		None
-
-		Returns
-		-------
-		Void
-
-		Raises
-		------
-		Any exception gets popped up the stack.
-
-		"""
+		""" DEPRECIATED """
 		self.logger.logSystem('GO PRO METHODS ARE DEPRECIATED')
 		self.flip(PIN.GOPCAP,delay=.5)
 
 	def gopro_start(self):
-		"""
-		Turn on the gopro and start recording.
-
-		Parameters
-		----------
-		None
-
-		Returns
-		-------
-		Void
-
-		Raises
-		------
-		Any exception gets popped up the stack.
-
-		"""
+		""" DEPRECIATED """
 		self.logger.logSystem('GO PRO METHODS ARE DEPRECIATED')
 		self.init_gopro() # Turn on camera and set mode
 		self.logger.logSystem("ExpCtrl: Beginning to record")
 		self.press_capture() # Begin Recording
 
 	def transOn(self):
-		"""
-		Enable the Data Enable circuit for the gopro USB transfer.
-
-		Parameters
-		----------
-		None
-
-		Returns
-		-------
-		Void
-
-		Raises
-		------
-		Any exception gets popped up the stack.
-
-		"""
+		""" DEPRECIATED """
 		self.logger.logSystem('GO PRO METHODS ARE DEPRECIATED')
 		self.high(PIN.GOPDEN)
 
 	def transOff(self):
-		"""
-		Disable the Data Enable circuit for the gopro USB transfer.
-
-		Parameters
-		----------
-		None
-
-		Returns
-		-------
-		Void
-
-		Raises
-		------
-		Any exception gets popped up the stack.
-
-		"""
+		""" DEPRECIATED """
 		self.logger.logSystem('GO PRO METHODS ARE DEPRECIATED')
 		self.low(PIN.GOPDEN)
 
 	def goProTransfer(self):
-		"""
-		Transfer data from the gopro to the pi.
-
-		Parameters
-		----------
-		None
-
-		Returns
-		-------
-		Void
-
-		Raises
-		------
-		Any exception gets popped up the stack.
-
-		"""
+		""" DEPRECIATED"""
 		self.logger.logSystem('GO PRO METHODS ARE DEPRECIATED')
 		time.sleep(1)
 		if True:
@@ -610,16 +632,16 @@ class Action():
 
 	def stepper_turn(self,delay, qturn,multiplier = 1):
 		"""
-		This function activates the stepper motor in the forward direction.
+		Activates the stepper motor in the forward direction
 
-		Parameters
-		----------
-		Integer / Float - delay - The time between each phase of the stepper motor.
-		Integer - qturn - The number of turns.
+		Parameters:
+		delay - how long in seconds between each turn
+		qturn - how many qturns to do
+		multiplier - optional - the actual number of turns is qturn * multiplier
 
-		Returns
-		-------
-		Void.
+		Returns: None
+
+		Raises: None
 
 		"""
 		if qturn > 0:
@@ -635,19 +657,33 @@ class Action():
 
 	def led(self,state):
 		"""
-		This function turns the LED light on or off.
+		Turns the LED on or Off
 
-		Parameters
-		----------
-		Boolean - power - To turn the LED on/off, power is set to True/False, respectively.
+		Parameters:
+		state - 0 or 1, False or True
 
-		Returns
-		--------
-		Void
+		Returns: None
+
+		Raises: None
+
 		"""
 		self.put(PIN.LEDPWR,state)
 
 	def solenoid_run(self,solenoidPins,hz=1,duration=0,override = False):
+		"""
+		Runs the solenoids at a constant rate.
+
+		Parameters:
+		solenoidPins - a Tuple of the pins that the solenoids are.
+		hz - the rate in hz of how quickly the solenoids should fire
+		duration - how long they should fire for
+		override - optional - In testing, the fastest that was beneficial is 12hz. Anything over that requires the override flag.
+
+		Returns: None
+
+		Raises: None
+
+		"""
 		if hz < 1:
 			self.logger.logSystem('Solenoid: Hz was set <1. This makes no sense.')
 			return
@@ -665,6 +701,21 @@ class Action():
 		self.reset(PINGROUP.solenoid)
 
 	def solenoid_ramp(self,solenoidPins, start_hz, end_hz, granularity=100,override = False):
+		"""
+		Ramps the solenoids from one HZ to another HZ
+
+		Parameters:
+		solenoidPins - a Tuple of the pins that the solenoids are.
+		start_hz - the rate in hz of how quickly the solenoids should fire. This is the starting HZ
+		end_hz - the rate in hz of how quickly the solenoids should fire. This is the goal to achieve
+		granularity - optional - larger granularity, slower the change
+		override - optional - In testing, the fastest that was beneficial is 12hz. Anything over that requires the override flag.
+
+		Returns:None
+
+		Raises:None
+
+		"""
 		if start_hz < 1 or end_hz < 1:
 			self.logger.logSystem('Solenoid: Hz was set <1. This makes no sense.')
 			return
@@ -687,6 +738,19 @@ class Action():
 		self.reset(PINGROUP.solenoid)
 
 	def solenoid_tap(self,solenoidPins, hz=12):
+		"""
+		Tap the solenoid one time.
+
+		Parameters:
+		solenoidPins - a Tuple of the pins that the solenoids are.
+		hz - optional - how quickly to pull back the piston
+
+		Returns:
+
+
+		Raises:
+
+		"""
 		period = 1/hz # 12 hz (max speed)
 		for pin in solenoidPins:
 			self.put(pin,1) # turn the solenoid on
@@ -705,6 +769,17 @@ class Action():
 
 		To avoid an infinite loop, count up how many pendings we've received. Should we get more than
 		a lot of pendings, then back out and assume denied.
+
+		Parameters:
+		request - str - the request to be made to the wtc
+		pendingTimeout - optional - the time to wait on PENDING to change to another state
+		responseTimeout - optional - the time to wait until there is a response from the wtc.
+
+
+		Returns: True if the response is ACCEPTED. False if it's anything else.
+
+		Raises: None
+
 		"""
 		try:
 			from qpaceControl import QPCONTROL as qp

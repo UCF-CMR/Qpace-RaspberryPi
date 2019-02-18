@@ -54,18 +54,21 @@ class DataPacket():
 		"""
 		Constructor for a packet.
 
-		Parameters
-		---------
-		data - str, bytes, bytearray - If a str it must be hex and valid bytes.
-		pid - int - Integer to be the PID of the packet. Can not be negative and must be
-					+1 the last pid used.
+		Parameters:
+		data - bytes - the data to be put into a packet
+		pid - int - PID of the packet, must be +1 the last PID used
+		rid - int - RID of the packet, should always be 0x00
+		xtea - legacy and not used
+		opcode - optional - can change the opcode from the default. default will be set to the first opcode in the valid_opcodes attribute.
 
-		Exceptions
-		----------
-		ValueError - if the data passed to the packet is too large to fit in the packet.
-					 or the pid is out of order.
-					 or the pid is negative.
-		TypeError - if the data is not a string,int,bytes,or bytearray.
+		Returns: None
+
+		Raises:
+		Type Error - if the data is not a string, bytes, or bytearray.
+		ValueError - If there's no data size
+		ValueError - The pid is not valid
+		ValueError - the pid is out of order
+		Value error - packet is too large.
 		"""
 		# Is the data in a valid data type? If so, convert it to a bytearray.
 		if isinstance(data,bytearray):
@@ -119,11 +122,15 @@ class DataPacket():
 
 	def build(self):
 		"""
-			Build the entire packet.
+		Build the packet
+		Adds padding to the data, adds the RID, PID, opcode, and checksum.
 
-			Returns
-			-------
-			int - the whole packet. if converted to binary/hex it will be the packet.
+		Parameters: None
+
+		Returns: Bytestring of the packet.
+
+		Raises: None
+
 		"""
 		# Construct the packet's data
 
@@ -143,39 +150,84 @@ class DataPacket():
 		# After constructing the packet's contents, pad the end of the packet until we reach the max size.
 		return packet
 
-	@staticmethod
-	def getParity(info):
-		parity = int(bin(info[0])[2])
-		for bit in bin(info[0])[3:]:
-			parity ^= int(bit)
-		for byte in info[1:]:
-			for bit in bin(byte)[2:]:
-				parity ^= int(bit)
-		return parity
-
 	def send(self,chip):
+		"""
+		Builds the packet and then sends it to the WTC.
+
+		Parameters: chip - SC16IS750 object to send the packet to.
+
+		Returns: None
+
+		Raises: None
+
+		"""
 		chip.block_write(SC16IS750.REG_THR, self.build())
 
 class DummyPacket(DataPacket):
+	""" A dummy packet prefabricated for use to send to ground when no other packet is available or necessary"""
 	def __init__(self):
+		"""
+		Constructor for the Dummy packet. Shouldn't really need anything else.
+
+		Parameters: None
+
+		Returns: None
+
+		Raises: None
+
+		"""
 		self.data=DataPacket.padding_byte*118
 		self.opcode = b'DUMMY'
 		self.rid = b'\x00'
 	def build(self):
+		"""
+		Override for the dummy packet's build.
+
+		Parameters: None
+
+		Returns: the packet's bytestring
+
+		Raises: None
+
+		"""
 		toSend =  self.rid + self.opcode + self.data
 		return toSend + generateChecksum(toSend)
 
 class ChunkPacket():
+	""" Helper class to take chunks and make them into a packet if 4 are received"""
 	TIMEDELAYDELTA = 1.5 # in seconds
 	chunks = []
 	complete = False
 	lastInputTime = None
 
 	def __init__(self, chip,logger):
+		"""
+		Constructor for ChunkPacket
+
+		Parameters:
+		chip - an SC169S750 object to do operations with if necessary.
+		logger - a qpaceLogger.Logger() object to log operations
+
+		Returns: None
+
+		Raises: None
+
+		"""
 		self.chip = chip
 		self.logger = logger
 
 	def push(self,data):
+		"""
+		Add a chunk to the internal list
+
+		Parameters:
+		data - the data to add to the list
+
+		Returns: None
+
+		Raises: None
+
+		"""
 		if not ChunkPacket.complete:
 			if ChunkPacket.lastInputTime is not None and (datetime.now() - ChunkPacket.lastInputTime) > timedelta(seconds = ChunkPacket.TIMEDELAYDELTA):
 				ChunkPacket.chunks[:] = [] # reset the chunks..
@@ -192,6 +244,16 @@ class ChunkPacket():
 
 
 	def build(self):
+		"""
+		Build a packet out of the four chunks
+
+		Parameters: None
+
+		Returns: The bytestring of the packet
+
+		Raises: None
+
+		"""
 		if ChunkPacket.complete:
 			packet = b''
 			for chunk in ChunkPacket.chunks:
@@ -209,6 +271,7 @@ class ChunkPacket():
 			pass
 
 class Defaults():
+	""" Helper class that only stores Default values. Nothing else"""
 	packetsPerAck_DEFAULT = 1
 	delayPerTransmit_DEFAULT = 135 #in milliseconds
 	firstPacket_DEFAULT = -1
@@ -220,7 +283,7 @@ class Defaults():
 	totalPackets_DEFAULT = None
 
 class Transmitter():
-
+	""" Transmitter object to handle splitting up a file into packets and passing them to the packetQueue"""
 	def __init__(self, pathname, route,
 				# useFEC =			Defaults.useFEC_DEFAULT,
 				ppa = 				Defaults.packetsPerAck_DEFAULT,
@@ -228,6 +291,22 @@ class Transmitter():
 				lastPacket = 		Defaults.lastPacket_DEFAULT,
 				xtea = 				Defaults.xtea_DEFAULT,
 				packetQueue =		None):
+		"""
+		Constructor for the Transmitter
+
+		Parameters:
+		pathname - the path for the file you want to send
+		route - should always be 0x00
+		ppa - the number of packets per acknowledgement sent
+		firstPacket - the first packet PID to start out on for the file
+		lastPacket - the last packet PID to end the file download
+		xtea - legacy - not implemented anymore
+		packetQueue - the packetQueue to store all the packet data in when it's done generating the packets.
+		Returns:
+
+		Raises:
+
+		"""
 		self.pathname = pathname
 		# self.useFEC = useFEC
 		self.firstPacket = firstPacket if firstPacket > 0 else 0
@@ -243,6 +322,7 @@ class Transmitter():
 			noDownloadPacket = DataPacket(noDownloadMessage, pid, self.route).build()
 			self.packetQueue.enqueue(noDownloadPacket)
 			DataPacket.last_id = 0
+			return
 
 
 		if self.filesize > MAX_FILE_SIZE:
@@ -268,6 +348,17 @@ class Transmitter():
 		self._updateFileProgress()
 
 	def run(self):
+		"""
+		The main loop for the Transmitter()
+		Ends up appending a bunch of packets to the packetQueue.
+
+		Parameters: None
+
+		Returns: None
+
+		Raises:None
+
+		"""
 		packetData = self.getPacketData()
 		packet = None
 		# Get the length of all the packets if NONE was supplied as the last packet.
@@ -310,6 +401,16 @@ class Transmitter():
 		DataPacket.last_id = 0
 
 	def getPacketData(self):
+		"""
+		Split the contents of a file up into packet sized chunks to be stored in a packet later
+
+		Parameters: None
+
+		Returns: None
+
+		Raises: None
+
+		"""
 		packetData = []
 		with open("{}{}".format(ROOTPATH,self.pathname),'rb') as f:
 			while(True):
@@ -321,6 +422,16 @@ class Transmitter():
 		return packetData
 
 	def _updateFileProgress(self,sent=0):
+		"""
+		Update the progress file with information pertinant to the download.
+
+		Parameters: sent - int - the packet pid that was just sent
+
+		Returns: None
+
+		Raises: None
+
+		"""
 		try:
 			progress = {
 				'filename':self.pathname,
@@ -345,11 +456,21 @@ class Transmitter():
 			pass
 
 class Scaffold():
-
+	""" Handles building and finishing files when they are upload. The scaffold is used to help build a file until it's done."""
 	last_pid = -1
 
 	@staticmethod
 	def determineDataSize():
+		"""
+		Figure out what the datasize is
+
+		Parameters: None
+
+		Returns: the data size to put in a packet
+
+		Raises: None
+
+		"""
 		# if useFEC:
 		# 	return (DataPacket.max_size - DataPacket.header_size) // 3
 		# else:
@@ -359,6 +480,18 @@ class Scaffold():
 
 	@staticmethod
 	def construct(pid,newData):
+		"""
+		Take new data and put it into a scaffold file
+
+		Parameters:
+		pid - the pid of the new data to be added
+		newData - bytestring to be added to the new file.
+
+		Returns: None
+
+		Raises: None
+
+		"""
 		pid = int.from_bytes(pid,byteorder='big')
 		missed_packets = []
 		filename = UploadRequest.filename
@@ -397,16 +530,40 @@ class Scaffold():
 			scaffold.write(scaffoldData)
 
 	def _updateMissedPackets(missed_packets,filename):
+		"""
+		Update the .nore file with which packets are missing
+
+		Parameters:
+		missed_packets - a list of newly missed packets.
+		filename - the name of the file we are downloading
+
+		Returns: None
+
+		Raises: None
+
+		"""
 		try:
 			with open('{}{}.nore'.format(TEMPPATH,filename),'a+') as f:
 				to_write = f.read()
 				if to_write:
 					to_write += ','
 				to_write += str(missed_packets)[1:-1].replace(' ','')
-				f.write()
+				f.write(to_write)
 		except:
 			pass
 	def _removeMissedPacket(received_packet,filename):
+		"""
+		Removes packets from the .nore file if they arrive
+
+		Parameters:
+		received_packet - the pid of the packet that we received
+		filename - the name of the file that is being downloaded
+
+		Returns: None
+
+		Raises: None
+
+		"""
 		try:
 			with open('{}{}.nore'.format(TEMPPATH,filename),'r+') as f:
 				to_write = f.read()
@@ -420,6 +577,18 @@ class Scaffold():
 			pass
 	@staticmethod
 	def finish(information):
+		"""
+		Finish the scaffold, remove the extension, and remove the extra padding by the last packet.
+
+		Parameters: information - all the data found in the NOOP! packet.
+
+		Returns: a tuple of values
+		tuple[0] = True or False if the checksums match from the calculated one and the file's reported checksum
+		tuple[1] = the filename of the downloaded file
+
+		Raises: None
+
+		"""
 		if UploadRequest.isActive():
 			information = information.split(b' ')
 			checksum = information[0]
@@ -443,11 +612,9 @@ class Scaffold():
 
 class UploadRequest():
 	"""
-	Reason for Implementation
-	-------------------------
 	Abstract class.
 	Class that handles if there is a request to upload a file to the pi.
-	Only one UploadRequest can happen at a time.
+	The most recent upload request is the file that will be worked on. Multiple upload requests can happen at once, but only the most recent is the current one.
 	"""
 	received = []
 	# useFEC = None
@@ -456,25 +623,15 @@ class UploadRequest():
 	@staticmethod
 	def set(filename = None):
 		"""
-		Make an UploadRequest. If there is already an active request IGNORE all future requests.
-		If there is not a request going on, then set all the required data and touch the scaffold
-		to prepare for upload.
+		 Make an upload request. Perpare a scaffold for being uploaded to and add the file to the list if it's not in there.
 
-		Parameters
-		----------
-		pak = the expected packets to be receiving.
-		filename = the filename expected to be sent.
+		Parameters: filename - the name of the file to be uploaded
 
-		Returns
-		-------
-		Void
+		Returns: None
 
-		Raises
-		------
-		Any exception gets popped up the stack.
-		If there is a problem with touching the scaffold it is silenced.
-		"""
+		Raises: None
 
+"""
 		try:
 			filename = str(filename)
 			from pathlib import Path
@@ -490,6 +647,16 @@ class UploadRequest():
 
 	@staticmethod
 	def finished(who):
+		"""
+		Finish an upload. When this method is called, remove the file fro the list.
+
+		Parameters: who - filename for who is finished.
+
+		Returns: the filename that was passed in.
+
+		Raises: None
+
+		"""
 		if UploadRequest.received:
 			try:
 				UploadRequest.received.remove(who)
@@ -501,6 +668,12 @@ class UploadRequest():
 	@staticmethod
 	def isActive():
 		"""
-		Check if there has been an UploadRequest received.
+		Check if there are any active upload requests
+
+		Parameters: None
+
+		Returns: True if there are any filenames in the list
+
+		Raises:None
 		"""
 		return len(UploadRequest.received) > 0
