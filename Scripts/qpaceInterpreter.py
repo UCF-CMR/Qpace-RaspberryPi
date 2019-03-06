@@ -25,7 +25,7 @@ import datetime
 import os
 from struct import pack
 import threading
-from  qpacePiCommands import generateChecksum, Command
+from qpacePiCommands import generateChecksum, Command
 # import tstSC16IS750 as SC16IS750
 import SC16IS750
 import qpaceControl
@@ -209,17 +209,25 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent,disa
 
 		"""
 		header = packetData[:10]
-		footer = packetData[104:]
+		footer = packetData[106:]
 		# Note if there's not key or IV that the packet gets passed through. If this happens and it's not decoded, it won't really do anything. It'll fail validation.
 		try:
 			if not enc_key or not enc_iv:
 				raise RuntimeError('No encryption key or IV')
-			information = xtea3.new(enc_key,mode=xtea3.MODE_OFB,IV=enc_iv).decrypt(packetData[10:104])
+			information = bytearray()
+			sliceBegin = 0
+			totalBitArray = packetData[10:106]
+			iterRange = int(96/8)
+			for iter in range(iterRange):
+				slice = totalBitArray[sliceBegin: sliceBegin+8]
+				information += xtea3._decrypt(key=enc_key, block = slice, n = 64)
+				sliceBegin += 8
 		except Exception as e:
-			information = packetData[10:104]
+			information = packetData[10:106]
 			logger.logError('Not using XTEA.',e)
 
-		return header + information + footer
+		print("header: %s INFROMATION: %s FOOTER: %s" % (ascii(header), ascii(bytes(information)), ascii(footer)))
+		return header + bytes(information) + footer
 
 
 
@@ -239,6 +247,7 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent,disa
 		# Magic numbers defined in Packet Specification Document
 		try:
 			if packetData[1:6] == b'NOOP*':
+				print("WE AT LEAST GOT HERE")
 				packetData = decodeXTEA(packetData)
 				packet = {
 					"TYPE":			"NORM",
@@ -254,6 +263,7 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent,disa
 					"checksum":    	packetData[124:],
 					"contents":		packetData[6:124]
 				}
+				print(packet)
 			elif packetData[1:6] in fh.DataPacket.valid_opcodes:
 				packet = {
 					"TYPE":			"DATA",
@@ -334,7 +344,7 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent,disa
 			LastCommand.set(fieldData['command'].decode('ascii'), str(datetime.datetime.now()), fromWhom)
 			COMMANDS[fieldData['command']](logger,arguments) # Run the command
 
-	def checkValidity(fieldData):
+	def checkValidity(fieldData, packetData):
 		"""
 		Check to see if a packet is valid and not corrupt.
 
@@ -355,8 +365,14 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent,disa
 				fieldData = None
 			else:
 				packetString = bytes([fieldData['route']]) + fieldData['opcode'] + fieldData['contents']
-				isValid = fieldData['route'] in validRoutes and fieldData['checksum'] == generateChecksum(packetString)
-
+				isValid = fieldData['route'] in validRoutes and fieldData['checksum'] == generateChecksum(packetData[:-4])
+				print(packetData)
+				print(packetString)
+				print("IN CHECK VALIDITY")
+				print(isValid)
+				print(generateChecksum(packetData))
+				print(fieldData['route'])
+				print(validRoutes)
 			if fieldData['TYPE'] == 'DATA':
 				pass
 			elif fieldData['TYPE'] == 'NORM':
@@ -573,7 +589,7 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent,disa
 						fieldData = decodePacket(packetData) # Return a nice dictionary for the packets
 						# Check if the packet is valid.
 						# If it's XTEA, decode it at this step and modify the field data appropriately.
-						isValid,fieldData = checkValidity(fieldData)
+						isValid,fieldData = checkValidity(fieldData, packetData)
 
 						try:
 							if fieldData['TYPE'] == 'DATA':
