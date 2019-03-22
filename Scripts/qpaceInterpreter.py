@@ -129,7 +129,6 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent,disa
 	callback = None
 
 	checker = tagChecker.TagChecker()
-	checker.initTags()
 
 	try:
 		checker.initTags()

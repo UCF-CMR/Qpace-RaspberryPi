@@ -116,12 +116,13 @@ class TagChecker:
 		Raises: None
 
 		"""
+
 		options = []
 		if self.tags:
 			for t in self.tags:
 				if t not in self.used:
 					options.append(t)
-					return options
+			return options
 		else:
 			return []
 
