@@ -509,13 +509,14 @@ class Command():
 											)
 			except FileNotFoundError:
 				logger.logSystem('Transmitter: Could not find the file requested for: {}'.format(filename.decode('ascii')))
-			else:
-				try:
-					transmitter.run()
-				except:pass
-					# For however many transactions the WTC can handle, enqueue a SENDPACKET so when the WTC asks "WHATISNEXT" the Pi can tell it it wants to send packets.
-					for x in range((len(self._packetQueue)//qfh.WTC_PACKET_BUFFER_SIZE) + 1):
-						self.nextQueue.enqueue('SENDPACKET') # taken from qpaceControl
+		else:
+			try:
+				transmitter.run()
+			except:
+				pass
+				# For however many transactions the WTC can handle, enqueue a SENDPACKET so when the WTC asks "WHATISNEXT" the Pi can tell it it wants to send packets.
+			for x in range((len(self._packetQueue)//qfh.WTC_PACKET_BUFFER_SIZE) + 1):
+				self.nextQueue.enqueue('SENDPACKET') # taken from qpaceControl
 
 	def upReq(self,logger,args, silent=False):
 		"""
