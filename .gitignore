@@ -18,6 +18,7 @@ logs/error_*.*
 **/*.log
 **/*.ledger
 **/*.qpe
+*.docx
 
 # Don't include specific testing files
 **/inputSC16IS750.txt
