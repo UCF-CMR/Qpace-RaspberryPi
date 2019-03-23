@@ -178,7 +178,7 @@ class Command():
 			Any exception gets popped up the stack.
 			"""
 			if self.packetData == None:
-				self.packetData=CMDPacket.padding_byte * self.data_size
+				self.packetData= Command.CMDPacket.padding_byte * self.data_size
 
 			if len(self.packetData) != self.data_size:
 				raise ValueError('Length of packetData is not equal to data_size len({})!=Packet.data_size({})'.format(len(self.packetData),self.data_size))
@@ -323,10 +323,10 @@ class Command():
 
 		lenstr = str(len(os.listdir(pathname))) # Get the number of files/directories in this directory.
 		if not silent:
-			padding = CMDPacket.padding_byte*(PrivilegedPacket.encoded_data_length-len(lenstr)) #98 due to specification of packet structure
+			padding = Command.CMDPacket.padding_byte*(Command.PrivilegedPacket.encoded_data_length-len(lenstr)) #98 due to specification of packet structure
 			plainText = lenstr.encode('ascii')
 			plainText += padding
-			PrivilegedPacket(plainText=plainText).send()
+			Command.PrivilegedPacket(plainText=plainText).send()
 
 	def directoryList(self,logger,args, silent=False):
 		"""
@@ -336,9 +336,9 @@ class Command():
 		pathname = ROOTPATH + args.decode('ascii').split(' ')[0]
 
 		self.pathname = pathname
-		filepath = TEXTPATH
+		filepath = TEXTPATH+"someText.txt"
 		try:
-			pathList = check_output(['ls','-alh',pathname])
+			pathList = check_output(['ls','-alh',pathname]).decode("utf-8")
 		except:
 			pathList = ["No such file or directory:'{}'".format(pathname)]
 		with open(filepath, "w") as filestore:
@@ -346,10 +346,10 @@ class Command():
 			for line in pathList:
 				filestore.write(line + '\n')
 		if not silent:
-			padding = CMDPacket.padding_byte * (PrivilegedPacket.encoded_data_length - len(filepath))
+			padding = Command.CMDPacket.padding_byte * (Command.PrivilegedPacket.encoded_data_length - len(filepath))
 			plainText = filepath.encode('ascii')
 			plainText += padding
-			PrivilegedPacket(plainText=plainText).send()
+			Command.PrivilegedPacket(plainText=plainText).send()
 
 	def splitVideo(self,logger,args, silent=False):
 		args = args.decode('ascii').split(' ')
@@ -538,8 +538,8 @@ class Command():
 			response = b'up'
 			response += b'Active Requests: ' + bytes([len(qfh.UploadRequest.received)])
 			response += b' Using Scaffold: ' + qfh.UploadRequest.filename.encode('ascii')
-			response += PrivilegedPacket.padding_byte * (PrivilegedPacket.encoded_data_length - len(response))
-			PrivilegedPacket(plainText=response).send()
+			response += Command.PrivilegedPacket.padding_byte * (Command.PrivilegedPacket.encoded_data_length - len(response))
+			Command.PrivilegedPacket(plainText=response).send()
 
 	def runHandbrake(self,logger,args, silent=False):
 		args = args.split(b' ')
