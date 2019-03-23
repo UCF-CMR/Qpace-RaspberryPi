@@ -64,6 +64,7 @@ class Logger():
         except:
             self.counter='null'
 
+        self.Errors = Errors()
         self.filename = 'unknownBootTime' # Must be 15 characters for the serialization.
 
     def bootWasSet(self):
@@ -175,7 +176,7 @@ class Logger():
         try:
             if exception is not None:
                 description += ' {}'.format(str(exception.args))
-            Errors.inc()
+            self.Errors.inc()
             self.logData('Sys','An error is being recorded to the error log. Please check the error log at this timestamp.')
             return self.logData('Err',description) # Actually log the data.
         except Exception:

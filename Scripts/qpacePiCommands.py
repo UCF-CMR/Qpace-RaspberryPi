@@ -158,8 +158,8 @@ class Command():
 			"""
 			if self.packetData:
 				sendData = self.build()
-				self.packetQueue.enqueue(sendData)
-				self.nextQueue.enqueue('SENDPACKET')
+				Command._packetQueue.enqueue(sendData)
+				Command._nextQueue.enqueue('SENDPACKET')
 
 		def build(self):
 			"""
@@ -183,7 +183,7 @@ class Command():
 			if len(self.packetData) != self.data_size:
 				raise ValueError('Length of packetData is not equal to data_size len({})!=Packet.data_size({})'.format(len(self.packetData),self.data_size))
 
-			return bytes([self.routing]) + self.opcode.encode('ascii') + self.packetData + generateChecksum(self.packetData)
+			return bytes([self.routing]) + self.opcode + self.packetData + generateChecksum(self.packetData)
 
 	class PrivilegedPacket(CMDPacket):
 		"""
@@ -303,10 +303,14 @@ class Command():
 		status += b'E(' + str(logger.Errors.get()).encode('ascii') + b'):' #Number of errors logged since last boot
 		status_file = str(timestamp) if thread else 'Save Failed' # Save the timestamp inwhich this status file will be saved as.
 		status += b'F('+ status_file.encode('ascii') +b'):' # the File where the major status stuff should be being saved in.
-		status += b'LC('+LastCommand.type.encode('ascii')+b')'
+		try:
+			from qpaceInterpreter import LastCommand
+			status += b'LC('+LastCommand.type.encode('ascii')+b')'
+		except Exception as err:
+			logger.logError("Could not import LastCommand",err)
 		data += status + b' '*(111-len(status)) # 111 defined in packet structure document r4a
 		if not silent:
-			CMDPacket(opcode='STATS',data=data).send()
+			Command.CMDPacket(opcode='STATS',data=data).send()
 		if thread:
 			thread.join() # Make sure we wait for the thread to close if it's still going.
 
@@ -617,6 +621,7 @@ class Command():
 			last_command_when = LastCommand.timestamp
 			last_command_from = LastCommand.fromWhom
 			commands_executed = LastCommand.commandCount
+			print("LAST: %s, WHEN %s, FROM %s, Commands %d" %(LastCommand.type, LastCommand.timestamp, LastCommand.fromWhom, LastCommand.commandCount))
 		except Exception as err:
 			logger.logError("Could not import LastCommand",err)
 		try:
@@ -649,7 +654,7 @@ class Command():
 			logger.logError("There was a problem accessing the Disk stats", err)
 
 		try:
-			ps_data = check_output(['ps','al'])
+			ps_data = check_output(['ps','al']).decode('utf-8')
 		except:
 			ps_data = 'Unable to get data.\n'
 
@@ -669,6 +674,7 @@ class Command():
 								uptime,ram_tot,ram_used,ram_free,disk_total,disk_free)
 		text_to_write += ps_data
 
+		print("WHAT IS THE TIME: %s" % timestamp)
 		logger.logSystem("saveStatus: Attempting to save the status to a file.")
 		try:
 			with open(MISCPATH+'status_'+timestamp,'w') as statFile:
