@@ -529,7 +529,7 @@ class Command():
 		"""
 		# Numbers based on Packet Specification Document.
 		import qpaceFileHandler as qfh
-		filename = args.replace(CMDPacket.padding_byte,b'').replace(b' ',b'').replace(b'/',b'@').replace('..','')
+		filename = args.replace(Command.CMDPacket.padding_byte,b'').replace(b' ',b'').replace(b'/',b'@').replace(b'..', b'')
 		if qfh.UploadRequest.isActive():
 			logger.logSystem("UploadRequest: Redundant Request? ({})".format(str(filename)))
 		qfh.UploadRequest.set(filename=filename.decode('ascii'))
