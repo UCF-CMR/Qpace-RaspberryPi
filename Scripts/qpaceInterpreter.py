@@ -597,8 +597,8 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent,disa
 										response = b'GOOD'
 									else:
 										response = b'REPT'
-									packetQueue.enqueue(cmd.PrivilegedPacket(plainText=fieldData['pid'] + response + cmd.PrivilegedPacket.returnRandom(86)))
-									nextQueue.enqueue('SENDPACKET')
+									Command.PrivilegedPacket(plainText=fieldData['pid'] + response + Command.PrivilegedPacket.returnRandom(86)).send()
+									#nextQueue.enqueue('SENDPACKET')
 						except:pass
 
 						if isValid:
