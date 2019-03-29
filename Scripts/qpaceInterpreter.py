@@ -487,7 +487,7 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent,disa
 		# Start looking at a pseduo state machine so WTC code doesn't need to change
 		if len(packetData) == 1 or (len(packetData) == 4 and configureTimestamp):
 			byte = int.from_bytes(packetData,byteorder='little')
-			print('Read from WTC: ', hex(byte))
+			print('Read from WTC: {} ({})'.format([ key for key,val in qpStates.items() if val==byte ], hex(byte)))
 			if len(packetData) == 4:
 				logger.logSystem('PseudoSM: Configuring the timestamp.')
 				os.system("sudo date -s '@" + str(byte) +"'")
@@ -496,7 +496,7 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent,disa
 				logger.setBoot(newTimestamp=byte)
 				logger.logSystem('Timestamp: {}'.format(str(byte)))
 			elif byte in qpStates.values():
-				logger.logSystem('PseudoSM: State receieved: {}'.format(hex(byte)))
+				logger.logSystem('PseudoSM: State receieved: {} ({})'.format([ key for key,val in qpStates.items() if val==byte ],hex(byte)))
 				# The byte was found in the list of QPCONTROLs
 				if byte == qpStates['NOOP']:
 					logger.logSystem('PseudoSM: NOOP.')
