@@ -593,7 +593,7 @@ class Scaffold():
 			information = information.split(b' ')
 			checksum = information[0]
 			paddingUsed = int.from_bytes(information[1],byteorder='big')
-			filename = information[2][:information[2].find(DataPacket.padding_byte)+1].replace(b'/',b'@').decode('ascii')
+			filename = information[2][:information[2].find(DataPacket.padding_byte)].replace(b'/',b'@').decode('ascii')
 			with open(TEMPPATH+filename+'.scaffold','rb+') as f:
 				info = f.read()
 				f.seek(0)
