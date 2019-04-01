@@ -47,7 +47,7 @@ class DataPacket():
 	max_id = 0xFFFFFFFF	 		# 4 bytes. Stored as an int.
 	last_id = 0					# -1 if there are no packets yet.
 	valid_opcodes = (b'NOOP>',b'NOOP!')
-
+	data_size = max_size - header_size
 	validDesignators = [0]   	# WTC, Pi 1, Pi 2, GS.
 
 	def __init__(self,data, pid,rid, xtea = False,opcode = None):
@@ -89,10 +89,10 @@ class DataPacket():
 		# 	self.data_size = ((DataPacket.max_size - DataPacket.header_size) // 3)
 		# else:
 		# 	self.data_size = DataPacket.max_size - DataPacket.header_size
-		self.data_size = DataPacket.max_size - DataPacket.header_size
+		#DataPacket.data_size = DataPacket.max_size - DataPacket.header_size
 
 		# Is the data size set yet or is it valid?
-		if self.data_size is None:
+		if DataPacket.data_size is None:
 			raise ValueError('data_size is not set.')
 
 		data_in_bytes = len(data)
@@ -142,7 +142,7 @@ class DataPacket():
 		# 	data = self.data
 		data = self.data
 
-		padding = self.data_size - len(data)
+		padding = DataPacket.data_size - len(data)
 		data += DataPacket.padding_byte * padding
 		self.paddingSize = padding
 		packet = self.rid.to_bytes(1,byteorder='big') + self.opcode + self.pid.to_bytes(4,byteorder='big') + data

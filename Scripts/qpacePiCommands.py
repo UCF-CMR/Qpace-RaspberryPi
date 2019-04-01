@@ -480,9 +480,9 @@ class Command():
 		else:
 			data += ('FileNotFound:{}{}'.format(ROOTPATH,path)).encode('ascii')
 		if not silent:
-			padding = CMDPacket.data_size - len(data)
-			data += CMDPacket.padding_byte * padding if padding > 0 else 0
-			CMDPacket(opcode='DOWNR',data=data).send()
+			padding = Command.CMDPacket.data_size - len(data)
+			data += Command.CMDPacket.padding_byte * padding if padding > 0 else 0
+			Command.CMDPacket(opcode='DOWNR',data=data).send()
 
 	def dlFile(self,logger,args, silent=False):
 		"""
@@ -513,7 +513,7 @@ class Command():
 											)
 			except FileNotFoundError:
 				logger.logSystem('Transmitter: Could not find the file requested for: {}'.format(filename.decode('ascii')))
-		else:
+		#else:
 			try:
 				transmitter.run()
 			except:
