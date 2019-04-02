@@ -643,28 +643,27 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent,disa
 							elif fieldData['TYPE'] == 'DLACK':
 								print("fieldData['response'] = {}".format(fieldData['response']))
 									# If the DLACK is good, then clear the queue of lastPackets.
-									if fieldData['response'] == b'GOOD':
-										lastPacketsSent.clear()
-									else:
-										# If it's not good, then we need to send those packets again...
-										# To do that, we will prepend the packetQueue with the packets from lastPacketsSent
-										# And then we will prepend the nextQueue with a 'SENDPACKET' for every BUFFERSIZE of packets.
-										# If the last packets sent's count is less than the buffer size
-										# Then we'll append dummy packets here to fill that buffer.
+								if fieldData['response'] == b'GOOD':
+									lastPacketsSent.clear()
+								else:
+									# If it's not good, then we need to send those packets again...
+									# To do that, we will prepend the packetQueue with the packets from lastPacketsSent
+									# And then we will prepend the nextQueue with a 'SENDPACKET' for every BUFFERSIZE of packets.
+									# If the last packets sent's count is less than the buffer size
+									# Then we'll append dummy packets here to fill that buffer.
 
-										# Offload the last sent packets but don't clear them until we get a good.
-										lastPacketsSent_copy = lastPacketsSent[:] #Shallow copy to not affect the original list
-										if len(lastPacketsSent_copy) < fh.WTC_PACKET_BUFFER_SIZE: # If there's more buffer space than packets sent...
-											for i in range(fh.WTC_PACKET_BUFFER_SIZE - len(lastPacketsSent_copy)): # Append a dummy packet for every packet to send.
-												lastPacketsSent_copy.append(fh.DummyPacket().build())
-												lastPacketsSent_copy.reverse() # Reverse the list so the last packets get prepended first.
-										for pkt in lastPacketsSent_copy: # For every packet to send...
-											packetQueue.enqueue(pkt, prepend=True) # Prepend those packets
+									# Offload the last sent packets but don't clear them until we get a good.
+									lastPacketsSent_copy = lastPacketsSent[:] #Shallow copy to not affect the original list
+									if len(lastPacketsSent_copy) < fh.WTC_PACKET_BUFFER_SIZE: # If there's more buffer space than packets sent...
+										for i in range(fh.WTC_PACKET_BUFFER_SIZE - len(lastPacketsSent_copy)): # Append a dummy packet for every packet to send.
+											lastPacketsSent_copy.append(fh.DummyPacket().build())
+											lastPacketsSent_copy.reverse() # Reverse the list so the last packets get prepended first.
+									for pkt in lastPacketsSent_copy: # For every packet to send...
+										packetQueue.enqueue(pkt, prepend=True) # Prepend those packets
 
-
-										# For however many transactions the WTC can handle, enqueue a SENDPACKET so when the WTC asks "WHATISNEXT" the Pi can tell it it wants to send packets.
-										for x in range((len(self._packetQueue)//fh.WTC_PACKET_BUFFER_SIZE) + 1):
-											nextQueue.enqueue('SENDPACKET',prepend=True) # taken from qpaceControl
+									# For however many transactions the WTC can handle, enqueue a SENDPACKET so when the WTC asks "WHATISNEXT" the Pi can tell it it wants to send packets.
+									for x in range((len(self._packetQueue)//fh.WTC_PACKET_BUFFER_SIZE) + 1):
+										nextQueue.enqueue('SENDPACKET',prepend=True) # taken from qpaceControl
 							elif fieldData['command'] in COMMANDS: # Double check to see if it's a command
 								try:
 									processCommand(chip,fieldData,fromWhom = 'GND')
