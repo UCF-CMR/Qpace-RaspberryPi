@@ -77,6 +77,7 @@ class LastCommand():
 		LastCommand.commandCount += 1
 
 def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent,disableCallback, logger):
+	print("Entered: run")
 	"""
 	Main method for this module. Handles all data coming from the WTC and interprets what the Pi should do with it.
 
@@ -119,7 +120,7 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent,disa
 		gpio = pigpio.pi()
 		gpio.set_mode(CCDR_IRQ, pigpio.INPUT)
 	except NameError:
-		print('PIGPIO is not defined. Unable to set interrupt')
+		print('--PIGPIO is not defined. Unable to set interrupt')
 		gpio = None
 
 	configureTimestamp = False
@@ -140,8 +141,10 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent,disa
 	cmd.shutdownEvent = shutdownEvent
 	cmd.tagChecker = checker
 	lastPacketsSent = []
+	print("Exited: run")
 
 	def WTCRXBufferHandler(gpio,level,tick):
+		print("Entered: WTCRXBufferHandler")
 		"""
 		Callback method run by pigpio to handle data when the interrupt pin is fired. May be disabled and recreated at any time
 
@@ -153,11 +156,12 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent,disa
 
 		"""
 		packetData = chip.block_read(SC16IS750.REG_RHR,chip.byte_read(SC16IS750.REG_RXLVL))
-		print("Data came in: ", packetData)
+		print("--Data came in: ", packetData)
 		packetBuffer.append(packetData)
-
+		print("Exited: WTCRXBufferHandler")
 
 	def callbackHandler(disableCallback,shutdownEvent):
+		print("Entered: callbackHandler")
 		"""
 		Gets its own thread. Monitors the disableCallback Event and if it is ever .set(), the callback gets disabled
 		re-enable to callback by .clear()
@@ -189,13 +193,14 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent,disa
 				callback.cancel()
 		else:
 			logger.logSystem("Interpreter: Callback is not active. PIGPIO was not defined.")
-
+		print("Exited: callbackHandler")
 
 	# Start up the thread for the callbackHandler
 	cb_hndlr=threading.Thread(name='callbackHandler',target=callbackHandler,args=(disableCallback,shutdownEvent))
 	cb_hndlr.start()
 
 	def decodeXTEA(packetData):
+		print("Entered: decodeXTEA")
 		"""
 		take in a packet and decode the XTEA on the packet
 		NOTE: if there's not encryption key or iv, then the Pi will default to using no encryption at all.
@@ -225,13 +230,12 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent,disa
 			information = packetData[10:106]
 			logger.logError('Not using XTEA.',e)
 
-		print("header: %s INFROMATION: %s FOOTER: %s" % (ascii(header), ascii(bytes(information)), ascii(footer)))
+		print("--header: %s INFROMATION: %s FOOTER: %s" % (ascii(header), ascii(bytes(information)), ascii(footer)))
 		return header + bytes(information) + footer
-
-
-
+		print("Exited: decodeXTEA")
 
 	def decodePacket(packetData):
+		print("Entered: decodePacket")
 		"""
 		Splits raw packet data into readable, usable fields
 
@@ -245,8 +249,14 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent,disa
 		"""
 		# Magic numbers defined in Packet Specification Document
 		try:
+			print("--packet information:")
+			print("--routing ID {}".format(packetData[0]))
+			print("--opcode {}".format(packetData[1:6]))
+			print("--content {}".format(packetData[6:124]))
+			print("--checksum {}".format(packetData[124:]))
+
 			if packetData[1:6] == b'NOOP*':
-				print("WE AT LEAST GOT HERE")
+				print("Packet opcode is NOOP*")
 				packetData = decodeXTEA(packetData)
 				packet = {
 					"TYPE":			"NORM",
@@ -262,7 +272,6 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent,disa
 					"checksum":    	packetData[124:],
 					"contents":		packetData[6:124]
 				}
-				print(packet)
 			elif packetData[1:6] in fh.DataPacket.valid_opcodes:
 				packet = {
 					"TYPE":			"DATA",
@@ -298,8 +307,10 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent,disa
 			logger.logError('Interpreter: Could not format a packet.',e)
 		else:
 			return packet #based on packet definition document
+		print("Exited: decodePacket")
 
 	def processIncomingPacketData(chip, fieldData):
+		print("Entered: processIncomingPacketData")
 		"""
 		Figure out how to handle packet data if the data is determined to be for a file
 
@@ -325,8 +336,10 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent,disa
 				fh.Scaffold.construct(fieldData['pid'],fieldData['information'])
 			else:
 				logger.logSystem("Interpreter: A packet is interpreted as data, but its opcode isn't correct.")
+		print("Exited: processIncomingPacketData")
 
 	def processCommand(chip, fieldData, fromWhom = 'WTC'):
+		print("Entered: processCommand")
 		"""
 		Figure out what to do with a packet if it's supposed to be a command
 
@@ -342,8 +355,10 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent,disa
 			logger.logSystem("Interpreter: Command Received! <{}>".format(fieldData['command']))
 			LastCommand.set(fieldData['command'].decode('ascii'), str(datetime.datetime.now()), fromWhom)
 			COMMANDS[fieldData['command']](logger,arguments) # Run the command
+		print("Exited: processCommand")
 
 	def checkValidity(fieldData, packetData):
+		print("Entered: checkValidity")
 		"""
 		Check to see if a packet is valid and not corrupt.
 
@@ -365,8 +380,8 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent,disa
 			else:
 				packetString = bytes([fieldData['route']]) + fieldData['opcode'] + fieldData['contents']
 				isValid = fieldData['route'] in validRoutes and fieldData['checksum'] == generateChecksum(packetData[:-4])
-				print(packetData)
-				print(packetString)
+				#print(packetData)
+				#print(packetString)
 				print("IN CHECK VALIDITY")
 				print(isValid)
 				print(generateChecksum(packetData))
@@ -385,9 +400,11 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent,disa
 				pass
 		else:
 			isValid = False
+		print("Exited: checkValidity")
 		return isValid, fieldData
 
 	def wtc_respond(response):
+		print("Entered: wtc_respond")
 		"""
 		Send a response to the WTC. if the response is a state, then send that state instead.
 
@@ -404,8 +421,10 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent,disa
 			if isinstance(response,int):
 				response = bytes([response])
 			chip.write(response)
+		print("Exited: wtc_respond")
 
 	def sendPacketToWTC():
+		print("Entered: sendPacketToWTC")
 		"""
 		Send a packet from the packetQueue to the WTC. Sends a dummy packet if a packet is not available to send.
 
@@ -418,14 +437,18 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent,disa
 		"""
 		nextPacket = packetQueue.dequeue()
 		if nextPacket:
+			print("--Response with next packet")
 			wtc_respond(nextPacket)
 			lastPacketsSent.append(nextPacket)
 		else:
+			print("--Response with dummy packet")
 			dummy = fh.DummyPacket().build()
 			wtc_respond(dummy)
 			lastPacketsSent.append(dummy)
+		print("Exited: sendPacketToWTC")
 
 	def waitForBytesFromCCDR(chip,n,timeout = 2.5,interval = 0.25):
+		print("Entered: waitForBytesFromCCDR")
 		"""
 		Returns true when the number of bytes in the buffer is equal to n
 		Returns false when timeout occurs
@@ -452,18 +475,22 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent,disa
 		total_attempts = timeout//interval
 		attempts = 0
 		if timeout:
+			print("--Response with next packet")
 			while(attempts < total_attempts and chip.byte_read(SC16IS750.REG_RXLVL) is not n):
 				time.sleep(interval)
 				attempts += 1
 
 			if attempts >= total_attempts:
+				print("Exited: waitForBytesFromCCDR")
 				return False
 		else:
 			while(chip.byte_read(SC16IS750.REG_RXLVL) < n):
 				time.sleep(interval)
+		print("Exited: waitForBytesFromCCDR")
 		return True
 
 	def pseudoStateMachine(packetData,configureTimestamp,nextQueue):
+		print("Entered: Psuedo State Machine")
 		"""
 		This is a "state machine" that is run every iteration over the data received by the WTC.
 		In reality, it's a glorified switch statement.
@@ -487,7 +514,7 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent,disa
 		# Start looking at a pseduo state machine so WTC code doesn't need to change
 		if len(packetData) == 1 or (len(packetData) == 4 and configureTimestamp):
 			byte = int.from_bytes(packetData,byteorder='little')
-			print('Read from WTC: {} ({})'.format([ key for key,val in qpStates.items() if val==byte ], hex(byte)))
+			print('--Read from WTC: {} ({})'.format([ key for key,val in qpStates.items() if val==byte ], hex(byte)))
 			if len(packetData) == 4:
 				logger.logSystem('PseudoSM: Configuring the timestamp.')
 				os.system("sudo date -s '@" + str(byte) +"'")
@@ -580,10 +607,12 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent,disa
 				packetData, configureTimestamp = pseudoStateMachine(packetData,configureTimestamp,nextQueue)
 				# If the data was not a control character, then process it.
 				if packetData:
+					print("Packet data chunk was received.")
 					# We'll just assume that the input is a chunk.
 					chunkPacket.push(packetData)
 					# If, after pushing, the chunk is complete continue on. Otherwise skip.
 					if chunkPacket.complete:
+						print("All chunks received, build packet.")
 						packetData = chunkPacket.build()
 						fieldData = decodePacket(packetData) # Return a nice dictionary for the packets
 						# Check if the packet is valid.
@@ -604,6 +633,7 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent,disa
 						if isValid:
 							#TODO These prints are for DEBUG only.
 							print('Packet has passed Validation.')
+							print("fieldData['Type'] = {}".format(fieldData['TYPE']))
 							# If the opcode is that of a DataPacket procecss as incoming data.
 							# If the opcode is a command, process it as a command.
 							# If we don't know what it is at this point, then let's log it and
@@ -611,6 +641,7 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent,disa
 							if fieldData['TYPE'] == 'DATA':
 								processIncomingPacketData(chip,fieldData)
 							elif fieldData['TYPE'] == 'DLACK':
+								print("fieldData['response'] = {}".format(fieldData['response']))
 									# If the DLACK is good, then clear the queue of lastPackets.
 									if fieldData['response'] == b'GOOD':
 										lastPacketsSent.clear()
