@@ -239,7 +239,7 @@ class ChunkPacket():
 				ChunkPacket.complete = True
 
 		else:
-			self.logger.logSytem("ChunkPacket: Attempted to push when complete...")
+			self.logger.logSystem("ChunkPacket: Attempted to push when complete...")
 			ChunkPacket.complete = True
 
 

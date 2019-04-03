@@ -82,10 +82,11 @@ class TagChecker:
 		Raises: None
 
 		"""
-
+		print("ENTER GETTAG")
 		options = self._validTags(1)  #Sending to Ground List
 		selected = random.choice(options)
 		self._pushUsed(selected, 1)  #Sending to Ground List
+		print("EXIT GETTAG")
 		return selected
 
 	#Enter 0 for list of items sent to station
@@ -102,10 +103,13 @@ class TagChecker:
 		Raises: None
 
 		"""
+		print("ENTER isValidTag")
 		options = self._validTags(0)  #Tags Sent From Ground to Pi
 		if toCheck in options:
 			self._pushUsed(toCheck, 0)  # Tags Sent From Ground to Pi
+			print("Exit isValidTag True")
 			return True
+		print("Exit False isValidTag")
 		return False
 
 	#Enter 0 for list of items sent to station
