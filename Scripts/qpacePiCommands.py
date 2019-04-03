@@ -245,6 +245,7 @@ class Command():
 					raise RuntimeError('No encryption key or IV')
 				cipherText = xtea3.new(PrivilegedPacket.enc_key,mode=xtea3.MODE_OFB,IV=PrivilegedPacket.enc_iv).encrypt(plaintext)
 			except:
+				print("We didn't Encrypt Properly")
 				cipherText = plainText
 
 			return cipherText

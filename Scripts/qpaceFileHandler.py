@@ -261,7 +261,14 @@ class ChunkPacket():
 				packet += chunk
 			if len(packet) != DataPacket.max_size:
 				self.logger.logSystem("Packet is not {} bytes! It is {} bytes!".format(str(DataPacket.max_size),str(len(packet))) ,str(packet)[50:])
-				packet = b''
+				print("QUICK FIX IN QPACE FILE HANDLER")
+				packet = packet[(len(packet)-DataPacket.max_size):]
+				if(packet[-4:] != generateChecksum(packet[:-4])):
+					packet = b''
+					print("THE DATA SEND ISN'T VALID:\nCHECKSUMS DON'T MATCH")
+					Command.PrivilegedPacket(opcode="ERROR", plainText="ERROR OCCURING").send()
+				else:
+					print("QUICK FIX IS VALID")
 			ChunkPacket.chunks[:] = [] #reset chunks to empty
 			ChunkPacket.complete = False #reset copmlete to False
 			ChunkPacket.lastInputTime = None # reset the timer.

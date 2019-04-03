@@ -155,7 +155,16 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent,disa
 		Raises: None
 
 		"""
-		packetData = chip.block_read(SC16IS750.REG_RHR,chip.byte_read(SC16IS750.REG_RXLVL))
+		try:
+			packetData = chip.block_read(SC16IS750.REG_RHR,chip.byte_read(SC16IS750.REG_RXLVL))
+		except:
+			print("\n=========================\nRECEIVED I2C READ FAILED!!!!\n==========================\n")
+			logger.logSystem("I2C READ FAILED LINE 162 qPACEINTERPRETER")
+			return
+
+		#This segment of code is used twice, it is read off for states and for packets,
+		#its use in both causes a race condition where the added data is read with the packet
+		#short solution is to modify when trying to build packet
 		print("--Data came in: ", packetData)
 		packetBuffer.append(packetData)
 		print("Exited: WTCRXBufferHandler")
@@ -328,8 +337,10 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent,disa
 				match,who = fh.Scaffold.finish(fieldData['information'])
 				logger.logSystem('UploadRequest: Upload Request has been cleared for {}'.format(who))
 				if match:
+					Command.PrivilegedPacket(plainText=fieldData['pid'] + b'GOOD' + Command.PrivilegedPacket.returnRandom(86)).send()
 					logger.logSystem('Interpreter: The Upload was successful')
 				else:
+					Command.PrivilegedPacket(plainText=fieldData['pid'] + b'REPT' + Command.PrivilegedPacket.returnRandom(86)).send()
 					logger.logSystem('Interpreter: The Uploaded file does not match the checksum with ground')
 
 			elif fieldData['noop'] == b'NOOP>':
@@ -420,7 +431,10 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent,disa
 		elif response is not None:
 			if isinstance(response,int):
 				response = bytes([response])
-			chip.write(response)
+			try:
+				chip.write(response)
+			except:
+				print("=======================\nI2C WRITE ERROR OCCURRED=======================\n")
 		print("Exited: wtc_respond")
 
 	def sendPacketToWTC():
