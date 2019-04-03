@@ -36,6 +36,7 @@ class TagChecker:
 		##PROPERTIES
 		self.tags = [] #File tag values will be placed here
 		self.used = [] #Keeps track of which tags have been used
+		self.used_Sent = [] #Keeps Track of which tag has been sent
 
 		#initTags()
 		random.seed()
@@ -82,11 +83,13 @@ class TagChecker:
 
 		"""
 
-		options = self._validTags()
+		options = self._validTags(1)  #Sending to Ground List
 		selected = random.choice(options)
-		self._pushUsed(selected)
+		self._pushUsed(selected, 1)  #Sending to Ground List
 		return selected
 
+	#Enter 0 for list of items sent to station
+	#Enter 1 For list of items sent to ground
 	def isValidTag(self, toCheck):
 		"""
 		Checks if a tag is valid
@@ -99,13 +102,15 @@ class TagChecker:
 		Raises: None
 
 		"""
-		options = self._validTags()
+		options = self._validTags(0)  #Tags Sent From Ground to Pi
 		if toCheck in options:
-			self._pushUsed(toCheck)
+			self._pushUsed(toCheck, 0)  # Tags Sent From Ground to Pi
 			return True
 		return False
 
-	def _validTags(self):
+	#Enter 0 for list of items sent to station
+	#Enter 1 For list of items sent to ground
+	def _validTags(self, NumberList):
 		"""
 		Put togehter a list of all valid tags
 
@@ -120,7 +125,7 @@ class TagChecker:
 		options = []
 		if self.tags:
 			for t in self.tags:
-				if t not in self.used:
+				if t not in (self.used_Sent if NumberList else self.used):
 					options.append(t)
 			return options
 		else:
@@ -141,7 +146,9 @@ class TagChecker:
 		"""
 		return len(toCheck) == 2
 
-	def _pushUsed(self, newTag):
+	#Enter 0 for list of items sent to station
+	#Enter 1 For list of items sent to ground
+	def _pushUsed(self, newTag, NumberList):
 		"""
 		Push used tags onto the list. If the size of the list becomes greater than LOCK_CALLS
 		then pop off the least recently used tags.
@@ -153,11 +160,15 @@ class TagChecker:
 		Raises: None
 
 		"""
+		ListToCheck = self.used_Sent if NumberList else self.used  #Pointer assignment
+		NameOfList = " SENT TO GROUND" if NumberList else "RECEIVED FROM GROUND"
+		print("BEFORE WE PUSH FOR LIST: {0}\nContents: {1}\n".format(NameOfList, ListToCheck))
 		#Dequeue until of appropriate size
-		while len(self.used) >= TagChecker.LOCK_CALLS:
-			for i in range(len(self.used) - 1):
-				self.used[i] = self.used[i+1]
-			del self.used[len(self.used)-1]
+		while len(ListToCheck) >= TagChecker.LOCK_CALLS:
+			for i in range(len(ListToCheck) - 1):
+				ListToCheck[i] = ListToCheck[i+1]
+			del ListToCheck[len(ListToCheck)-1]
 
 		#Enqueue
-		self.used.append(newTag)
+		ListToCheck.append(newTag)
+		print("AFTER WE PUSH FOR LIST: {0}\nContents: {1}\n".format(NameOfList, ListToCheck))
