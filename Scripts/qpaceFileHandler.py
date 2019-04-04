@@ -49,6 +49,7 @@ class DataPacket():
 	valid_opcodes = (b'NOOP>',b'NOOP!')
 	data_size = max_size - header_size
 	validDesignators = [0]   	# WTC, Pi 1, Pi 2, GS.
+	pid = 0
 
 	def __init__(self,data, pid,rid, xtea = False,opcode = None):
 		"""
@@ -99,7 +100,7 @@ class DataPacket():
 		if data_in_bytes <= self.data_size: # Make sure the data is below the max bytes
 			if (DataPacket.last_id + 1) == pid:
 				if pid > DataPacket.max_id:
-					self.pid = pid % DataPacket.max_id # If the pid is > max_id, force it to be smaller!
+					DataPacket.pid = pid % DataPacket.max_id # If the pid is > max_id, force it to be smaller!
 				if pid < 0:
 					raise ValueError("Packet pid is invalid.")
 				DataPacket.last_id = pid
@@ -111,6 +112,7 @@ class DataPacket():
 
 			self.data = data
 			self.bytes = data_in_bytes
+			DataPacket.pid = pid
 			# self.useFEC = useFEC
 			self.rid = rid
 			self.xtea = xtea
@@ -145,7 +147,7 @@ class DataPacket():
 		padding = DataPacket.data_size - len(data)
 		data += DataPacket.padding_byte * padding
 		self.paddingSize = padding
-		packet = self.rid.to_bytes(1,byteorder='big') + self.opcode + self.pid.to_bytes(4,byteorder='big') + data
+		packet = self.rid.to_bytes(1,byteorder='big') + self.opcode + DataPacket.pid.to_bytes(4,byteorder='big') + data
 		packet += generateChecksum(packet)
 		# After constructing the packet's contents, pad the end of the packet until we reach the max size.
 		return packet
@@ -392,19 +394,20 @@ class Transmitter():
 		except StopIteration as e:
 			#StopIteration to stop iterating :) we are done here.
 			print(e)
-		#When it's done it needs to send a DONE packet
-		temp = [self.checksum,bytes([self.expected_packets]),self.pathname.encode('ascii')[self.pathname.rfind('/')+1:],bytes([self.pkt_padding])]
-		data = b' '.join(temp)
-		# if useFEC:
-		# 	data += (36 - len(data)) * b'\x04' if len(data) < 36 else b''
-		# 	data = data[:36] # only get the first 116 chars. Defined by the packet document
-		# else:
-		# 	data += (116 - len(data)) * b'\x04' if len(data) < 116 else b''
-		# 	data = data[:116] # only get the first 116 chars. Defined by the packet document
-		# padding = 116 - len(data)
-		# data += DataPacket.padding_byte * padding
-		allDone = DataPacket(data=data,pid=packet.pid+1,rid=0x00,opcode=b'NOOP!').build()
-		self.packetQueue.enqueue(allDone)
+		if(self.lastPacket == self.expected_packets):
+			#When it's done it needs to send a DONE packet
+			temp = [self.checksum,bytes([self.expected_packets]),self.pathname.encode('ascii')[self.pathname.rfind('/')+1:],bytes([self.pkt_padding])]
+			data = b' '.join(temp)
+			# if useFEC:
+			# 	data += (36 - len(data)) * b'\x04' if len(data) < 36 else b''
+			# 	data = data[:36] # only get the first 116 chars. Defined by the packet document
+			# else:
+			# 	data += (116 - len(data)) * b'\x04' if len(data) < 116 else b''
+			# 	data = data[:116] # only get the first 116 chars. Defined by the packet document
+			# padding = 116 - len(data)
+			# data += DataPacket.padding_byte * padding
+			allDone = DataPacket(data=data,pid=packet.pid+1,rid=0x00,opcode=b'NOOP!').build()
+			self.packetQueue.enqueue(allDone)
 		DataPacket.last_id = 0
 
 	def getPacketData(self):
