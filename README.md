@@ -1,5 +1,8 @@
 # Qpace-RaspberryPi
 Repository for QPACE's RaspberryPi
+## IMPORTANT
+* The Pi (CCDR) uses the chip SC16IS740 to communicate with the WTC sub-system.  The chip converts I2C to UART (vise-versa).  The hardware for the chip is different for the Flight Model and the Developement Board.  The Flight Model uses a crystal frequency of 1843200 and the Development Board currently uses 11059200. Please revert the software define `XTAL_FREQ` back to Flight Model Configuration before launch! (_currently defined in qpaceMain.py_)
+
 ## System Logging / Debug Printing
 While developing code for the Pi/CCDR sub-system please use the `sysargv` feature to display a variety of information about the system.
 Do not use `startupQPACE.sh` anymore. Use `python3 qpaceMain.py *{}` from now on.
