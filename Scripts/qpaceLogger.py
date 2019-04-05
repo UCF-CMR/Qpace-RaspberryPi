@@ -11,6 +11,7 @@
 import os
 import datetime
 from time import strftime,gmtime,time
+import sys
 
 class Colors:
     # Foreground:
@@ -60,6 +61,9 @@ class Logger():
     LOG_ATTEMPTS = 0
     MAX_LOG_ATTEMPTS = 5
     DEBUG = True
+    #MODE should contain all sys arguments from the user when running qpaceMain.py independantly from startQPACE.sh
+    #debug purposes only!
+    MODE = sys.argv[1:]
 
     def __init__(self):
         """
@@ -135,7 +139,33 @@ class Logger():
 
         """
         self._boot = False
+        
+    def logPrint(self, typeStr, log):
+        '''
+        sysargv logging modes:
+        no arguments - prints sys
+        e - prints errors
+        w - prints warnings
+        i - prints info
+        d - prints debugging
+        r - prints results
+        s - prints successes
+        f - prints failures
+        v - prints verbosely (everything)    
 
+        You can combine modes to see different logging information
+        '''    
+        #if its a sys log, always print it
+        if 'typeStr' == 'systm':
+            print(log)
+        #if the mode is v (verbose) print everything
+        elif 'v' in Logger.MODE:
+            print(log)
+        #if the log message one of the modes selected by the user print it
+        elif typeStr[0] in Logger.MODE:
+            print(log)   
+      
+    
     def logData(self,typeStr,*strings):
         """
         This function handles logging the actual data. It should not be called by a user.
@@ -171,7 +201,8 @@ class Logger():
             with open('{}{}_{}.log'.format(Logger.LOG_PATH,self.filename,self.counter),'a') as f:
                 f.write('\n' + log + '\n')
 
-            print(log)
+            #Used for Debugging only!
+            return self.logPrint(typeStr, log)
 
         except Exception as e:
             raise # Pass all and any exceptions back to the caller.
@@ -201,7 +232,7 @@ class Logger():
                 description += ' {}'.format(str(exception.args))
             self.Errors.inc()
             log = Colors.RED + description + Colors.DEFAULT 
-            return self.logData('Error', log) # Actually log the data.
+            return self.logData('error', log) # Actually log the data.
         except Exception:
             Logger.LOG_ATTEMPTS += 1
 
@@ -226,7 +257,7 @@ class Logger():
         #Add Color to Text
         log = Colors.HEADER + ''.join(data) + Colors.END
         try:
-            return self.logData('Sys  ', log)
+            return self.logData('systm', log)
         except Exception as e:
             Logger.LOG_ATTEMPTS += 1
 
@@ -246,7 +277,7 @@ class Logger():
         log = Colors.NC + ''.join(data) + Colors.END
     
         try:
-            return self.logData('Info ', log)
+            return self.logData('info ', log)
         except Exception as e:
             Logger.LOG_ATTEMPTS += 1
 
@@ -265,7 +296,7 @@ class Logger():
         #Add Color to Text
         log = Colors.WARNING + ''.join(data) + Colors.END
         try:
-            return self.logData('Warn ', log)
+            return self.logData('warn ', log)
         except Exception as e:
             Logger.LOG_ATTEMPTS += 1
 
@@ -284,7 +315,7 @@ class Logger():
         #Add Color to Text
         log = Colors.BLACK + Colors.BACKGROUND_WHITE +  ''.join(data) + Colors.DEFAULT + Colors.BACKGROUND_DEFAULT
         try:
-            return self.logData('Data ', log)
+            return self.logData('result', log)
         except Exception as e:
             Logger.LOG_ATTEMPTS += 1
 
@@ -303,7 +334,7 @@ class Logger():
         #Add Color to Text
         log = Colors.OKGREEN + ''.join(data) + Colors.END
         try:
-            return self.logData('Pass ', log)
+            return self.logData('succ ', log)
         except Exception as e:
             Logger.LOG_ATTEMPTS += 1
 
@@ -323,7 +354,7 @@ class Logger():
         #Add Color to Text
         log = Colors.FAIL + ''.join(data) + Colors.END
         try:
-            return self.logData('Fail ', log)
+            return self.logData('fail ', log)
         except Exception as e:
             Logger.LOG_ATTEMPTS += 1
 
@@ -342,6 +373,6 @@ class Logger():
         #Add Color to Text
         log = Colors.OKBLUE + ''.join(data) + Colors.END
         try:
-            return self.logData('Debug', log)
+            return self.logData('debug', log)
         except Exception as e:
             Logger.LOG_ATTEMPTS += 1
