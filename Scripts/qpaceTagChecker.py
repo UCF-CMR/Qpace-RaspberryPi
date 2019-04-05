@@ -82,11 +82,11 @@ class TagChecker:
 		Raises: None
 
 		"""
-		print("ENTER GETTAG")
+		logger.logInfo("ENTER GETTAG")
 		options = self._validTags(1)  #Sending to Ground List
 		selected = random.choice(options)
 		self._pushUsed(selected, 1)  #Sending to Ground List
-		print("EXIT GETTAG")
+		logger.logInfo("EXIT GETTAG")
 		return selected
 
 	#Enter 0 for list of items sent to station
@@ -103,13 +103,13 @@ class TagChecker:
 		Raises: None
 
 		"""
-		print("ENTER isValidTag")
+		logger.logInfo("ENTER isValidTag")
 		options = self._validTags(0)  #Tags Sent From Ground to Pi
 		if toCheck in options:
 			self._pushUsed(toCheck, 0)  # Tags Sent From Ground to Pi
-			print("Exit isValidTag True")
+			logger.logInfo("Exit isValidTag True")
 			return True
-		print("Exit False isValidTag")
+		logger.logInfo("Exit False isValidTag")
 		return False
 
 	#Enter 0 for list of items sent to station
@@ -164,9 +164,10 @@ class TagChecker:
 		Raises: None
 
 		"""
+		logger.logInfo("entered: pushedUsed")
 		ListToCheck = self.used_Sent if NumberList else self.used  #Pointer assignment
 		NameOfList = " SENT TO GROUND" if NumberList else "RECEIVED FROM GROUND"
-		print("BEFORE WE PUSH FOR LIST: {0}\nContents: {1}\n".format(NameOfList, ListToCheck))
+		logger.logResults("BEFORE WE PUSH FOR LIST: {0}\nContents: {1}\n".format(NameOfList, ListToCheck))
 		#Dequeue until of appropriate size
 		while len(ListToCheck) >= TagChecker.LOCK_CALLS:
 			for i in range(len(ListToCheck) - 1):
@@ -175,4 +176,5 @@ class TagChecker:
 
 		#Enqueue
 		ListToCheck.append(newTag)
-		print("AFTER WE PUSH FOR LIST: {0}\nContents: {1}\n".format(NameOfList, ListToCheck))
+		logger.logResults("AFTER WE PUSH FOR LIST: {0}\nContents: {1}\n".format(NameOfList, ListToCheck))
+		logger.logInfo("exited: pushedUsed")
