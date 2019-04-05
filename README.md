@@ -2,6 +2,7 @@
 Repository for QPACE's RaspberryPi
 ## System Logging / Debug Printing
 While developing code for the Pi/CCDR sub-system please use the `sysargv` feature to display a variety of information about the system.
+Do not use `startupQPACE.sh` anymore. Use `python3 qpaceMain.py *{}` from now on.
 ### User selected logging modes
 * no arguments will print only sys messages
 * v - verbose (prints everything)
@@ -33,6 +34,10 @@ To produce a log message you must use the functions provided. Each `sysargv` or 
 ```
 python3 qpaceMain.py e w d
 #This will print errors, warnings, and debug messages (and of course sys logs)
+
+logger.LogDebug("Hello")
+logger.LogResults("Data")
+-> Hello
 ```
 ```
 python3 qpaceMain.py v
