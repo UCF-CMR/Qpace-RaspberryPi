@@ -12,6 +12,28 @@ import os
 import datetime
 from time import strftime,gmtime,time
 
+class Colors:
+    # Foreground:
+    HEADER  = '\033[95m'
+    OKBLUE  = '\033[94m'
+    OKGREEN = '\033[92m'
+    WARNING = '\033[93m'
+    FAIL    = '\033[91m'
+    # Formatting
+    BOLD      = '\033[1m'
+    UNDERLINE = '\033[4m'    
+    # End colored text
+    END = '\033[0m'
+    NC  ='\x1b[0m' # No Color
+    
+    #other foreground colors
+    RED     = "\x1b[31m"
+    BLACK   = "\x1b[30m"
+    DEFAULT = "\x1b[39m"
+    #other background colors
+    BACKGROUND_WHITE   = "\x1b[107m"
+    BACKGROUND_DEFAULT = "\x1b[49m"
+
 class Errors():
     """ Helper class that counts how many errors are logged"""
     error_count = 0
@@ -65,6 +87,7 @@ class Logger():
             self.counter='null'
 
         self.Errors = Errors()
+        self.Colors = Colors()
         self.filename = 'unknownBootTime' # Must be 15 characters for the serialization.
 
     def bootWasSet(self):
@@ -113,7 +136,7 @@ class Logger():
         """
         self._boot = False
 
-    def logData(self,type,*strings):
+    def logData(self,typeStr,*strings):
         """
         This function handles logging the actual data. It should not be called by a user.
 
@@ -135,21 +158,21 @@ class Logger():
         if Logger.LOG_ATTEMPTS >= Logger.MAX_LOG_ATTEMPTS:
             return None
         try:
-            stringBuilder = []
-            for string in strings:
-                stringBuilder.append('{} > [{}] {}'.format(type,self.filename if self._boot else str(round(time())),string))
 
+            #add time string
+            if self._boot:
+                timeStr = self.filename
+            else:
+                timeStr = str(round(time()))
+            # concat string: " 'log type' > ['time'] + 'log data'
+            log = typeStr + ' > [' + timeStr + '] ' + ''.join(strings)
+            
+            #write to log file.
             with open('{}{}_{}.log'.format(Logger.LOG_PATH,self.filename,self.counter),'a') as f:
-                f.write('\n'.join(stringBuilder))
-                f.write('\n')
+                f.write('\n' + log + '\n')
 
-            if Logger.DEBUG:
-                for string in stringBuilder:
-                    if string.startswith('Err'):
-                        color = '\033[1;31m' # Red. Make errors pop out in terminal, because that's fun.
-                    else:
-                        color = '\033[0;1m' # Bold
-                    print(self.counter,'|{}'.format(color),string,'\033[0;0m')
+            print(log)
+
         except Exception as e:
             raise # Pass all and any exceptions back to the caller.
 
@@ -173,11 +196,12 @@ class Logger():
         All exceptions raised by this function are ignored.
 
         """
+        log = Colors.RED + ''.join(data) + Colors.DEFAULT
         try:
             if exception is not None:
                 description += ' {}'.format(str(exception.args))
             self.Errors.inc()
-            self.logData('Sys','An error is being recorded to the error log. Please check the error log at this timestamp.')
+            self.logData('Error','An error is being recorded to the error log. Please check the error log at this timestamp.')
             return self.logData('Err',description) # Actually log the data.
         except Exception:
             Logger.LOG_ATTEMPTS += 1
@@ -200,7 +224,125 @@ class Logger():
         and then ignored.
 
         """
+        #Add Color to Text
+        log = Colors.HEADER + ''.join(data) + Colors.END
         try:
-            return self.logData('Sys',*data)
+            return self.logData('Sys  ', log)
+        except Exception as e:
+            Logger.LOG_ATTEMPTS += 1
+
+    def logInfo(self,*data):
+        """
+        This function should be called when:
+            - wanting to log normal information about the current state / operation.
+
+        This function accepts:
+            - a string ready to be formatted
+        This function returns:
+            - the string the user passed a pretix of 'Info'
+
+        Suggested Color: white
+        """
+        #Add Color to Text
+        log = Colors.NC + ''.join(data) + Colors.END
+    
+        try:
+            return self.logData('Info ', log)
+        except Exception as e:
+            Logger.LOG_ATTEMPTS += 1
+
+    def logWarning(self,*data):
+        """
+        This function should be called when:
+            - wanting to log normal information about the current state / operation.
+
+        This function accepts:
+            - a string ready to be formatted
+        This function returns:
+            - the string the user passed a pretix of 'Warn'
+
+        Suggested Color: yellow or orange
+        """
+        #Add Color to Text
+        log = Colors.WARNING + ''.join(data) + Colors.END
+        try:
+            return self.logData('Warn ', log)
+        except Exception as e:
+            Logger.LOG_ATTEMPTS += 1
+
+    def logResults(self,*data):
+        """
+        This function should be called when:
+            - wanting to log data/values/results about the current state / operation.
+
+        This function accepts:
+            - a string ready to be formatted
+        This function returns:
+            - the string the user passed a pretix of 'Data'
+
+        Suggested Color: yellow or orange
+        """
+        #Add Color to Text
+        log = Colors.BLACK + Colors.BACKGROUND_WHITE +  ''.join(data) + Colors.DEFAULT + Colors.BACKGROUND_DEFAULT
+        try:
+            return self.logData('Data ', log)
+        except Exception as e:
+            Logger.LOG_ATTEMPTS += 1
+
+    def logSuccess(self,*data):
+        """
+        This function should be called when:
+            - wanting to log function/operation/validation success information about the current state / operation.
+
+        This function accepts:
+            - a string ready to be formatted
+        This function returns:
+            - the string the user passed a pretix of 'Pass'
+        
+        Suggested Color: green
+        """
+        #Add Color to Text
+        log = Colors.OKGREEN + ''.join(data) + Colors.END
+        try:
+            return self.logData('Pass ', log)
+        except Exception as e:
+            Logger.LOG_ATTEMPTS += 1
+
+    def logFailure(self,*data):
+        """
+        This function should be called when:
+            - wanting to log function/operation/validation failure information about the current state / operation.
+            - this is not an exception but a process failure.
+
+        This function accepts:
+            - a string ready to be formatted
+        This function returns:
+            - the string the user passed a pretix of 'Fail'
+
+        Suggested Color: red or orange
+        """
+        #Add Color to Text
+        log = Colors.FAIL + ''.join(data) + Colors.END
+        try:
+            return self.logData('Fail ', log)
+        except Exception as e:
+            Logger.LOG_ATTEMPTS += 1
+
+    def logDebug(self,*data):
+        """
+        This function should be called when:
+            - wanting to log any debug information about the current state / operation.
+
+        This function accepts:
+            - a string ready to be formatted
+        This function returns:
+            - the string the user passed a pretix of 'Debug'
+        
+        Suggested Color: blue
+        """
+        #Add Color to Text
+        log = Colors.OKBLUE + ''.join(data) + Colors.END
+        try:
+            return self.logData('Debug', log)
         except Exception as e:
             Logger.LOG_ATTEMPTS += 1
