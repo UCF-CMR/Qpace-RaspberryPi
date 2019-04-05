@@ -659,6 +659,17 @@ if __name__ == '__main__':
 	time.sleep(1)
 	logger = qpaceLogger.Logger()
 
+	logger.logSystem('Logging sys is purple')
+	logger.logInfo('logging info is white')
+	logger.logError('log errors is red')
+	logger.logWarning('logging warnings is yellow')
+	logger.logDebug('logging debug messages is blue')
+	logger.logResults('logging results is cyan')
+	logger.logFailure('logging failures is orange')
+	logger.logSuccess('logging successes is green')
+
+	logger.logSystem('Beginning QPACE System!!!')
+
 	if healthCheck(logger):
 		logger.logSystem('HealthCheck: Complete. QPACE is GO.')
 		logger.logSystem("Main: Initializing GPIO pins to default states.")

@@ -13,7 +13,7 @@ import datetime
 from time import strftime,gmtime,time
 import sys
 
-class Colors:
+class Colors():
     # Foreground:
     HEADER  = '\033[95m'
     OKBLUE  = '\033[94m'
@@ -28,9 +28,10 @@ class Colors:
     NC  ='\x1b[0m' # No Color
     
     #other foreground colors
-    RED     = "\x1b[31m"
-    BLACK   = "\x1b[30m"
-    DEFAULT = "\x1b[39m"
+    RED        = "\x1b[31m"
+    LIGHT_CYAN = "\x1b[96m"
+    BLACK      = "\x1b[30m"
+    DEFAULT    = "\x1b[39m"
     #other background colors
     BACKGROUND_WHITE   = "\x1b[107m"
     BACKGROUND_DEFAULT = "\x1b[49m"
@@ -313,7 +314,7 @@ class Logger():
         Suggested Color: yellow or orange
         """
         #Add Color to Text
-        log = Colors.BLACK + Colors.BACKGROUND_WHITE +  ''.join(data) + Colors.DEFAULT + Colors.BACKGROUND_DEFAULT
+        log = Colors.LIGHT_CYAN + ''.join(data) + Colors.DEFAULT
         try:
             return self.logData('result', log)
         except Exception as e:
