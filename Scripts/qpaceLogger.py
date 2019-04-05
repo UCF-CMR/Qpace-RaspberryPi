@@ -196,13 +196,12 @@ class Logger():
         All exceptions raised by this function are ignored.
 
         """
-        log = Colors.RED + ''.join(data) + Colors.DEFAULT
         try:
             if exception is not None:
                 description += ' {}'.format(str(exception.args))
             self.Errors.inc()
-            self.logData('Error','An error is being recorded to the error log. Please check the error log at this timestamp.')
-            return self.logData('Err',description) # Actually log the data.
+            log = Colors.RED + description + Colors.DEFAULT 
+            return self.logData('Error', log) # Actually log the data.
         except Exception:
             Logger.LOG_ATTEMPTS += 1
 
