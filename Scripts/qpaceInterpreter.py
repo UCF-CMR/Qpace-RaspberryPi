@@ -239,7 +239,7 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent,disa
 			information = packetData[10:106]
 			logger.logError('Not using XTEA.',e)
 
-		logger.logInfo("header: %s INFROMATION: %s FOOTER: %s" % (ascii(header), ascii(bytes(information)), ascii(footer)))
+		logger.logResults("header: %s INFROMATION: %s FOOTER: %s" % (ascii(header), ascii(bytes(information)), ascii(footer)))
 		return header + bytes(information) + footer
 		logger.logInfo("Exited: decodeXTEA")
 
@@ -394,9 +394,6 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent,disa
 			else:
 				packetString = bytes([fieldData['route']]) + fieldData['opcode'] + fieldData['contents']
 				isValid = fieldData['route'] in validRoutes and fieldData['checksum'] == generateChecksum(packetData[:-4])
-				#print(packetData)
-				#print(packetString)
-				logger.logInfo('Is valid?', isValid)
 
 			if fieldData['TYPE'] == 'DATA':
 				pass
