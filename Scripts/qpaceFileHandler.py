@@ -15,6 +15,7 @@ from datetime import datetime,timedelta
 from math import ceil
 import re
 import os
+import traceback
 
 WTC_PACKET_BUFFER_SIZE = 10
 
@@ -107,8 +108,8 @@ class DataPacket():
 			else:
 				if pid == 0:
 					DataPacket.pid = 0
-				else:
-					raise ValueError("Packet pid out of order.")
+				#else:
+					#raise ValueError("Packet pid out of order.")
 
 			self.data = data
 			self.bytes = data_in_bytes
@@ -330,6 +331,7 @@ class Transmitter():
 			noDownloadMessage = 'There was an issue with the file: {}'.format(e)
 			noDownloadPacket = DataPacket(noDownloadMessage.encode('ascii'), 0, self.route).build()
 			self.packetQueue.enqueue(noDownloadPacket)
+			traceback.print_exc()
 			DataPacket.last_id = 0
 			return
 
@@ -339,12 +341,14 @@ class Transmitter():
 			noDownloadPacket = DataPacket(noDownloadMessage.encode('ascii'), 0, self.route).build()
 			self.packetQueue.enqueue(noDownloadPacket)
 			DataPacket.last_id = 0
+			traceback.print_exc()
 			return
 
 		try:
 			self.checksum = generateChecksum(open("{}{}".format(ROOTPATH,pathname),'rb').read())
 		except:
 			self.checksum = b'NONE' #Should we just not send the file? I think we should send it anyway.
+			traceback.print_exc()
 
 		# if useFEC:
 		# 	self.data_size = (DataPacket.max_size - DataPacket.header_size) // 3
@@ -378,9 +382,14 @@ class Transmitter():
 				sessionPackets = []
 
 				# try:
-				packet = DataPacket(data=packetData[pid], pid=pid, rid=self.route, opcode=None)
-				self.pkt_padding = self.data_size - len(packetData[pid])
-				self.packetQueue.enqueue(packet.build()) #ADD PACKET TO BUFFER
+				try:
+					packet = DataPacket(data=packetData[pid], pid=pid, rid=self.route, opcode=None)
+					self.pkt_padding = self.data_size - len(packetData[pid])
+					self.packetQueue.enqueue(packet.build()) #ADD PACKET TO BUFFER
+					print("SUCCESSS WE ADDED HERE: %d" % pid)
+				except Exception as e:
+					print("ERROR, WE HAVE FOUND SOME ERROR HERE: {0}".format(pid))
+					traceback.print_exc()
 				# except IndexError:
 				# 	# IndexError when we don't have enough packets for the current set of acknoledgements
 				# 	# This is fine though, raise a StopIteration up one level to exit
@@ -390,10 +399,15 @@ class Transmitter():
 
 				# Update the progress list.
 				if pid % self.ppa == 0:
-					self._updateFileProgress(pid)
+					try:
+						self._updateFileProgress(pid)
+					except:
+						print("ERROR IN 396: NO UPDATE PROGRESS")
 		except StopIteration as e:
 			#StopIteration to stop iterating :) we are done here.
+			print("Some Errors Here")
 			print(e)
+
 		if(self.lastPacket == self.expected_packets):
 			#When it's done it needs to send a DONE packet
 			temp = [self.checksum,bytes([self.expected_packets]),self.pathname.encode('ascii')[self.pathname.rfind('/')+1:],bytes([self.pkt_padding])]
@@ -429,6 +443,8 @@ class Transmitter():
 					packetData.append(data)
 				else:
 					break
+		print(packetData)
+		print("WHAT IS OUR SIZE?: %d" % len(packetData))
 		return packetData
 
 	def _updateFileProgress(self,sent=0):

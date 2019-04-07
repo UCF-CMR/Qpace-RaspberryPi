@@ -17,6 +17,7 @@ import datetime
 import random
 import tarfile
 import qpaceLogger as qpLog
+import traceback
 
 try:
 	import xtea3
@@ -514,15 +515,17 @@ class Command():
 											)
 				try:
 					transmitter.run()
-					print("Transmitter Ran!")
-				except:
-					print("Transmitter Failed to RUN")
+					logger.logSuccess("Transmitter Ran!")
+				except Exception as e:
+					logger.logError("Transmitter Failed to RUN")
+					#logger.logError("%s"%str(e))
+					traceback.print_exc()
 					pass
 			except FileNotFoundError:
 				logger.logSystem('Transmitter: Could not find the file requested for: {}'.format(filename.decode('ascii')))
 		#else:
 				# For however many transactions the WTC can handle, enqueue a SENDPACKET so when the WTC asks "WHATISNEXT" the Pi can tell it it wants to send packets.
-		for x in range((len(self._packetQueue)//qfh.WTC_PACKET_BUFFER_SIZE) + 1):
+		for x in range((len(self._packetQueue)//qfh.WTC_PACKET_BUFFER_SIZE)):
 			self.nextQueue.enqueue('SENDPACKET') # taken from qpaceControl
 
 	def upReq(self,logger,args, silent=False):
