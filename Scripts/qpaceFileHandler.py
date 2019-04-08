@@ -269,7 +269,7 @@ class ChunkPacket():
 				if(packet[-4:] != generateChecksum(packet[:-4])):
 					packet = b''
 					print("THE DATA SEND ISN'T VALID:\nCHECKSUMS DON'T MATCH")
-					Command.PrivilegedPacket(opcode="ERROR", plainText="ERROR OCCURING").send()
+					Command.PrivilegedPacket(opcode=b"ERROR", plainText=b"ERROR OCCURING").send()
 				else:
 					print("QUICK FIX IS VALID")
 			ChunkPacket.chunks[:] = [] #reset chunks to empty
@@ -341,11 +341,16 @@ class Transmitter():
 			noDownloadPacket = DataPacket(noDownloadMessage.encode('ascii'), 0, self.route).build()
 			self.packetQueue.enqueue(noDownloadPacket)
 			DataPacket.last_id = 0
-			traceback.print_exc()
+			print("TOO BIG BAYBEE")
 			return
 
+		self.data_size = DataPacket.max_size - DataPacket.header_size
+		self.expected_packets = ceil(self.filesize / self.data_size)
 		try:
-			self.checksum = generateChecksum(open("{}{}".format(ROOTPATH,pathname),'rb').read())
+			if(self.expected_packets < 1000):   #Way too big to create checksum
+				self.checksum = generateChecksum(open("{}{}".format(ROOTPATH,pathname),'rb').read())
+			else:
+				self.checksum = b'THIC'
 		except:
 			self.checksum = b'NONE' #Should we just not send the file? I think we should send it anyway.
 			traceback.print_exc()
@@ -354,11 +359,11 @@ class Transmitter():
 		# 	self.data_size = (DataPacket.max_size - DataPacket.header_size) // 3
 		# else:
 		# 	self.data_size = DataPacket.max_size - DataPacket.header_size
-		self.data_size = DataPacket.max_size - DataPacket.header_size
-		self.expected_packets = ceil(self.filesize / self.data_size)
+		#self.data_size = DataPacket.max_size - DataPacket.header_size
+		#self.expected_packets = ceil(self.filesize / self.data_size)
 		self.ppa = ppa
 		self.xtea = xtea
-		self._updateFileProgress()
+		#self._updateFileProgress()
 
 	def run(self):
 		"""
@@ -378,12 +383,12 @@ class Transmitter():
 		if self.lastPacket == None:
 			self.lastPacket = len(packetData)
 		try:
-			for pid in range(self.firstPacket,self.lastPacket):
+			for pid in range(self.lastPacket-self.firstPacket):
 				sessionPackets = []
 
 				# try:
 				try:
-					packet = DataPacket(data=packetData[pid], pid=pid, rid=self.route, opcode=None)
+					packet = DataPacket(data=packetData[pid], pid=pid+self.firstPacket, rid=self.route, opcode=None)
 					self.pkt_padding = self.data_size - len(packetData[pid])
 					self.packetQueue.enqueue(packet.build()) #ADD PACKET TO BUFFER
 					print("SUCCESSS WE ADDED HERE: %d" % pid)
@@ -435,14 +440,18 @@ class Transmitter():
 		Raises: None
 
 		"""
+		startByte = self.firstPacket*self.data_size
+		count = 0
 		packetData = []
 		with open("{}{}".format(ROOTPATH,self.pathname),'rb') as f:
-			while(True):
+			f.seek(startByte)
+			while(count < self.ppa):
 				data = f.read(self.data_size)
 				if data:
 					packetData.append(data)
 				else:
 					break
+				count += 1
 		print(packetData)
 		print("WHAT IS OUR SIZE?: %d" % len(packetData))
 		return packetData

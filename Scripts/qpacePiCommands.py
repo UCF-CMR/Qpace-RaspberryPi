@@ -474,6 +474,7 @@ class Command():
 		# 114 is the maximum alotment of data space in the files. the other 14 bytes are header and checksum data
 		# Get the number of packets estimated to be in this thing.
 		data = ((size_of_file//qfh.DataPacket.data_size) + 1).to_bytes(4,'big')
+		self.NumPackets = ((size_of_file//qfh.DataPacket.data_size) + 1)
 		data += b'\n'
 		if size_of_file > qfh.MAX_FILE_SIZE:
 			data += ('File Too large. Send less than 400MB at a time.\n')
@@ -493,10 +494,13 @@ class Command():
 		import qpaceFileHandler as qfh
 		qfh.DataPacket.last_id = 0
 		# fec = args[0]
-		ppa = int.from_bytes(args[1:5],byteorder='big')
+		ppa = int.from_bytes(args[1:5],byteorder='big')  #HOW MANY YOU WANT BOI
 		start = int.from_bytes(args[5:9], byteorder='big')
 		end = int.from_bytes(args[9:13], byteorder='big')
 		filename = args[13:].replace(Command.CMDPacket.padding_byte,b'')
+
+		# 114 is the maximum alotment of data space in the files. the other 14 bytes are header and checksum data
+		# Get the number of packets estimated to be in this thing.
 		# print('FEC:',fec)
 		print('STR:',start)
 		print('END:',end)
@@ -526,6 +530,9 @@ class Command():
 		#else:
 				# For however many transactions the WTC can handle, enqueue a SENDPACKET so when the WTC asks "WHATISNEXT" the Pi can tell it it wants to send packets.
 		for x in range((len(self._packetQueue)//qfh.WTC_PACKET_BUFFER_SIZE)):
+			self.nextQueue.enqueue('SENDPACKET') # taken from qpaceControl
+
+		if(self.NumPackets == end):
 			self.nextQueue.enqueue('SENDPACKET') # taken from qpaceControl
 
 	def upReq(self,logger,args, silent=False):
