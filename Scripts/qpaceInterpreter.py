@@ -398,6 +398,8 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent,disa
 			if fieldData['TYPE'] == 'DATA':
 				pass
 			elif fieldData['TYPE'] == 'NORM':
+				#print("The tag of this packet is", fieldData['tag'].decode("utf-8"))
+				print("FEILD DATA TAG:", fieldData['tag'])
 				validTag =  checker.isValidTag(fieldData['tag'])
 				if isValid and not validTag:
 					logger.logSystem('Interpreter: A valid packet came in, but the tag was wrong. The packet is being dropped.')

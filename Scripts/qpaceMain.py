@@ -68,7 +68,7 @@ def initWTCConnection():
 	# QPACE IS 115200
 	I2C_BAUD_WTC = 115200 # UART baudrates for WTC comm chips
 	# QPACE IS 1843200
-	XTAL_FREQ = 11059200#1843200#11059200 # Crystal frequency for comm chips
+	XTAL_FREQ = 1843200#11059200 # Crystal frequency for comm chips
 	DATA_BITS = SC16IS750.LCR_DATABITS_8
 	STOP_BITS = SC16IS750.LCR_STOPBITS_1
 	PARITY_BITS = SC16IS750.LCR_PARITY_NONE
@@ -76,7 +76,7 @@ def initWTCConnection():
 	# init the chip
 	try:
 		chip = SC16IS750.SC16IS750(gpio,I2C_BUS,I2C_ADDR_WTC, XTAL_FREQ, I2C_BAUD_WTC, DATA_BITS, STOP_BITS, PARITY_BITS)
-		if XTAL_FREQ != 1843200:
+		if XTAL_FREQ != 1843200: 
 			logger.logWarning('SC16IS740 CHIP FREQ IS 1843200 for QPACE. XTAL_FREQ is currently set at ' + str(XTAL_FREQ))
 
 	except Exception as e:
