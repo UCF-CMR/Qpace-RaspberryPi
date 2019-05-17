@@ -469,6 +469,27 @@ class Command():
 		"""
 		import qpaceFileHandler as qfh
 		path = args[1:].replace(b'\x04',b'').decode('ascii')
+
+
+		"""
+		Create Encoded file for possible transmission.
+		If the file is able to be sent, then we will send
+		down the encoded data for re-coding on ground
+
+		WARNING: Assumes path is in the local directory not in another
+		outside directory.
+		"""
+
+		with open("{}{}".format(ROOTPATH, path), "rb") as dataFile:
+			data = base64.b64encode(dataFile.read())
+
+		encoded_filename = "Encoded_{0}".format(path)
+
+		with open(encoded_filename, "wb") as encodedFile:
+			encodedFile.write(data)
+
+		path = encoded_filename
+
 		try:
 			size_of_file = os.path.getsize("{}{}".format(ROOTPATH,path))
 		except FileNotFoundError as e:
@@ -514,19 +535,13 @@ class Command():
 		Encoding method should use base64 lib
 		"""
 		filename = filename.decode('ascii')
-
-		with open(filename, "rb") as dataFile:
-			data = base64.b64encode(dataFile.read())
-
-		encoded_filename = "Encoded_{0}.txt".format(filename)
-		with open(encoded_filename, "wb") as encodedFile:
-			encodedFile.write(data)
+		encoded_filename = "Encoded_{0}".format(filename)
 
 
 		if not silent:
 			try:
 				transmitter = qfh.Transmitter(
-												encoded_filename.decode('ascii'),
+												encoded_filename,
 												0x00,
 												# useFEC = fec == b' FEC',
 												ppa=ppa,
