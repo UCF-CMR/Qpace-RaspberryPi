@@ -8,6 +8,7 @@
 # This module handles the individual commands for the Pi
 #TODO: Re-do comments/documentation
 
+import base64
 import os
 from subprocess import check_output,Popen
 from math import ceil
@@ -241,6 +242,7 @@ class Command():
 			Raises: None
 
 			"""
+			print("INSIDE XTEA")
 			try:
 				if not PrivilegedPacket.enc_key or not PrivilegedPacket.enc_iv:
 					raise RuntimeError('No encryption key or IV')
@@ -505,10 +507,26 @@ class Command():
 		print('STR:',start)
 		print('END:',end)
 		print('FNM:',filename)
+
+
+		"""TODO
+		Encode file into Encoded_<Filename>.txt
+		Encoding method should use base64 lib
+		"""
+		filename = filename.decode('ascii')
+
+		with open(filename, "rb") as dataFile:
+			data = base64.b64encode(dataFile.read())
+
+		encoded_filename = "Encoded_{0}.txt".format(filename)
+		with open(encoded_filename, "wb") as encodedFile:
+			encodedFile.write(data)
+
+
 		if not silent:
 			try:
 				transmitter = qfh.Transmitter(
-												filename.decode('ascii'),
+												encoded_filename.decode('ascii'),
 												0x00,
 												# useFEC = fec == b' FEC',
 												ppa=ppa,

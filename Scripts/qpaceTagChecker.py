@@ -181,3 +181,10 @@ class TagChecker:
 		ListToCheck.append(newTag)
 		#logger.logResults("AFTER WE PUSH FOR LIST: {0}\nContents: {1}\n".format(NameOfList, ListToCheck))
 		#logger.logInfo("exited: pushedUsed")
+
+
+	def clearTagList(self):
+		"""
+		"""
+		for i in range(len(ListToCheck)):
+			ListToCheck.remove(i)

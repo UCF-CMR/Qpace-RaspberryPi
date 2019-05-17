@@ -194,7 +194,7 @@ class Logger():
             if self._boot:
                 timeStr = self.filename
             else:
-                timeStr = str(round(time()))
+                timeStr = str(time())
             # concat string: " 'log type' > ['time'] + 'log data'
             log = typeStr + ' > [' + timeStr + '] ' + ''.join(strings)
             

@@ -407,7 +407,8 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent,disa
 
 			elif fieldData['TYPE'] == 'DLACK':
 				# Honestly, I don't think there's anything to do here...
-				pass
+				checker.clearTagList()
+				
 		else:
 			isValid = False
 		logger.logInfo("Exited: checkValidity")
@@ -632,6 +633,7 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent,disa
 						# If it's XTEA, decode it at this step and modify the field data appropriately.
 						isValid,fieldData = checkValidity(fieldData, packetData)
 
+						"""
 						try:
 							if fieldData['TYPE'] == 'DATA':
 								if fieldData['opcode'] == b'NOOP>':
@@ -642,6 +644,7 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent,disa
 									Command.PrivilegedPacket(opcode="NOOP>",plainText=fieldData['pid'] + response + Command.PrivilegedPacket.returnRandom(86)).send()
 									#nextQueue.enqueue('SENDPACKET')
 						except:pass
+						"""
 
 						if isValid:
 							#TODO These prints are for DEBUG only.
