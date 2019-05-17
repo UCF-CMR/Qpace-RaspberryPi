@@ -485,6 +485,9 @@ class Command():
 
 		encoded_filename = "Encoded_{0}".format(path)
 
+		if os.path.isfile(encoded_filename):
+			os.remove(encoded_filename)
+
 		with open(encoded_filename, "wb") as encodedFile:
 			encodedFile.write(data)
 

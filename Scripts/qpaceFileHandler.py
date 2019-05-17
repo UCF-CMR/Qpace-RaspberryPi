@@ -383,13 +383,13 @@ class Transmitter():
 		if self.lastPacket == None:
 			self.lastPacket = len(packetData)
 		try:
-			for pid in range(self.lastPacket-self.firstPacket):
+			for pid in range(self.firstPacket, self.lastPacket):#self.lastPacket-self.firstPacket):
 				sessionPackets = []
 
 				# try:
 				try:
-					packet = DataPacket(data=packetData[pid], pid=pid+self.firstPacket, rid=self.route, opcode=None)
-					self.pkt_padding = self.data_size - len(packetData[pid])
+					packet = DataPacket(data=packetData[pid%10], pid=pid, rid=self.route, opcode=None)
+					self.pkt_padding = self.data_size - len(packetData[pid%10])
 					self.packetQueue.enqueue(packet.build()) #ADD PACKET TO BUFFER
 					print("SUCCESSS WE ADDED HERE: %d" % pid)
 				except Exception as e:
