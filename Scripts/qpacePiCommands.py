@@ -538,7 +538,7 @@ class Command():
 		Encoding method should use base64 lib
 		"""
 		filename = filename.decode('ascii')
-		encoded_filename = "Encoded_{0}".format(filename)
+		encoded_filename = "{0}.encode".format(filename)
 
 
 		if not silent:
