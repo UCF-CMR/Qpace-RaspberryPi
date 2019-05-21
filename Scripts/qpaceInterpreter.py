@@ -23,6 +23,7 @@ except:
 import time
 import datetime
 import os
+import traceback
 from struct import pack
 import threading
 from qpacePiCommands import generateChecksum, Command
@@ -158,6 +159,7 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent,disa
 		try:
 			packetData = chip.block_read(SC16IS750.REG_RHR,chip.byte_read(SC16IS750.REG_RXLVL))
 		except:
+			traceback.print_exc()
 			logger.logError("I2C READ FAILED")
 			return
 

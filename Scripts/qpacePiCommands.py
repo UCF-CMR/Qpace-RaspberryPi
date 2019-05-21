@@ -483,7 +483,7 @@ class Command():
 		with open("{}{}".format(ROOTPATH, path), "rb") as dataFile:
 			data = base64.b64encode(dataFile.read())
 
-		encoded_filename = "Encoded_{0}".format(path)
+		encoded_filename = "{0}.encode".format(path)
 
 		if os.path.isfile(encoded_filename):
 			os.remove(encoded_filename)
