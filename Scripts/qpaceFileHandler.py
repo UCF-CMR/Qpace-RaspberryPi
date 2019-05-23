@@ -181,7 +181,7 @@ class DummyPacket(DataPacket):
 		"""
 		self.data=DataPacket.padding_byte*118
 		self.opcode = b'DUMMY'
-		self.rid = b'\x00'
+		self.rid = b'\xAA'
 	def build(self):
 		"""
 		Override for the dummy packet's build.

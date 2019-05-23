@@ -560,23 +560,21 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent,disa
 					logger.clearBoot()
 				elif byte == qpStates['WHATISNEXT']:
 					next = nextQueue.peek()
+
+					if not next and packetQueue.peek():
+						next = 'SENDPACKET'
 					if not next:
 						next = 'IDLE'
 					wtc_respond(next) # Respond with what the Pi would like the WTC to know.
-					if next == qpStates['SOLON'] or next == qpStates['STEPON'] or next == qpStates['SENDPACKET']:
+					if next == qpStates['SOLON'] or next == qpStates['STEPON']:
 						# Wait for a response from the WTC.
 						logger.logSystem('PseudoSM: Waiting {}s for a response from WTC'.format(WHATISNEXT_WAIT))
 						# Possibly might need to cancel the callback and restart it here.
 						disableCallback.set()
 						if waitForBytesFromCCDR(chip,1,timeout=WHATISNEXT_WAIT): # Wait for 15s for a response from the WTC
 							response = chip.byte_read(SC16IS750.REG_RHR)
-							if next == qpStates['SENDPACKET']:
-								if response == qpStates['NEXTPACKET']:
-									sendPacketToWTC()
-									nextQueue.dequeue()
-							else:
-								# THIS IS A BLOCKING CALL
-								nextQueue.blockWithResponse(response,timeout=1) # Blocking until the response is read or timeout.
+							# THIS IS A BLOCKING CALL
+							nextQueue.blockWithResponse(response,timeout=1) # Blocking until the response is read or timeout.
 
 							if not nextQueue.isEmpty():
 								# If SENDPACKET was queued, but a BUFFERFUL came in as a response, then dont dequeue the SENDPACKET
@@ -590,6 +588,9 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent,disa
 				elif byte == qpStates['NEXTPACKET']:
 					sendPacketToWTC()
 				elif byte == qpStates['BUFFERFULL']:
+					wtc_respond('DONE')
+				elif byte == qpStates['CANTSEND']:
+					packetQueue.clear()
 					wtc_respond('DONE')
 				elif byte == qpStates['ACCEPTED']:
 					wtc_respond('DONE')
@@ -663,6 +664,7 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent,disa
 									# If the DLACK is good, then clear the queue of lastPackets.
 								if fieldData['response'] == b'GOOD':
 									lastPacketsSent.clear()
+								'''	
 								else:
 									# If it's not good, then we need to send those packets again...
 									# To do that, we will prepend the packetQueue with the packets from lastPacketsSent
@@ -682,6 +684,7 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent,disa
 									# For however many transactions the WTC can handle, enqueue a SENDPACKET so when the WTC asks "WHATISNEXT" the Pi can tell it it wants to send packets.
 									for x in range((len(self._packetQueue)//fh.WTC_PACKET_BUFFER_SIZE) + 1):
 										nextQueue.enqueue('SENDPACKET',prepend=True) # taken from qpaceControl
+								'''
 							elif fieldData['command'] in COMMANDS: # Double check to see if it's a command
 								try:
 									processCommand(chip,fieldData,fromWhom = 'GND')

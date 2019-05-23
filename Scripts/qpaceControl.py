@@ -24,6 +24,7 @@ QPCONTROL = {
 	"NEXTPACKET":	  0x21,	# Sent by WTC. Asks for next packet.
 	"BUFFERFULL":	  0x22,	# Sent by WTC. Implies the buffer is full. (Rev2 Pi ignores this message)
 	"WHATISNEXT":     0x4A, # WTC request to Pi to see if the Pi wants to do anything.
+	"CANTSEND":       0x23, # WTC is not within transmittion range
 
 	"TIMESTAMP":      0x42, # WTC request to set the timestamp of the Pi
 	"SHUTDOWN":       0x46, # WTC request to shutdown now! If sent from Pi, implies the Pi would like to shutdown.

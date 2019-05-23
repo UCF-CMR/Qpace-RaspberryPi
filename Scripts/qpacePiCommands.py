@@ -161,7 +161,7 @@ class Command():
 			if self.packetData:
 				sendData = self.build()
 				Command._packetQueue.enqueue(sendData)
-				Command._nextQueue.enqueue('SENDPACKET')
+				#Command._nextQueue.enqueue('SENDPACKET')
 
 		def build(self):
 			"""
@@ -481,7 +481,7 @@ class Command():
 		"""
 
 		with open("{}{}".format(ROOTPATH, path), "rb") as dataFile:
-			data = base64.b64encode(dataFile.read())
+			data = base64.b64encode(dataFile.read(), altchars='+/')
 
 		encoded_filename = "{0}.encode".format(path)
 
@@ -563,6 +563,8 @@ class Command():
 					pass
 			except FileNotFoundError:
 				logger.logSystem('Transmitter: Could not find the file requested for: {}'.format(filename.decode('ascii')))
+
+		'''
 		#else:
 				# For however many transactions the WTC can handle, enqueue a SENDPACKET so when the WTC asks "WHATISNEXT" the Pi can tell it it wants to send packets.
 		for x in range((len(self._packetQueue)//qfh.WTC_PACKET_BUFFER_SIZE)):
@@ -570,6 +572,7 @@ class Command():
 
 		if(self.NumPackets == end):
 			self.nextQueue.enqueue('SENDPACKET') # taken from qpaceControl
+		'''
 
 	def upReq(self,logger,args, silent=False):
 		"""
