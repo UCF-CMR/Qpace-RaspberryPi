@@ -481,7 +481,7 @@ class Command():
 		"""
 
 		with open("{}{}".format(ROOTPATH, path), "rb") as dataFile:
-			data = base64.b64encode(dataFile.read(), altchars='+/')
+			data = base64.b64encode(dataFile.read())#, altchars='+/')
 
 		encoded_filename = "{0}.encode".format(path)
 

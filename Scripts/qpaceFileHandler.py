@@ -388,8 +388,8 @@ class Transmitter():
 
 				# try:
 				try:
-					packet = DataPacket(data=packetData[pid%10], pid=pid, rid=self.route, opcode=None)
-					self.pkt_padding = self.data_size - len(packetData[pid%10])
+					packet = DataPacket(data=packetData[pid%self.ppa], pid=pid, rid=self.route, opcode=None)
+					self.pkt_padding = self.data_size - len(packetData[pid%self.ppa])
 					self.packetQueue.enqueue(packet.build()) #ADD PACKET TO BUFFER
 					print("SUCCESSS WE ADDED HERE: %d" % pid)
 				except Exception as e:
