@@ -521,6 +521,9 @@ class Command():
 		qfh.DataPacket.last_id = 0
 		# fec = args[0]
 		ppa = int.from_bytes(args[1:5],byteorder='big')  #HOW MANY YOU WANT BOI
+		if ppa < 1:
+			# Takes care of the case were we want just one packet
+			ppa = 1
 		start = int.from_bytes(args[5:9], byteorder='big')
 		end = int.from_bytes(args[9:13], byteorder='big')
 		filename = args[13:].replace(Command.CMDPacket.padding_byte,b'')

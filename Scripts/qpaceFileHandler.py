@@ -320,7 +320,7 @@ class Transmitter():
 		self.pathname = pathname
 		# self.useFEC = useFEC
 		self.firstPacket = firstPacket if firstPacket > 0 else 0
-		self.lastPacket = lastPacket if lastPacket > firstPacket else None
+		self.lastPacket = lastPacket if lastPacket >= firstPacket else None # we allow equality here
 		self.route = route
 		self.packetQueue = packetQueue
 		# Attempt to get the file size. Pop up the stack if it cannot be found.
@@ -345,7 +345,7 @@ class Transmitter():
 			return
 
 		self.data_size = DataPacket.max_size - DataPacket.header_size
-		self.expected_packets = ceil(self.filesize / self.data_size)
+		self.expected_packets = ((self.filesize // self.data_size) + 1) # This keeps it consitant with PiCommands.py #ceil(self.filesize / self.data_size)
 		try:
 			if(self.expected_packets < 1000):   #Way too big to create checksum
 				self.checksum = generateChecksum(open("{}{}".format(ROOTPATH,pathname),'rb').read())
@@ -413,9 +413,11 @@ class Transmitter():
 			print("Some Errors Here")
 			print(e)
 
+		print("Last: {0} | Expected: {1}".format(self.lastPacket, self.expected_packets))
 		if(self.lastPacket == self.expected_packets):
 			#When it's done it needs to send a DONE packet
-			temp = [self.checksum,bytes([self.expected_packets]),self.pathname.encode('ascii')[self.pathname.rfind('/')+1:],bytes([self.pkt_padding])]
+			self.pkt_padding = self.data_size
+			temp = [self.checksum, self.expected_packets.to_bytes(2,"big"), self.pathname.encode('ascii')[self.pathname.rfind('/')+1:], bytes([self.pkt_padding])]
 			data = b' '.join(temp)
 			# if useFEC:
 			# 	data += (36 - len(data)) * b'\x04' if len(data) < 36 else b''
@@ -425,7 +427,7 @@ class Transmitter():
 			# 	data = data[:116] # only get the first 116 chars. Defined by the packet document
 			# padding = 116 - len(data)
 			# data += DataPacket.padding_byte * padding
-			allDone = DataPacket(data=data,pid=packet.pid+1,rid=0x00,opcode=b'NOOP!').build()
+			allDone = DataPacket(data=data,pid=self.expected_packets,rid=0x00,opcode=b'NOOP!').build()
 			self.packetQueue.enqueue(allDone)
 		DataPacket.last_id = 0
 
