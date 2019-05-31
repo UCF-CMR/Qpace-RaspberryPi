@@ -417,7 +417,8 @@ class Transmitter():
 		if(self.lastPacket == self.expected_packets):
 			#When it's done it needs to send a DONE packet
 			self.pkt_padding = self.data_size
-			temp = [self.checksum, self.expected_packets.to_bytes(2,"big"), self.pathname.encode('ascii')[self.pathname.rfind('/')+1:], bytes([self.pkt_padding])]
+			#                     *below* mod by ten so that way we are always within packet specs and we do not really care about the last packet num so long as it is a DLACK
+			temp = [self.checksum, bytes(self.expected_packets%10), self.pathname.encode('ascii')[self.pathname.rfind('/')+1:], bytes([self.pkt_padding])]
 			data = b' '.join(temp)
 			# if useFEC:
 			# 	data += (36 - len(data)) * b'\x04' if len(data) < 36 else b''
