@@ -474,7 +474,7 @@ class Command():
 		Create a DownloadRequestPacket and respond with the response packet.
 		"""
 		import qpaceFileHandler as qfh
-		path = args[1:].replace(b'\x04',b'').decode('ascii')
+		path = args[:].replace(b'\x04',b'').decode('ascii') # Now just reads the entire list
 
 
 		"""
