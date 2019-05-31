@@ -79,6 +79,8 @@ class LastCommand():
 
 def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent,disableCallback, logger):
 	logger.logInfo("Entered: run")
+	cmd.setExperimentEvent(experimentEvent)
+	cmd.setDisableCallback(disableCallback)
 	"""
 	Main method for this module. Handles all data coming from the WTC and interprets what the Pi should do with it.
 

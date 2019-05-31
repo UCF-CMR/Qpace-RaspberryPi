@@ -19,6 +19,7 @@ import random
 import tarfile
 import qpaceLogger as qpLog
 import traceback
+import qpaceExperimentParser as exp
 
 try:
 	import xtea3
@@ -80,7 +81,6 @@ class Command():
 		self.shutdownAllowed = None
 		self.disableCallback = disableCallback
 	# Getters and Setters for self.packetQueue
-
 	@property
 	def packetQueue(self):
 		return Command._packetQueue
@@ -105,6 +105,12 @@ class Command():
 	@nextQueue.setter
 	def nextQueue(self,queue):
 		Command._nextQueue = queue
+
+	def setExperimentEvent(self, experimentEvent):
+		self.experimentEvent = experimentEvent
+
+	def setDisableCallback(self, disableCallback):
+		self.disableCallback = disableCallback
 
 	class CMDPacket():
 		"""
@@ -611,7 +617,8 @@ class Command():
 
 	def startExperiment(self,logger,args, silent=False):
 
-		filename = args.replace(CMDPacket.padding_byte,'').decode('ascii')
+		filename = args.replace(Command.CMDPacket.padding_byte, b'').decode('ascii')
+		print(self.experimentEvent)
 
 		if self.experimentEvent is None or self.experimentEvent.is_set():
 			raise StopIteration('experimentEvent is None or experimentEvent is set.') # If experimentEvent does not exist or is set, return False to know there is a failure.
@@ -622,9 +629,9 @@ class Command():
 		parserThread = threading.Thread(name='experimentParser',target=exp.run, args=(filename,self.experimentEvent,runEvent,logger,self.nextQueue,self.disableCallback))
 		parserThread.start()
 		if not silent:
-			data = 'Attempting to start experiment <{}> if it exists.'.format(filename)
-			data += CMDPacket.padding_byte * (CMDPacket.data_size - len(data))
-			CMDPacket(opcode='EXPMT',data=data).send()
+			data = bytes('Attempting to start experiment <{}> if it exists.'.format(filename), 'ascii')
+			data += Command.CMDPacket.padding_byte * (Command.CMDPacket.data_size - len(data))
+			Command.CMDPacket(opcode='EXPMT',data=data).send()
 
 	def immediateShutdown(self,logger,args, silent=False):
 		"""
