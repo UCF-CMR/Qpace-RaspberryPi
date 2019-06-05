@@ -291,8 +291,8 @@ class Command():
 			try:
 				# This file will be found in the root directory.
 				with open(SECRETS,'rb') as fi:
-					PrivilegedPacket.enc_key = fi.readline().rstrip()
-					PrivilegedPacket.enc_iv = fi.readline().rstrip()
+					Command.PrivilegedPacket.enc_key = fi.readline().rstrip()
+					Command.PrivilegedPacket.enc_iv = fi.readline().rstrip()
 			except Exception as e:
 				# If we can't even attempt to decode XTEA packets, then there's no reason to run QPACE though...
 				pass
@@ -384,9 +384,9 @@ class Command():
 		pathToVideo = ROOTPATH + pathToVideo[:nam_i]
 		os.system('MP4Box -add {}{}.h264 {}{}.mp4 &> /dev/null'.format(pathToVideo,filename,pathToVideo,filename))
 		returnValue = check_output(['ls','-la',"{}{}.mp4".format(pathToVideo,filename)])
-		returnValue += returnValue.encode('ascii') + CMDPacket.padding_byte*(CMDPacket.data_size - len(returnValue))
+		returnValue += returnValue.encode('ascii') + Command.CMDPacket.padding_byte*(Command.CMDPacket.data_size - len(returnValue))
 		if not silent:
-			CMDPacket(opcode='TOMP4',data=returnValue).send()
+			Command.CMDPacket(opcode='TOMP4',data=returnValue).send()
 
 	def move(self,logger,args, silent=False):
 		"""
@@ -419,11 +419,11 @@ class Command():
 			wasMoved = "{} {} moved.".format(originalFile, wasMoved)
 			if exception:
 				wasMoved += " {}".format(exception)
-			wasMoved = wasMoved[:PrivilegedPacket.encoded_data_length]
-			padding = CMDPacket.padding_byte * (PrivilegedPacket.encoded_data_length - len(wasMoved))
+			wasMoved = wasMoved[:Command.PrivilegedPacket.encoded_data_length]
+			padding = Command.CMDPacket.padding_byte * (Command.PrivilegedPacket.encoded_data_length - len(wasMoved))
 			plainText = wasMoved.encode('ascii')
 			plainText += padding
-			PrivilegedPacket(plainText=plainText).send()
+			Command.PrivilegedPacket(plainText=plainText).send()
 
 	def tarExtract(self,logger,args, silent=False):
 		"""
@@ -441,8 +441,8 @@ class Command():
 		except:
 			message = b'Failed'
 		if not silent:
-			plainText = message + CMDPacket.padding_byte * (PrivilegedPacket.encoded_data_length-len(message))
-			PrivilegedPacket(plainText=plainText).send()
+			plainText = message + Command.CMDPacket.padding_byte * (PrivilegedPacket.encoded_data_length-len(message))
+			Command.PrivilegedPacket(plainText=plainText).send()
 
 	def tarCreate(self,logger,args, silent=False):
 		"""
@@ -457,7 +457,7 @@ class Command():
 		if args[0].endswith('/'):
 			args[0] = args[0][:-1]
 		newFile = ROOTPATH + args[0][args[0].rfind('/')+1:]
-		tarDir = '{}.tar.gz'.format(ROOTPATH,newFile)
+		tarDir = '{}.tar.gz'.format(newFile)
 		try:
 			with tarfile.open(newFile, "w:gz") as tar:
 				tar.add(ROOTPATH+args[0])
@@ -466,8 +466,8 @@ class Command():
 			plainText = 'Failed to tar.'
 
 		if not silent:
-			plainText +=  CMDPacket.padding_byte*(CMDPacket.data_size - len(tarDir))
-			PrivilegedPacket(plainText=plainText).send()
+			plainText +=  Command.CMDPacket.padding_byte*(Command.CMDPacket.data_size - len(tarDir))
+			Command.PrivilegedPacket(plainText=plainText).send()
 
 	def dlReq(self,logger,args, silent=False):
 		"""
@@ -612,7 +612,7 @@ class Command():
 		os.system(handbrakeCommand)
 		if not silent:
 			data = 'HandBrake: In({}) Out({})'.format(inputFile,outputFile)
-			data = data.encode('ascii') + PrivilegedPacket.padding_byte * (PrivilegedPacket.encoded_data_length - len(data))
+			data = data.encode('ascii') + Command.PrivilegedPacket.padding_byte * (Command.PrivilegedPacket.encoded_data_length - len(data))
 			CMDPacket(opcode='HANDB',data=data).send()
 
 	def startExperiment(self,logger,args, silent=False):
