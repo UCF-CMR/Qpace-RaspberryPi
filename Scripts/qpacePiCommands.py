@@ -329,7 +329,8 @@ class Command():
 		"""
 		Create a DirectoryListingPacket and respond with the response packet.
 		"""
-		pathname = ROOTPATH + args.decode('ascii').split(' ')[0]
+		fileDir = args.replace(b'\x04', b'')
+		pathname = ROOTPATH + fileDir.decode('ascii').split(' ')[0]
 
 
 		lenstr = str(len(os.listdir(pathname))) # Get the number of files/directories in this directory.
@@ -344,7 +345,8 @@ class Command():
 
 		Create a SendDirectoryList packet and respond with the response packet.
 		"""
-		pathname = ROOTPATH + args.decode('ascii').split(' ')[0]
+		fileDir = args.replace(b'\x04', b'')
+		pathname = ROOTPATH + fileDir.decode('ascii').split(' ')[0]
 
 		self.pathname = pathname
 		filepath = TEXTPATH+"someText.txt"
@@ -354,8 +356,7 @@ class Command():
 			pathList = ["No such file or directory:'{}'".format(pathname)]
 		with open(filepath, "w") as filestore:
 			filestore.write("Timestamp: {}\n".format(strftime("%Y%m%d-%H%M%S",gmtime())))
-			for line in pathList:
-				filestore.write(line + '\n')
+			filestore.write(pathList + '\n')
 		if not silent:
 			padding = Command.CMDPacket.padding_byte * (Command.PrivilegedPacket.encoded_data_length - len(filepath))
 			plainText = filepath.encode('ascii')
@@ -394,7 +395,7 @@ class Command():
 		Move a file from one location to another.
 		Create a MoveFilePacket and respond with the response packet.
 		"""
-		args = args.decode('ascii').split(' ')
+		args = args.replace(b'\x04', b'').decode('ascii').split(' ')
 		# Remove the 'doubledot' this way you can't modify or move or change anything outside of the working directory.
 		originalFile = (ROOTPATH + args[0]).replace('..','')
 		pathToNewFile = (ROOTPATH + args[1]).replace('..','')
@@ -451,23 +452,25 @@ class Command():
 		Create a TarBallFilePacket and respond with the response packet.
 		"""
 		import tarfile
-		args = args.decode('ascii').split(' ')
+		args = args.replace(b'\x04', b'').decode('ascii').split(' ')
 		# The name of the new file will be whatever was input, but since the path could be long
 		# create the {}.tar.gz at the filename. Since it could be a directory with a /
 		# look for the 2nd to last / and then slice it. Then remove and trailing /'s
 		if args[0].endswith('/'):
 			args[0] = args[0][:-1]
-		newFile = ROOTPATH + args[0][args[0].rfind('/')+1:]
+		newFile = ROOTPATH + args[0][args[0].rfind('/')+1:]+'_tar'
 		tarDir = '{}.tar.gz'.format(newFile)
+		print(len(tarDir))
 		try:
 			with tarfile.open(newFile, "w:gz") as tar:
 				tar.add(ROOTPATH+args[0])
-			plainText = tarDir.encode('ascii')
-		except:
-			plainText = 'Failed to tar.'
+			message = tarDir.encode('ascii')
+		except Exception as e:
+			print("Failed to make tar.\nException: {}".format(e))
+			message = b'Failed to tar.'
 
 		if not silent:
-			plainText +=  Command.CMDPacket.padding_byte*(Command.CMDPacket.data_size - len(tarDir))
+			plainText = message + Command.CMDPacket.padding_byte * (Command.PrivilegedPacket.encoded_data_length - len(message))
 			Command.PrivilegedPacket(plainText=plainText).send()
 
 	def dlReq(self,logger,args, silent=False):
