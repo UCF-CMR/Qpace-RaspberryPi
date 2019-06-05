@@ -20,6 +20,7 @@ import tarfile
 import qpaceLogger as qpLog
 import traceback
 import qpaceExperimentParser as exp
+import socket
 
 try:
 	import xtea3
@@ -441,7 +442,7 @@ class Command():
 		except:
 			message = b'Failed'
 		if not silent:
-			plainText = message + Command.CMDPacket.padding_byte * (PrivilegedPacket.encoded_data_length-len(message))
+			plainText = message + Command.CMDPacket.padding_byte * (Command.PrivilegedPacket.encoded_data_length-len(message))
 			Command.PrivilegedPacket(plainText=plainText).send()
 
 	def tarCreate(self,logger,args, silent=False):
@@ -701,8 +702,10 @@ class Command():
 		except Exception as err:
 			logger.logError("There was a problem accessing the uptime", err)
 		try:
-			mem=str(os.popen('free -b').readlines())
-			mem=[num for num in mem.split('\n')[1].split(' ') if num]
+			mem = os.popen('free -b').readlines()
+			mem = mem[1].split(' ')
+			mem = [num for num in mem if num.isdigit()]
+			print(mem)
 			ram_tot = mem[1]
 			ram_used = mem[2]
 			ram_free = mem[3]
@@ -736,6 +739,7 @@ class Command():
 								uptime,ram_tot,ram_used,ram_free,disk_total,disk_free)
 		text_to_write += ps_data
 
+		timestamp = str(timestamp)
 		print("WHAT IS THE TIME: %s" % timestamp)
 		logger.logSystem("saveStatus: Attempting to save the status to a file.")
 		try:
