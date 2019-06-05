@@ -353,10 +353,10 @@ class Command():
 		try:
 			pathList = check_output(['ls','-alh',pathname]).decode("utf-8")
 		except:
-			pathList = ["No such file or directory:'{}'".format(pathname)]
+			pathList = "No such file or directory:'{}'".format(pathname)
 		with open(filepath, "w") as filestore:
 			filestore.write("Timestamp: {}\n".format(strftime("%Y%m%d-%H%M%S",gmtime())))
-			filestore.write(pathList + '\n')
+			filestore.write(pathList)
 		if not silent:
 			padding = Command.CMDPacket.padding_byte * (Command.PrivilegedPacket.encoded_data_length - len(filepath))
 			plainText = filepath.encode('ascii')
@@ -372,9 +372,9 @@ class Command():
 		minute = args[1]
 		second = args[2]
 
-		os.system('cd ffmpeg -i {} -c copy -map 0 -segment_time 00:{}:{} -f segment {}_%03d.mp4 &> /dev/null'.format(pathname,hour,second,filename))
+		os.system('cd ffmpeg -i {} -c copy -map 0 -segment_time 00:{}:{} -f segment {}_%03d.mp4 &> /dev/null'.format(path,minute,second,filename))
 		if not silent:
-			self.directoryList(logger,path[:nam_i]) # pass in the path stated above without the file to get the directory list.
+			self.directoryList(logger,bytes(args[0], 'ascii')) # pass in the path stated above without the file to get the directory list.
 		#NOTE: self.directoryList() will send a PrivilegedPacket back to the ground. This calls the directoryList command because we want the same behaviour
 
 	def convertVideo(self,logger,args, silent=False):
