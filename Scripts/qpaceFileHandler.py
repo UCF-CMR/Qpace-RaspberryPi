@@ -359,7 +359,7 @@ class Transmitter():
 		# 	self.data_size = (DataPacket.max_size - DataPacket.header_size) // 3
 		# else:
 		# 	self.data_size = DataPacket.max_size - DataPacket.header_size
-		#self.data_size = DataPacket.max_size - DataPacket.header_size
+		self.data_size = DataPacket.max_size - DataPacket.header_size
 		#self.expected_packets = ceil(self.filesize / self.data_size)
 		self.ppa = ppa
 		self.xtea = xtea

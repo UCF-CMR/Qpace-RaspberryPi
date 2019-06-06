@@ -433,14 +433,21 @@ class Command():
 		Create a TarBallFilePacket and respond with the response packet.
 		"""
 		args = args.decode('ascii').split(' ')
-		inputFilename = ROOTPATH + args[0]
-		outputFilename = args[1]
+		inputFilename = ROOTPATH + args[0].replace('\x04', '')
+		
+		# Raise an error if the filename does not end in .tar
+		if (inputFilename[-4:] != '.tar'):
+			logger.logError("Error: Received request to extract a non-tar file")
+			return
+		outputFilename = inputFilename[:-4]
 		try:
 			with tarfile.open(inputFilename) as tar:
-				tar.extractall(path=outputFilename)
+				tar.extractall()
 			os.remove(inputFilename)
+			logger.logSuccess("Successfully extracted " + inputFilename)
 			message = b'Done'
 		except:
+			logger.logError("Failed to extract " + inputFilename)
 			message = b'Failed'
 		if not silent:
 			plainText = message + Command.CMDPacket.padding_byte * (Command.PrivilegedPacket.encoded_data_length-len(message))
@@ -458,15 +465,16 @@ class Command():
 		# look for the 2nd to last / and then slice it. Then remove and trailing /'s
 		if args[0].endswith('/'):
 			args[0] = args[0][:-1]
-		newFile = ROOTPATH + args[0][args[0].rfind('/')+1:]+'_tar'
+		newFile = ROOTPATH + args[0][args[0].rfind('/')+1:]+'.tar'
 		tarDir = '{}.tar.gz'.format(newFile)
 		print(len(tarDir))
 		try:
 			with tarfile.open(newFile, "w:gz") as tar:
 				tar.add(ROOTPATH+args[0])
 			message = tarDir.encode('ascii')
+			logger.logSuccess('Successfully created ' + newFile)
 		except Exception as e:
-			print("Failed to make tar.\nException: {}".format(e))
+			logger.logError("Failed to make tar.\nException: {}".format(e))
 			message = b'Failed to tar.'
 
 		if not silent:
