@@ -290,15 +290,22 @@ def run(filename, isRunningEvent, runEvent,logger,nextQueue,disableCallback):
 									# This becomes a forked process... It can be shutdown by sending a signal to it with linux 'Kill'
 									picam.record(time=toRec,filename=recFile)
 								elif instruction[1] == 'SET':
+									print("SET found.")
 									for inst in instruction[2:]:
 										option,value = inst.split(':')
+										option = option.lower()
+										print(option)
 										if option =='cfx':
 											value = value.split(',')
 											try:
 												value = (int(value[0]),int(value[1]))
 											except:
 												value = (0,0)
+										else:
+											value = int(value)
+											
 										if option in picam.attr:
+											print('Option, Setting: {0}, {1}'.format(option, value))
 											picam.attr[option] = value
 
 										picam.verifySettings()

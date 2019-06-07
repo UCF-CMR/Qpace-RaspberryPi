@@ -133,6 +133,7 @@ class Camera():
 		"""
 		for key,value in kwargs.items():
 			if key in self.attr:
+				print("Appending (Key, Value): ({0}, {1})".format(key, value))
 				self.attr[key] = value
 
 
@@ -216,7 +217,7 @@ class Camera():
 				if self.attr['fps'] <40 or self.attr['fps'] >200:
 					raise CameraConfigurationError('Mode 7: FPS Must be 40-200.')
 		if self.attr['q']:
-			if self.atter['q'] < 0 or self.attr['q'] > 100:
+			if self.attr['q'] < 0 or self.attr['q'] > 100:
 				raise CameraConfigurationError('JPEG Quality must be set between 0-100. 100 is uncompressed.')
 
 	def capture(self,filename=None):
@@ -239,22 +240,24 @@ class Camera():
 		query = ['raspistill']
 		if self.attr['h']:
 			query.append('-h')
-			query.append(self.attr['h'])
+			query.append(str(self.attr['h']))
 		if self.attr['w']:
 			query.append('-w')
-			query.append(self.attr['w'])
+			query.append(str(self.attr['w']))
 		if self.attr['q']:
 			query.append('-q')
-			query.append(self.attr['q'])
+			query.append(str(self.attr['q']))
 		else:
 			query.append('-q')
 			query.append('75')
 
 		query.append('-o')
 		query.append('{}{}.jpg'.format(PICTUREPATH,filename))
+		print("QUERY: ", query)
 		ret = os.system(' '.join(query)) # Take the picture
-		if not ret:
-			raise CameraProcessFailed('capture',ret)
+		if ret:
+			raise Camera.CameraProcessFailed('capture',ret)
+
 	def record(self,time=None,filename=None):
 		"""
 		Run raspivid and record a video

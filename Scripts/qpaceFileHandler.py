@@ -325,6 +325,7 @@ class Transmitter():
 		self.packetQueue = packetQueue
 		# Attempt to get the file size. Pop up the stack if it cannot be found.
 		# Since this happens first, if this succeeds, then the rest of the methods will be fine.
+		print("Getting file size")
 		try:
 			self.filesize = os.path.getsize("{}{}".format(ROOTPATH,pathname))
 		except Exception as e:
@@ -335,7 +336,7 @@ class Transmitter():
 			DataPacket.last_id = 0
 			return
 
-
+		print("Checking file size")
 		if self.filesize > MAX_FILE_SIZE:
 			noDownloadMessage = 'You cannot download this file. It is too big. Break it up first.'
 			noDownloadPacket = DataPacket(noDownloadMessage.encode('ascii'), 0, self.route).build()
@@ -344,11 +345,16 @@ class Transmitter():
 			print("TOO BIG BAYBEE")
 			return
 
+		print("Creating checksum")
 		self.data_size = DataPacket.max_size - DataPacket.header_size
 		self.expected_packets = ((self.filesize // self.data_size) + 1) # This keeps it consitant with PiCommands.py #ceil(self.filesize / self.data_size)
+		print("Data size ", self.data_size)
 		try:
 			if(self.expected_packets < 1000):   #Way too big to create checksum
+				print("Checksumming")
+				print(open("{}{}".format(ROOTPATH,pathname),'rb').read())
 				self.checksum = generateChecksum(open("{}{}".format(ROOTPATH,pathname),'rb').read())
+				print("Done checksum")
 			else:
 				self.checksum = b'THIC'
 		except:
@@ -359,11 +365,13 @@ class Transmitter():
 		# 	self.data_size = (DataPacket.max_size - DataPacket.header_size) // 3
 		# else:
 		# 	self.data_size = DataPacket.max_size - DataPacket.header_size
-		self.data_size = DataPacket.max_size - DataPacket.header_size
+		#self.data_size = DataPacket.max_size - DataPacket.header_size
 		#self.expected_packets = ceil(self.filesize / self.data_size)
+		print(ppa, xtea)
 		self.ppa = ppa
 		self.xtea = xtea
 		#self._updateFileProgress()
+		print("INIT complete")
 
 	def run(self):
 		"""
@@ -446,6 +454,7 @@ class Transmitter():
 		startByte = self.firstPacket*self.data_size
 		count = 0
 		packetData = []
+		print("START Byte: ", startByte)
 		with open("{}{}".format(ROOTPATH,self.pathname),'rb') as f:
 			f.seek(startByte)
 			while(count < self.ppa):
