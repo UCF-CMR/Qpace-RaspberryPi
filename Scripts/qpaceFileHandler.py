@@ -347,7 +347,7 @@ class Transmitter():
 
 		print("Creating checksum")
 		self.data_size = DataPacket.max_size - DataPacket.header_size
-		self.expected_packets = ((self.filesize // self.data_size)) # This keeps it consitant with PiCommands.py #ceil(self.filesize / self.data_size)
+		self.expected_packets = ((self.filesize // self.data_size) + 1) # This keeps it consitant with PiCommands.py #ceil(self.filesize / self.data_size)
 		print("Data size ", self.data_size)
 		try:
 			# Currently, all checksums are just thic, because the currnet checksum algorithm is too slow
@@ -469,6 +469,7 @@ class Transmitter():
 				if data:
 					packetData.append(data)
 				else:
+					packetData.append(b'\x04'*self.data_size)
 					break
 				count += 1
 		print(packetData)
