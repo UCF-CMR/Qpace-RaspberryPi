@@ -518,7 +518,7 @@ class Command():
 		# 114 is the maximum alotment of data space in the files. the other 14 bytes are header and checksum data
 		# Get the number of packets estimated to be in this thing.
 		data = ((size_of_file//qfh.DataPacket.data_size) + 1).to_bytes(4,'big')
-		self.NumPackets = ((size_of_file//qfh.DataPacket.data_size) + 1)
+		self.NumPackets = ((size_of_file//qfh.DataPacket.data_size))
 		data += b'\n'
 		if size_of_file > qfh.MAX_FILE_SIZE:
 			data += ('File Too large. Send less than 400MB at a time.\n')

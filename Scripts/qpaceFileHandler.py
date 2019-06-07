@@ -347,7 +347,7 @@ class Transmitter():
 
 		print("Creating checksum")
 		self.data_size = DataPacket.max_size - DataPacket.header_size
-		self.expected_packets = ((self.filesize // self.data_size) + 1) # This keeps it consitant with PiCommands.py #ceil(self.filesize / self.data_size)
+		self.expected_packets = ((self.filesize // self.data_size)) # This keeps it consitant with PiCommands.py #ceil(self.filesize / self.data_size)
 		print("Data size ", self.data_size)
 		try:
 			# Currently, all checksums are just thic, because the currnet checksum algorithm is too slow
@@ -357,7 +357,6 @@ class Transmitter():
 			"""
 			if(self.expected_packets < 1000):   #Way too big to create checksum
 				print("Checksumming")
-				print(open("{}{}".format(ROOTPATH,pathname),'rb').read())
 				self.checksum = generateChecksum(open("{}{}".format(ROOTPATH,pathname),'rb').read())
 				print("Done checksum")
 			else:
@@ -397,13 +396,13 @@ class Transmitter():
 		if self.lastPacket == None:
 			self.lastPacket = len(packetData)
 		try:
-			for pid in range(self.firstPacket, self.lastPacket):#self.lastPacket-self.firstPacket):
-				sessionPackets = []
-
+			sessionPackets = []
+			for pid in range(self.lastPacket-self.firstPacket): #range(self.firstPacket, self.lastPacket):#
+				
 				# try:
 				try:
-					packet = DataPacket(data=packetData[pid%self.ppa], pid=pid, rid=self.route, opcode=None)
-					self.pkt_padding = self.data_size - len(packetData[pid%self.ppa])
+					packet = DataPacket(data=packetData[pid], pid=pid+self.firstPacket, rid=self.route, opcode=None)
+					self.pkt_padding = self.data_size - len(packetData[pid])
 					self.packetQueue.enqueue(packet.build()) #ADD PACKET TO BUFFER
 					print("SUCCESSS WE ADDED HERE: %d" % pid)
 				except Exception as e:
@@ -417,17 +416,19 @@ class Transmitter():
 				# sleep(self.delayPerTransmit/1000) # handled by wtc?
 
 				# Update the progress list.
-				if pid % self.ppa == 0:
+				if pid+self.firstPacket % self.ppa == 0:
 					try:
-						self._updateFileProgress(pid)
+						self._updateFileProgress(pid+self.firstPacket)
 					except:
 						print("ERROR IN 396: NO UPDATE PROGRESS")
+			print(sessionPackets)
 		except StopIteration as e:
 			#StopIteration to stop iterating :) we are done here.
 			print("Some Errors Here")
 			print(e)
 
 		print("Last: {0} | Expected: {1}".format(self.lastPacket, self.expected_packets))
+
 		if(self.lastPacket == self.expected_packets):
 			#When it's done it needs to send a DONE packet
 			self.pkt_padding = self.data_size
