@@ -350,6 +350,11 @@ class Transmitter():
 		self.expected_packets = ((self.filesize // self.data_size) + 1) # This keeps it consitant with PiCommands.py #ceil(self.filesize / self.data_size)
 		print("Data size ", self.data_size)
 		try:
+			# Currently, all checksums are just thic, because the currnet checksum algorithm is too slow
+			# and doesn't get applied to 99% of files anyway
+			# We are working on a fix for this
+			self.checksum = b'THIC'
+			"""
 			if(self.expected_packets < 1000):   #Way too big to create checksum
 				print("Checksumming")
 				print(open("{}{}".format(ROOTPATH,pathname),'rb').read())
@@ -357,6 +362,7 @@ class Transmitter():
 				print("Done checksum")
 			else:
 				self.checksum = b'THIC'
+			"""
 		except:
 			self.checksum = b'NONE' #Should we just not send the file? I think we should send it anyway.
 			traceback.print_exc()
