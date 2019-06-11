@@ -200,6 +200,9 @@ I2C_FLAGS   = 0x05 # Set I2C flags to LSB + (MSB << 8)
 I2C_READ    = 0x06 # Read P bytes of data
 I2C_WRITE   = 0x07 # Write P bytes of data
 
+#PIGPIO CONSTANTS
+GPIO_PIN = 20
+
 class SC16IS750:
 
 	pi = None
@@ -247,6 +250,7 @@ class SC16IS750:
 
 	def write(self, bytestring):
 		self.block_write(REG_THR, bytestring)
+		self.gpio_write(bytestring)
 
 	def close(self):
 		self.pi.i2c_close(self.i2c)
@@ -352,6 +356,14 @@ class SC16IS750:
 	def block_write(self, reg, bytestring):
 		n, d = self.pi.i2c_zip(self.i2c, [I2C_WRITE, len(bytestring)+1, self.reg_conv(reg)] + list(bytestring) + [I2C_END])
 		if n < 0: raise pigpio.error(pigpio.error_text(n))
+	
+	# Writes bytestring to the GPIO output pin
+	def gpio_write(self, bytestring):
+		self.pi.wave_clear()
+		self.pi.wave_add_serial(GPIO_PIN, self.baudrate, bytestring)
+		new_send_id = pi.wave_create()
+		cbs = pi.wave_send_once(new_send_id)
+
 
 	# Read I2C block from specified register
 	# Return block received from driver

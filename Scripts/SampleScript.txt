@@ -1,0 +1,8 @@
+START SampleScript 
+RESET 
+DELAY 300
+LOG Setting the camera to 90 FPS at 640x480. Monochrome. Brightness 80%. Sharpness 75%
+CAMERA SET fps:90 w:640 h:480 cfx:128,128 br:80 sh:75
+CAMERA CAPTURE
+DELAY 300
+END 
