@@ -1,5 +1,6 @@
 import sys
 import time
+import serial
 try:
 	import pigpio
 except:pass
@@ -201,7 +202,7 @@ I2C_READ    = 0x06 # Read P bytes of data
 I2C_WRITE   = 0x07 # Write P bytes of data
 
 #PIGPIO CONSTANTS
-GPIO_PIN = 20
+FLIGHT_MODE_ON_PIN = 20
 
 class SC16IS750:
 
@@ -361,8 +362,8 @@ class SC16IS750:
 	def gpio_write(self, bytestring):
 		self.pi.wave_clear()
 		self.pi.wave_add_serial(GPIO_PIN, self.baudrate, bytestring)
-		new_send_id = pi.wave_create()
-		cbs = pi.wave_send_once(new_send_id)
+		new_send_id = self.pi.wave_create()
+		cbs = self.pi.wave_send_once(new_send_id)
 
 
 	# Read I2C block from specified register
@@ -372,7 +373,7 @@ class SC16IS750:
 		if n < 0: raise pigpio.error(pigpio.error_text(n))
 		elif n != num: raise ValueError("all available bytes were not successfully read")
 		return d
-
+	
 	# Convert register address given in datasheet to actual address on chip
 	def reg_conv(self, reg):
 		return reg << 3

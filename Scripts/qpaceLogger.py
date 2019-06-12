@@ -12,6 +12,8 @@ import os
 import datetime
 from time import strftime,gmtime,time
 import sys
+import pigpio
+import SC16IS750
 
 class Colors():
     # Foreground:
@@ -95,6 +97,11 @@ class Logger():
         self.Colors = Colors()
         self.filename = 'unknownBootTime' # Must be 15 characters for the serialization.
 
+        # A pigpio object is required if we are using the TX/RX method so we can quiet the logger
+        self.pi = pigpio.pi()
+        self.pi.set_mode(SC16IS750.FLIGHT_MODE_ON_PIN, pigpio.INPUT)
+        self.pi.set_pull_up_down(SC16IS750.FLIGHT_MODE_ON_PIN, pigpio.PUD_DOWN)
+
     def bootWasSet(self):
         """
         Check the _boot flag
@@ -142,6 +149,7 @@ class Logger():
         self._boot = False
         
     def logPrint(self, typeStr, log):
+
         '''
         sysargv logging modes:
         no arguments - prints sys
@@ -156,8 +164,11 @@ class Logger():
 
         You can combine modes to see different logging information
         '''    
+        # If flight mode is on, print nothing
+        if (self.pi.read(SC16IS750.FLIGHT_MODE_ON_PIN) == 1):
+            return
         #if its a sys log, always print it
-        if 'typeStr' == 'systm':
+        elif 'typeStr' == 'systm':
             print(log)
         #if the mode is v (verbose) print everything
         elif 'v' in Logger.MODE:
