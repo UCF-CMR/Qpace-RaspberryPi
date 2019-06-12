@@ -8,4 +8,5 @@
 
 cd /home/pi/Scripts
 python3 qpaceMain.py
+python3 setON.py
 cd /home/pi
