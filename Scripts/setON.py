@@ -1,7 +1,7 @@
 import os
 import pigpio
 
-SCRIPT = "qpaceMain.py"
+SCRIPT = "terminalFlood.py"
 GPIO21 = 29 # GPIO 21 is Pin 29
 pi = pigpio.pi()
 
