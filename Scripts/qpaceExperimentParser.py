@@ -69,7 +69,6 @@ def run(filename, isRunningEvent, runEvent,logger,nextQueue,disableCallback):
 
 	Also supports inline comments.
 	"""
-	print("Top of run exp")
 	logger.logSystem('ExpParser: Starting...')
 	picam = expModule.Camera()
 	exp = expModule.Action(logger=logger,queue=nextQueue)
@@ -88,7 +87,6 @@ def run(filename, isRunningEvent, runEvent,logger,nextQueue,disableCallback):
 			# Look for SOLENOID or STEPPER. If we see that, we'll need to ask for them to turn on.
 			for line in inputLines:
 				instruction = line.upper().split()[0]
-				print(instruction)
 				if instruction == 'SOLENOID':
 					solenoidRequest = True
 				elif instruction == 'STEPPER':
@@ -96,10 +94,8 @@ def run(filename, isRunningEvent, runEvent,logger,nextQueue,disableCallback):
 
 				if solenoidRequest and stepperRequest:
 					break
-			print("Slep for .35....")
 			disableCallback.set()
 			time.sleep(.35)
-			print("Requesting things")
 			# If we want the solenoids, let's request them. Failure to enable will abort the experiment.
 			if solenoidRequest:
 				logger.logSystem('ExpParser: WTC... may I have the solenoids please?')
@@ -290,11 +286,9 @@ def run(filename, isRunningEvent, runEvent,logger,nextQueue,disableCallback):
 									# This becomes a forked process... It can be shutdown by sending a signal to it with linux 'Kill'
 									picam.record(time=toRec,filename=recFile)
 								elif instruction[1] == 'SET':
-									print("SET found.")
 									for inst in instruction[2:]:
 										option,value = inst.split(':')
 										option = option.lower()
-										print(option)
 										if option =='cfx':
 											value = value.split(',')
 											try:
@@ -305,7 +299,6 @@ def run(filename, isRunningEvent, runEvent,logger,nextQueue,disableCallback):
 											value = int(value)
 											
 										if option in picam.attr:
-											print('Option, Setting: {0}, {1}'.format(option, value))
 											picam.attr[option] = value
 
 										picam.verifySettings()
@@ -349,23 +342,18 @@ def run(filename, isRunningEvent, runEvent,logger,nextQueue,disableCallback):
 												exp.solenoid_ramp(group,int(instruction[3]),int(instruction[4]),int(instruction[5]),override=override)
 
 					except StopIteration as e:
-						print(e)
 						raise e
 
 	# Output to the logger here.
 	except FileNotFoundError:
 		logger.logSystem("ExpParser: The experiment '{}' does not exist.".format(filename))
-		print("File not found")
 	except IOError as e:
 		logger.logError("ExpParser: Could not open experiment file at {}. {}".format(str(expLocation + filename),str(e)))
-		print(e)
 
 	except StopIteration as e:
 		logger.logSystem('ExpParser: Aborted the experiment. {}'.format(str(e)))
-		print(e)
 	except Exception as e:
 		logger.logError('ExpParser: Aborted the experiment. Error: {}'.format(e.__class__),e)
-		print("Execpted e: ", e)
 	finally:
 		# Clean up and close out all nicely.
 		# if isRecording: # Ensure the gopro isn't recording anymore
