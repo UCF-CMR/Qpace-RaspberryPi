@@ -21,6 +21,7 @@ import qpaceLogger as qpLog
 import traceback
 import qpaceExperimentParser as exp
 import socket
+import sys
 
 try:
 	import xtea3
@@ -224,7 +225,6 @@ class Command():
 			------
 			Any exception gets popped up the stack.
 			"""
-			print(self)
 			tag = Command._tagChecker.getTag()
 			if self.tryEncryption:
 				self.getEncryptionKeys()
@@ -249,13 +249,13 @@ class Command():
 			Raises: None
 
 			"""
-			print("INSIDE XTEA")
+			#print("INSIDE XTEA")
 			try:
 				if not PrivilegedPacket.enc_key or not PrivilegedPacket.enc_iv:
 					raise RuntimeError('No encryption key or IV')
 				cipherText = xtea3.new(PrivilegedPacket.enc_key,mode=xtea3.MODE_OFB,IV=PrivilegedPacket.enc_iv).encrypt(plaintext)
 			except:
-				print("We didn't Encrypt Properly")
+				#print("We didn't Encrypt Properly")
 				cipherText = plainText
 
 			return cipherText
@@ -467,7 +467,6 @@ class Command():
 			args[0] = args[0][:-1]
 		newFile = ROOTPATH + args[0][args[0].rfind('/')+1:]+'.tar'
 		tarDir = '{}.tar.gz'.format(newFile)
-		print(len(tarDir))
 		try:
 			with tarfile.open(newFile, "w:gz") as tar:
 				tar.add(ROOTPATH+args[0])
@@ -549,9 +548,9 @@ class Command():
 		# 114 is the maximum alotment of data space in the files. the other 14 bytes are header and checksum data
 		# Get the number of packets estimated to be in this thing.
 		# print('FEC:',fec)
-		print('STR:',start)
-		print('END:',end)
-		print('FNM:',filename)
+		#print('STR:',start)
+		#print('END:',end)
+		#print('FNM:',filename)
 
 
 		"""TODO
@@ -564,7 +563,7 @@ class Command():
 
 		if not silent:
 			try:
-				print("Creating transmitter")
+				#print("Creating transmitter")
 				transmitter = qfh.Transmitter(
 												encoded_filename,
 												0x00,
@@ -575,14 +574,15 @@ class Command():
 												xtea = False,
 												packetQueue = self._packetQueue
 											)
-				print("Trying to run transmitter")
+				#print("Trying to run transmitter")
 				try:
 					transmitter.run()
 					logger.logSuccess("Transmitter Ran!")
 				except Exception as e:
 					logger.logError("Transmitter Failed to RUN")
 					#logger.logError("%s"%str(e))
-					traceback.print_exc()
+					_, __, exc_traceback = sys.exc_info()
+					logger.logError(exc_traceback)
 					pass
 			except FileNotFoundError:
 				logger.logSystem('Transmitter: Could not find the file requested for: {}'.format(filename.decode('ascii')))
@@ -632,7 +632,7 @@ class Command():
 	def startExperiment(self,logger,args, silent=False):
 
 		filename = args.replace(Command.CMDPacket.padding_byte, b'').decode('ascii')
-		print(self.experimentEvent)
+
 
 		if self.experimentEvent is None or self.experimentEvent.is_set():
 			raise StopIteration('experimentEvent is None or experimentEvent is set.') # If experimentEvent does not exist or is set, return False to know there is a failure.
@@ -697,7 +697,7 @@ class Command():
 			last_command_when = LastCommand.timestamp
 			last_command_from = LastCommand.fromWhom
 			commands_executed = LastCommand.commandCount
-			print("LAST: %s, WHEN %s, FROM %s, Commands %d" %(LastCommand.type, LastCommand.timestamp, LastCommand.fromWhom, LastCommand.commandCount))
+			#print("LAST: %s, WHEN %s, FROM %s, Commands %d" %(LastCommand.type, LastCommand.timestamp, LastCommand.fromWhom, LastCommand.commandCount))
 		except Exception as err:
 			logger.logError("Could not import LastCommand",err)
 		try:
@@ -718,7 +718,6 @@ class Command():
 			mem = os.popen('free -b').readlines()
 			mem = mem[1].split(' ')
 			mem = [num for num in mem if num.isdigit()]
-			print(mem)
 			ram_tot = mem[1]
 			ram_used = mem[2]
 			ram_free = mem[3]
@@ -753,7 +752,7 @@ class Command():
 		text_to_write += ps_data
 
 		timestamp = str(timestamp)
-		print("WHAT IS THE TIME: %s" % timestamp)
+		#print("WHAT IS THE TIME: %s" % timestamp)
 		logger.logSystem("saveStatus: Attempting to save the status to a file.")
 		try:
 			with open(MISCPATH+'status_'+timestamp,'w') as statFile:
