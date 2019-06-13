@@ -29,6 +29,7 @@ import threading
 from qpacePiCommands import generateChecksum, Command
 # import tstSC16IS750 as SC16IS750
 import SC16IS750
+import sys
 import qpaceControl
 import qpaceFileHandler as fh
 import qpaceTagChecker as tagChecker
@@ -161,8 +162,9 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent,disa
 		try:
 			packetData = chip.block_read(SC16IS750.REG_RHR,chip.byte_read(SC16IS750.REG_RXLVL))
 		except:
-			traceback.print_exc()
 			logger.logError("I2C READ FAILED")
+			__, _, exc_traceback = sys.exc_info()
+			logger.logError(exc_traceback)
 			return
 
 		#This segment of code is used twice, it is read off for states and for packets,
@@ -403,7 +405,7 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent,disa
 				pass
 			elif fieldData['TYPE'] == 'NORM':
 				#print("The tag of this packet is", fieldData['tag'].decode("utf-8"))
-				print("FEILD DATA TAG:", fieldData['tag'])
+				#print("FEILD DATA TAG:", fieldData['tag'])
 				validTag =  checker.isValidTag(fieldData['tag'])
 				if isValid and not validTag:
 					logger.logSystem('Interpreter: A valid packet came in, but the tag was wrong. The packet is being dropped.')
@@ -627,12 +629,12 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent,disa
 				packetData, configureTimestamp = pseudoStateMachine(packetData,configureTimestamp,nextQueue)
 				# If the data was not a control character, then process it.
 				if packetData:
-					print("Packet data chunk was received.")
+					#print("Packet data chunk was received.")
 					# We'll just assume that the input is a chunk.
 					chunkPacket.push(packetData)
 					# If, after pushing, the chunk is complete continue on. Otherwise skip.
 					if chunkPacket.complete:
-						print("All chunks received, build packet.")
+						#print("All chunks received, build packet.")
 						packetData = chunkPacket.build()
 						fieldData = decodePacket(packetData) # Return a nice dictionary for the packets
 						# Check if the packet is valid.
