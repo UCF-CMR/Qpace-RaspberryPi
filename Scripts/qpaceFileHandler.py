@@ -260,24 +260,23 @@ class ChunkPacket():
 		if ChunkPacket.complete:
 			packet = b''
 			for chunk in ChunkPacket.chunks:
-				#print('<',len(chunk),'>',chunk)
 				packet += chunk
 			if len(packet) != DataPacket.max_size:
 				self.logger.logSystem("Packet is not {} bytes! It is {} bytes!".format(str(DataPacket.max_size),str(len(packet))) ,str(packet)[50:])
-				print("QUICK FIX IN QPACE FILE HANDLER")
+				#print("QUICK FIX IN QPACE FILE HANDLER")
 				packet = packet[(len(packet)-DataPacket.max_size):]
 				if(packet[-4:] != generateChecksum(packet[:-4])):
 					packet = b''
-					print("THE DATA SEND ISN'T VALID:\nCHECKSUMS DON'T MATCH")
+					#print("THE DATA SEND ISN'T VALID:\nCHECKSUMS DON'T MATCH")
 					Command.PrivilegedPacket(opcode=b"ERROR", plainText=b"ERROR OCCURING").send()
-				else:
-					print("QUICK FIX IS VALID")
+				#else:
+					#print("QUICK FIX IS VALID")
 			ChunkPacket.chunks[:] = [] #reset chunks to empty
 			ChunkPacket.complete = False #reset copmlete to False
 			ChunkPacket.lastInputTime = None # reset the timer.
 			return packet
 		else:
-			print('Packet is not complete yet.')
+			#print('Packet is not complete yet.')
 			pass
 
 class Defaults():
@@ -325,30 +324,26 @@ class Transmitter():
 		self.packetQueue = packetQueue
 		# Attempt to get the file size. Pop up the stack if it cannot be found.
 		# Since this happens first, if this succeeds, then the rest of the methods will be fine.
-		print("Getting file size")
 		try:
 			self.filesize = os.path.getsize("{}{}".format(ROOTPATH,pathname))
 		except Exception as e:
 			noDownloadMessage = 'There was an issue with the file: {}'.format(e)
 			noDownloadPacket = DataPacket(noDownloadMessage.encode('ascii'), 0, self.route).build()
 			self.packetQueue.enqueue(noDownloadPacket)
-			traceback.print_exc()
+			#traceback.print_exc()
 			DataPacket.last_id = 0
 			return
 
-		print("Checking file size")
 		if self.filesize > MAX_FILE_SIZE:
 			noDownloadMessage = 'You cannot download this file. It is too big. Break it up first.'
 			noDownloadPacket = DataPacket(noDownloadMessage.encode('ascii'), 0, self.route).build()
 			self.packetQueue.enqueue(noDownloadPacket)
 			DataPacket.last_id = 0
-			print("TOO BIG BAYBEE")
+			#print("TOO BIG BAYBEE")
 			return
 
-		print("Creating checksum")
 		self.data_size = DataPacket.max_size - DataPacket.header_size
 		self.expected_packets = ((self.filesize // self.data_size) + 1) # This keeps it consitant with PiCommands.py #ceil(self.filesize / self.data_size)
-		print("Data size ", self.data_size)
 		try:
 			# Currently, all checksums are just thic, because the currnet checksum algorithm is too slow
 			# and doesn't get applied to 99% of files anyway
@@ -364,7 +359,8 @@ class Transmitter():
 			"""
 		except:
 			self.checksum = b'NONE' #Should we just not send the file? I think we should send it anyway.
-			traceback.print_exc()
+			#_, __, exc_traceback = sys.exc_info()
+			#logger.logError(exc_traceback)
 
 		# if useFEC:
 		# 	self.data_size = (DataPacket.max_size - DataPacket.header_size) // 3
@@ -372,11 +368,9 @@ class Transmitter():
 		# 	self.data_size = DataPacket.max_size - DataPacket.header_size
 		#self.data_size = DataPacket.max_size - DataPacket.header_size
 		#self.expected_packets = ceil(self.filesize / self.data_size)
-		print(ppa, xtea)
 		self.ppa = ppa
 		self.xtea = xtea
 		#self._updateFileProgress()
-		print("INIT complete")
 
 	def run(self):
 		"""
@@ -404,10 +398,11 @@ class Transmitter():
 					packet = DataPacket(data=packetData[pid], pid=pid+self.firstPacket, rid=self.route, opcode=None)
 					self.pkt_padding = self.data_size - len(packetData[pid])
 					self.packetQueue.enqueue(packet.build()) #ADD PACKET TO BUFFER
-					print("SUCCESSS WE ADDED HERE: %d" % pid)
+					#print("SUCCESSS WE ADDED HERE: %d" % pid)
 				except Exception as e:
-					print("ERROR, WE HAVE FOUND SOME ERROR HERE: {0}".format(pid))
-					traceback.print_exc()
+					#logger.logError("ERROR, WE HAVE FOUND SOME ERROR HERE: {0}".format(pid))
+					#traceback.print_exc()
+					pass
 				# except IndexError:
 				# 	# IndexError when we don't have enough packets for the current set of acknoledgements
 				# 	# This is fine though, raise a StopIteration up one level to exit
@@ -420,14 +415,13 @@ class Transmitter():
 					try:
 						self._updateFileProgress(pid+self.firstPacket)
 					except:
-						print("ERROR IN 396: NO UPDATE PROGRESS")
-			print(sessionPackets)
+						#print("ERROR IN 396: NO UPDATE PROGRESS")
+						pass
 		except StopIteration as e:
 			#StopIteration to stop iterating :) we are done here.
-			print("Some Errors Here")
-			print(e)
+			#print(e)
 
-		print("Last: {0} | Expected: {1}".format(self.lastPacket, self.expected_packets))
+		#print("Last: {0} | Expected: {1}".format(self.lastPacket, self.expected_packets))
 
 		if(self.lastPacket == self.expected_packets):
 			#When it's done it needs to send a DONE packet
@@ -461,7 +455,7 @@ class Transmitter():
 		startByte = self.firstPacket*self.data_size
 		count = 0
 		packetData = []
-		print("START Byte: ", startByte)
+		#print("START Byte: ", startByte)
 		with open("{}{}".format(ROOTPATH,self.pathname),'rb') as f:
 			f.seek(startByte)
 			while(count < self.ppa):
@@ -472,8 +466,8 @@ class Transmitter():
 					packetData.append(b'\x04'*self.data_size)
 					break
 				count += 1
-		print(packetData)
-		print("WHAT IS OUR SIZE?: %d" % len(packetData))
+		#print(packetData)
+		#print("WHAT IS OUR SIZE?: %d" % len(packetData))
 		return packetData
 
 	def _updateFileProgress(self,sent=0):
