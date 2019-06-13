@@ -219,7 +219,6 @@ class SC16IS750:
 
 		self.pi = pi
 		self.i2c = pi.i2c_open(i2cbus, i2caddr)
-		print("We successesully ran i2c_open")
 		self.xtalfreq = xtalfreq
 		self.baudrate = baudrate
 		self.databits = databits
@@ -354,6 +353,7 @@ class SC16IS750:
 
 	# Write I2C byte to specified register
 	def byte_write(self, reg, byte):
+		print("Byte Writing", byte)
 		print(byte)
 		n, d = self.pi.i2c_zip(self.i2c, [I2C_WRITE, 2, self.reg_conv(reg), byte, I2C_END])
 
