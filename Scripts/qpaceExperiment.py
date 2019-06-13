@@ -16,7 +16,7 @@ try:
 	GPIO.setwarnings(False)
 	GPIO.setmode(GPIO.BOARD)
 except:
-	print("Unable to import RPi.GPIO")
+	#print("Unable to import RPi.GPIO")
 	pass
 
 # Go pro items are depreciated
@@ -133,7 +133,7 @@ class Camera():
 		"""
 		for key,value in kwargs.items():
 			if key in self.attr:
-				print("Appending (Key, Value): ({0}, {1})".format(key, value))
+				#print("Appending (Key, Value): ({0}, {1})".format(key, value))
 				self.attr[key] = value
 
 
@@ -253,7 +253,7 @@ class Camera():
 
 		query.append('-o')
 		query.append('{}{}.jpg'.format(PICTUREPATH,filename))
-		print("QUERY: ", query)
+		#print("QUERY: ", query)
 		ret = os.system(' '.join(query)) # Take the picture
 		if ret:
 			raise Camera.CameraProcessFailed('capture',ret)
@@ -519,7 +519,8 @@ class Action():
 		try:
 			GPIO
 		except NameError:
-			print("GPIO is not defined, the pins were not reset!")
+			#print("GPIO is not defined, the pins were not reset!")
+			pass
 		else:
 
 			if pingroup is None: # If None, reset all pins
