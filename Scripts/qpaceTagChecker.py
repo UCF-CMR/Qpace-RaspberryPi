@@ -57,7 +57,6 @@ class TagChecker:
 		RuntimeError - if the file does not have the minimum amount of tags.
 
 		"""
-		print("Inside initTags")
 		tf = ""
 		if TagChecker.LOCK_CALLS >= TagChecker.MINIMUM_TAGS:
 			raise ValueError('LOCK_CALLS cannot be greater than MINIMUM_TAGS.')
@@ -67,7 +66,6 @@ class TagChecker:
 			tf = tagSource.read()
 		potentialTags = tf.split(TagChecker.TAG_DELIMINATOR)
 		for t in potentialTags:
-			print("Trying to add potential Tag...", t)
 			if TagChecker._isFormattedTag(t):
 				self.tags.append(t)
 		if len(self.tags) < TagChecker.MINIMUM_TAGS:

@@ -622,7 +622,7 @@ class Command():
 		outputFile = args[1].decode('ascii')
 		# > /dev/null 2>&1 to hide the command from terminal because it outputs gibberish
 		# the '&' is so the command runs in the background.
-		handbrakeCOmmand = 'HandBrakeCLI --preset-import-file qpace265.json -Z “qpace265” -i {} -o {} -e x265 > /dev/null 2>&1 &'.format(inputFile,outputFile)
+		handbrakeCommand = 'HandBrakeCLI --preset-import-file qpace265.json -Z "qpace265" -i {} -o {} -e x265 > /dev/null 2>&1 &'.format(inputFile,outputFile)
 		os.system(handbrakeCommand)
 		if not silent:
 			data = 'HandBrake: In({}) Out({})'.format(inputFile,outputFile)

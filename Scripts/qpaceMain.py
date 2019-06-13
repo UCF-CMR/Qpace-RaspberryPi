@@ -8,9 +8,10 @@
 
 import os
 import threading
+import traceback
 import time
 import datetime
-import pathlib
+#import pathlib
 import json # Used for the graveyard
 try:
 	import qpaceLogger
@@ -80,6 +81,7 @@ def initWTCConnection():
 			logger.logWarning('SC16IS740 CHIP FREQ IS 1843200 for QPACE. XTAL_FREQ is currently set at ' + str(XTAL_FREQ))
 
 	except Exception as e:
+		traceback.print_exc()
 		raise SystemExit('Failed to create a connection to the SC16IS740: {}'.format(str(e)))
 	else:
 		chip.packetBuffer = []
@@ -581,6 +583,13 @@ def run(logger):
 			interpreterAttempts = 0
 			schedulerAttempts = 0
 			graveyardAttempts = 0
+
+			# Indicate to the WTC that the pi is ready
+			chip.pi.set_mode(SC16IS750.PI_READY_PIN, pigpio.OUTPUT)
+			chip.pi.write(SC16IS750.PI_READY_PIN, 1)
+			print("Test: Boot finished signal sent")
+
+
 			# The big boy main loop. Good luck QPACE.
 			while True:
 				try:
