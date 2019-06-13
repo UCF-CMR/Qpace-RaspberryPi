@@ -105,7 +105,7 @@ class TagChecker:
 		"""
 		#logger.logInfo("ENTER isValidTag")
 		options = self._validTags(0)  #Tags Sent From Ground to Pi
-		print("The tag in this packet is ", toCheck)
+		#print("The tag in this packet is ", toCheck)
 		if toCheck in options:
 			self._pushUsed(toCheck, 0)  # Tags Sent From Ground to Pi
 			#logger.logInfo("Exit isValidTag True")

@@ -235,7 +235,7 @@ class SC16IS750:
 		sys.stdout.write("Waiting for %d bytes ... " % num)
 		sys.stdout.flush()
 		while self.inWaiting() < num: pass
-		print("done!")
+		#("done!")
 		return self.block_read(REG_RHR, num)
 
 	def readline(self):
@@ -247,7 +247,7 @@ class SC16IS750:
 			if self.inWaiting() > 0:
 				char = self.byte_read(REG_RHR)
 				out.append(char)
-		print("done!")
+		#print("done!")
 		return out
 
 	def write(self, bytestring):
@@ -284,7 +284,7 @@ class SC16IS750:
 		lcr = self.databits | self.stopbits | self.parity
 		s3, v3 = self.byte_write_verify(REG_LCR, lcr)
 		if not (s1 and s2 and s3):
-			print("Error setting up UART port!")
+			#print("Error setting up UART port!")
 			sys.exit(1)
 
 	# Reset chip and handle exception thrown by NACK
