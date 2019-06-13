@@ -84,6 +84,7 @@ def initWTCConnection():
 		_, __, exc_traceback = sys.exc_info()
 		raise SystemExit('Failed to create a connection to the SC16IS740: {}'.format(str(e)))
 	else:
+		print("We did not init the chip! Thats why we are here")
 		chip.packetBuffer = []
 
 		# Reset TX and RX FIFOs
