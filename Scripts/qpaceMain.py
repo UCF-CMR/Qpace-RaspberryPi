@@ -16,7 +16,7 @@ import json # Used for the graveyard
 try:
 	import qpaceLogger
 except:
-	print('Failed to import Logger. Everything will be silent.')
+	#print('Failed to import Logger. Everything will be silent.')
 	class Logger():
 		def __init__(self):
 			pass
@@ -81,7 +81,7 @@ def initWTCConnection():
 			logger.logWarning('SC16IS740 CHIP FREQ IS 1843200 for QPACE. XTAL_FREQ is currently set at ' + str(XTAL_FREQ))
 
 	except Exception as e:
-		traceback.print_exc()
+		_, __, exc_traceback = sys.exc_info()
 		raise SystemExit('Failed to create a connection to the SC16IS740: {}'.format(str(e)))
 	else:
 		chip.packetBuffer = []
@@ -587,7 +587,7 @@ def run(logger):
 			# Indicate to the WTC that the pi is ready
 			chip.pi.set_mode(SC16IS750.PI_READY_PIN, pigpio.OUTPUT)
 			chip.pi.write(SC16IS750.PI_READY_PIN, 1)
-			print("Test: Boot finished signal sent")
+			#print("Test: Boot finished signal sent")
 
 
 			# The big boy main loop. Good luck QPACE.
