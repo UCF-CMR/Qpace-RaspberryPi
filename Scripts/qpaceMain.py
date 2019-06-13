@@ -96,6 +96,7 @@ def initWTCConnection():
 		fcr = SC16IS750.FCR_FIFO_ENABLE | SC16IS750.FCR_RX_TRIGGER_56_BYTES
 		chip.byte_write(SC16IS750.REG_FCR, fcr)
 
+		print("Now entering Enabling RX error and RX ready interrupts")
 		# Enable RX error and RX ready interrupts
 		ier = SC16IS750.IER_RX_ERROR | SC16IS750.IER_RX_READY
 		chip.byte_write_verify(SC16IS750.REG_IER, ier)
