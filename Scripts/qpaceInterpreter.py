@@ -558,6 +558,7 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent,disa
 					wtc_respond('DONE')
 					shutdownEvent.set() # Set for shutdown
 				elif byte == qpStates['TIMESTAMP']:
+					print("Test: We got the timestamp from the WTC")
 					logger.logSystem('PseudoSM: TIMESTAMP from WTC.')
 					wtc_respond('TIMESTAMP')
 					# Yo, configure the timestamp after this
