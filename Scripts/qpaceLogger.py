@@ -165,9 +165,13 @@ class Logger():
         You can combine modes to see different logging information
         '''    
         # If flight mode is on, print nothing
-        if (self.pi.read(SC16IS750.FLIGHT_MODE_ON_PIN) == 1):
-            return
+        #if (self.pi.read(SC16IS750.FLIGHT_MODE_ON_PIN) == 1):
+        #    return
         #if its a sys log, always print it
+
+        # Print nothing if n is in the logger arguments
+        if 'n' in Logger.MODE:
+            return
         elif 'typeStr' == 'systm':
             print(log)
         #if the mode is v (verbose) print everything

@@ -84,7 +84,6 @@ def initWTCConnection():
 		_, __, exc_traceback = sys.exc_info()
 		raise SystemExit('Failed to create a connection to the SC16IS740: {}'.format(str(e)))
 	else:
-		print("We did not init the chip! Thats why we are here")
 		chip.packetBuffer = []
 
 		# Reset TX and RX FIFOs
@@ -96,7 +95,6 @@ def initWTCConnection():
 		fcr = SC16IS750.FCR_FIFO_ENABLE | SC16IS750.FCR_RX_TRIGGER_56_BYTES
 		chip.byte_write(SC16IS750.REG_FCR, fcr)
 
-		print("Now entering Enabling RX error and RX ready interrupts")
 		# Enable RX error and RX ready interrupts
 		ier = SC16IS750.IER_RX_ERROR | SC16IS750.IER_RX_READY
 		chip.byte_write_verify(SC16IS750.REG_IER, ier)
