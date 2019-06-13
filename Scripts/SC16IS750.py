@@ -227,6 +227,7 @@ class SC16IS750:
 
 		self.reset()
 		self.init_uart()
+		print("We finished initializing the entire chip")
 
 	def inWaiting(self):
 		return self.byte_read(REG_RXLVL)
