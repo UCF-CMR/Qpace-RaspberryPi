@@ -420,6 +420,8 @@ class Transmitter():
 		except StopIteration as e:
 			#StopIteration to stop iterating :) we are done here.
 			#print(e)
+			print("")
+			
 
 		#print("Last: {0} | Expected: {1}".format(self.lastPacket, self.expected_packets))
 
