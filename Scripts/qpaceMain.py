@@ -585,12 +585,6 @@ def run(logger):
 			schedulerAttempts = 0
 			graveyardAttempts = 0
 
-			# Indicate to the WTC that the pi is ready
-			chip.pi.set_mode(SC16IS750.PI_READY_PIN, pigpio.OUTPUT)
-			chip.pi.write(SC16IS750.PI_READY_PIN, 1)
-			#print("Test: Boot finished signal sent")
-
-
 			# The big boy main loop. Good luck QPACE.
 			while True:
 				try:
