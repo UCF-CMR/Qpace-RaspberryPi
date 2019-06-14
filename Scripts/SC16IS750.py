@@ -202,6 +202,7 @@ I2C_WRITE   = 0x07 # Write P bytes of data
 
 #PIGPIO CONSTANTS
 PI_WRITE = 20
+PI_READ = 21
 
 class SC16IS750:
 
@@ -222,6 +223,9 @@ class SC16IS750:
 		self.databits = databits
 		self.stopbits = stopbits
 		self.parity = parity
+
+		self.pi.set_mode(PI_WRITE, pigpio.OUTPUT)
+		self.pi.set_mode(PI_READ, pigpio.INPUT)
 
 		self.reset()
 		self.init_uart()
