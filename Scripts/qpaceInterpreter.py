@@ -171,7 +171,7 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent,disa
 		#its use in both causes a race condition where the added data is read with the packet
 		#short solution is to modify when trying to build packet
 		#logger.logResults("Data came in: ", packetData)
-		logger.logResults("Data came in: ", ''.join(map(chr, packetData)))
+		logger.logResult("Data came in: ", ''.join(map(chr, packetData)))
 		packetBuffer.append(packetData)
 		logger.logInfo("Exited: WTCRXBufferHandler")
 
