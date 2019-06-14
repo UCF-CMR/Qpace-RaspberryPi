@@ -97,10 +97,6 @@ class Logger():
         self.Colors = Colors()
         self.filename = 'unknownBootTime' # Must be 15 characters for the serialization.
 
-        # A pigpio object is required if we are using the TX/RX method so we can quiet the logger
-        self.pi = pigpio.pi()
-        self.pi.set_mode(SC16IS750.FLIGHT_MODE_ON_PIN, pigpio.INPUT)
-        self.pi.set_pull_up_down(SC16IS750.FLIGHT_MODE_ON_PIN, pigpio.PUD_DOWN)
 
     def bootWasSet(self):
         """
