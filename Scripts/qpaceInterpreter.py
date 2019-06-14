@@ -433,7 +433,7 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent,disa
 
 		"""
 		if response in qpStates:
-			logger.logResults('Sending to WTC: \'{}\' ({})'.format(response, hex(response)))
+			logger.logResults('Sending to WTC: \'{}\' ({})'.format(response, response))
 			chip.byte_write(SC16IS750.REG_THR,qpStates[response])
 		elif response is not None:
 			if isinstance(response,int):
