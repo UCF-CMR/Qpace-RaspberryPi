@@ -171,7 +171,7 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent,disa
 		#its use in both causes a race condition where the added data is read with the packet
 		#short solution is to modify when trying to build packet
 		#logger.logResults("Data came in: ", packetData)
-		logger.logResult("Data came in: ", ''.join(map(chr, packetData)))
+		logger.logResults("Data came in: ", ''.join(map(chr, packetData)))
 		packetBuffer.append(packetData)
 		logger.logInfo("Exited: WTCRXBufferHandler")
 
@@ -433,7 +433,7 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent,disa
 
 		"""
 		if response in qpStates:
-			logger.logResult('Sending to WTC: \'{}\' ({})'.format(response, hex(response)))
+			logger.logResults('Sending to WTC: \'{}\' ({})'.format(response, hex(response)))
 			chip.byte_write(SC16IS750.REG_THR,qpStates[response])
 		elif response is not None:
 			if isinstance(response,int):
