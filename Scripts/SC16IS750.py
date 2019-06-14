@@ -1,6 +1,5 @@
 import sys
 import time
-import serial
 try:
 	import pigpio
 except:pass
@@ -224,12 +223,6 @@ class SC16IS750:
 		self.databits = databits
 		self.stopbits = stopbits
 		self.parity = parity
-
-		try: 
-			self.serialComm = serial.Serial('/dev/ttyAMA0', 115200)
-		except Exception as e:
-			self.serialComm = None
-			print("NOT ABLE TO CONNECT TO SERIAL PORT.\n Exception: ", e)
 
 		self.reset()
 		self.init_uart()
