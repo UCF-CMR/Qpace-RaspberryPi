@@ -227,9 +227,9 @@ class SC16IS750:
 
 		try: 
 			self.serialComm = serial.serial('/dev/ttyAMA0', 115200)
-		except:
+		except Exception as e:
 			self.serialComm = None
-			print("NOT ABLE TO CONNECT TO SERIAL PORT.")
+			print("NOT ABLE TO CONNECT TO SERIAL PORT.\n Exception: ", e)
 
 		self.reset()
 		self.init_uart()

@@ -30,6 +30,7 @@ import qpaceInterpreter as qpi
 import qpaceScheduler as schedule
 #import tstSC16IS750 as SC16IS750
 import SC16IS750
+import sys
 import qpaceControl as states
 
 
