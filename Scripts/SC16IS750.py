@@ -225,6 +225,12 @@ class SC16IS750:
 		self.stopbits = stopbits
 		self.parity = parity
 
+		try: 
+			self.serialComm = serial.serial('/dev/ttyAMA0', 115200)
+		except:
+			self.serialComm = None
+			print("NOT ABLE TO CONNECT TO SERIAL PORT.")
+
 		self.reset()
 		self.init_uart()
 
@@ -355,6 +361,9 @@ class SC16IS750:
 	def byte_write(self, reg, byte):
 		print("Byte Writing", byte)
 		print(byte)
+		if self.serialComm:
+			self.serialComm.write(byte)
+
 		n, d = self.pi.i2c_zip(self.i2c, [I2C_WRITE, 2, self.reg_conv(reg), byte, I2C_END])
 
 	# Read I2C byte from specified register
@@ -365,6 +374,8 @@ class SC16IS750:
 	# Write I2C block to specified register
 	def block_write(self, reg, bytestring):
 		print(bytestring)
+		if self.serialComm:
+			self.serialComm.write(bytestring)
 		n, d = self.pi.i2c_zip(self.i2c, [I2C_WRITE, len(bytestring)+1, self.reg_conv(reg)] + list(bytestring) + [I2C_END])
 		if n < 0: raise pigpio.error(pigpio.error_text(n))
 	"""
