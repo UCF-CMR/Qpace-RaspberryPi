@@ -1,6 +1,6 @@
 import sys
 import time
-#import serial
+import serial
 try:
 	import pigpio
 except:pass
@@ -226,7 +226,7 @@ class SC16IS750:
 		self.parity = parity
 
 		try: 
-			self.serialComm = serial.serial('/dev/ttyAMA0', 115200)
+			self.serialComm = serial.Serial('/dev/ttyAMA0', 115200)
 		except Exception as e:
 			self.serialComm = None
 			print("NOT ABLE TO CONNECT TO SERIAL PORT.\n Exception: ", e)
@@ -360,11 +360,24 @@ class SC16IS750:
 	# Write I2C byte to specified register
 	def byte_write(self, reg, byte):
 		print("Byte Writing", byte)
-		print(byte)
-		if self.serialComm:
-			self.serialComm.write(byte)
 
-		n, d = self.pi.i2c_zip(self.i2c, [I2C_WRITE, 2, self.reg_conv(reg), byte, I2C_END])
+		if isinstance(byte, int):
+			byte = bytes([byte])
+		
+		try:
+			self.pi.wave_clear()
+			self.pi.wave_add_serial(20, 19200, byte)
+			print("added wave")
+			wid = self.pi.wave_create()
+			cbs = self.pi.wave_send_once(wid)
+
+			while self.pi.wave_tx_busy():
+				print("waveform tx busy ", self.pi.wave_tx_at(), " ", self.pi.wave_get_cbs())
+				time.sleep(.1)
+		except Exception as e:
+			print(e)
+
+		#n, d = self.pi.i2c_zip(self.i2c, [I2C_WRITE, 2, self.reg_conv(reg), byte, I2C_END])
 
 	# Read I2C byte from specified register
 	# Return byte received from driver
@@ -374,8 +387,15 @@ class SC16IS750:
 	# Write I2C block to specified register
 	def block_write(self, reg, bytestring):
 		print(bytestring)
-		if self.serialComm:
-			self.serialComm.write(bytestring)
+		self.pi.wave_clear()
+		self.pi.wave_add_serial(20, 19200, bytestring)
+		wid = self.pi.wave_create()
+		cbs = self.pi.wave_send_once(wid)
+		while self.pi.wave_tx_busy():
+			print("waveform tx busy ", self.pi.wave_tx_at(), " ", self.pi.wave_get_cbs())
+			time.sleep(.1)
+
+		
 		n, d = self.pi.i2c_zip(self.i2c, [I2C_WRITE, len(bytestring)+1, self.reg_conv(reg)] + list(bytestring) + [I2C_END])
 		if n < 0: raise pigpio.error(pigpio.error_text(n))
 	"""
