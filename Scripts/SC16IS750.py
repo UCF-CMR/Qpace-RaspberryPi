@@ -411,3 +411,12 @@ class SC16IS750:
 	# Convert register address given in datasheet to actual address on chip
 	def reg_conv(self, reg):
 		return reg << 3
+
+if __name__ == '__main__':
+	pi = pigpio.pi()
+	pi.set_mode(20, pigpio.OUTPUT)
+	chip = SC16IS750(pi)
+	for i in range(8):
+		string = str(i)+"Hello World"+"\x04"*116
+		chip.block_write(1, string.encode('utf-8'))
+		#time.sleep(.5)
