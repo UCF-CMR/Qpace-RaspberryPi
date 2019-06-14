@@ -201,8 +201,7 @@ I2C_READ    = 0x06 # Read P bytes of data
 I2C_WRITE   = 0x07 # Write P bytes of data
 
 #PIGPIO CONSTANTS
-FLIGHT_MODE_ON_PIN = 21
-PI_READY_PIN = 20
+PI_WRITE = 20
 
 class SC16IS750:
 
@@ -339,11 +338,6 @@ class SC16IS750:
 	# Return tuple indicating (boolean success, new value in register)
 	def byte_write_verify(self, reg, byte):
 
-		# Disabled currently as we cannot write to the I2C
-		return (True, 1)
-
-
-		print(I2C_WRITE, 2, self.reg_conv(reg), byte, I2C_READ, 1, I2C_END)
 		n, d = self.pi.i2c_zip(self.i2c, [I2C_WRITE, 2, self.reg_conv(reg), byte, I2C_READ, 1, I2C_END])
 		if n < 0: raise pigpio.error(pigpio.error_text(n))
 		elif n != 1: raise ValueError("unexpected number of bytes received")
@@ -354,12 +348,14 @@ class SC16IS750:
 	def byte_write(self, reg, byte):
 		print("Byte Writing", byte)
 
+		n, d = self.pi.i2c_zip(self.i2c, [I2C_WRITE, 2, self.reg_conv(reg), byte, I2C_END])
+
 		if isinstance(byte, int):
 			byte = bytes([byte])
 		
 		try:
 			self.pi.wave_clear()
-			self.pi.wave_add_serial(20, 19200, byte)
+			self.pi.wave_add_serial(PI_WRITE, 115200, byte)
 			print("added wave")
 			wid = self.pi.wave_create()
 			cbs = self.pi.wave_send_once(wid)
@@ -370,8 +366,6 @@ class SC16IS750:
 		except Exception as e:
 			print(e)
 
-		#n, d = self.pi.i2c_zip(self.i2c, [I2C_WRITE, 2, self.reg_conv(reg), byte, I2C_END])
-
 	# Read I2C byte from specified register
 	# Return byte received from driver
 	def byte_read(self, reg):
@@ -381,7 +375,7 @@ class SC16IS750:
 	def block_write(self, reg, bytestring):
 		print(bytestring)
 		self.pi.wave_clear()
-		self.pi.wave_add_serial(20, 19200, bytestring)
+		self.pi.wave_add_serial(PI_WRITE, 115200, bytestring)
 		wid = self.pi.wave_create()
 		cbs = self.pi.wave_send_once(wid)
 		while self.pi.wave_tx_busy():
