@@ -16,6 +16,7 @@ from math import ceil
 import re
 import os
 import traceback
+import hashlib
 
 WTC_PACKET_BUFFER_SIZE = 10
 
@@ -73,6 +74,7 @@ class DataPacket():
 		Value error - packet is too large.
 		"""
 		# Is the data in a valid data type? If so, convert it to a bytearray.
+		self.downloadPacketChecksum = False
 		if isinstance(data,bytearray):
 			pass
 		elif isinstance(data,bytes):
@@ -122,6 +124,12 @@ class DataPacket():
 		else:
 			raise ValueError("Packet size is too large for the current header information ("+str(len(data))+"). Data input restricted to " + str(self.data_size) + " Bytes.")
 
+	def generateDownloadChecksum(self, data):
+		m = hashlib.md5()
+		m.update(data)
+		checksum = m.digest() # Returns 16 Bytes
+		return checksum[-4:] # Can only store 4 Bytes so take the last four
+		
 
 	def build(self):
 		"""
@@ -149,7 +157,11 @@ class DataPacket():
 		data += DataPacket.padding_byte * padding
 		self.paddingSize = padding
 		packet = self.rid.to_bytes(1,byteorder='big') + self.opcode + DataPacket.pid.to_bytes(4,byteorder='big') + data
-		packet += generateChecksum(packet)
+		# If the packet is for download use safe checksum maker
+		if self.downloadPacketChecksum:
+			packet += generateDownloadChecksum(data)
+		else:
+			packet += generateChecksum(packet)
 		# After constructing the packet's contents, pad the end of the packet until we reach the max size.
 		return packet
 
