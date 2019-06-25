@@ -159,7 +159,7 @@ class DataPacket():
 		packet = self.rid.to_bytes(1,byteorder='big') + self.opcode + DataPacket.pid.to_bytes(4,byteorder='big') + data
 		# If the packet is for download use safe checksum maker
 		if self.downloadPacketChecksum:
-			packet += generateDownloadChecksum(data)
+			packet += self.generateDownloadChecksum(data)
 		else:
 			packet += generateChecksum(packet)
 		# After constructing the packet's contents, pad the end of the packet until we reach the max size.
