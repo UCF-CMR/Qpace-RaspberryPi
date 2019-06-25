@@ -410,6 +410,7 @@ class Transmitter():
 					packet = DataPacket(data=packetData[pid], pid=pid+self.firstPacket, rid=self.route, opcode=None)
 					packet.downloadPacketChecksum = True
 					self.pkt_padding = self.data_size - len(packetData[pid])
+					print("Adding packet #{0}: {1}".format(pid+self.firstPacket, packetData[pid]))
 					self.packetQueue.enqueue(packet.build()) #ADD PACKET TO BUFFER
 					#print("SUCCESSS WE ADDED HERE: %d" % pid)
 				except Exception as e:
