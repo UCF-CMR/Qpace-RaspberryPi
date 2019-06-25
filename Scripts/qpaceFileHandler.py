@@ -30,8 +30,7 @@ ROOTPATH = '/home/pi/'
 MAX_FILE_SIZE = 2147483648
 MAX_RAM_ALLOTMENT = 419430400 # This is how many bytes are in 400MB. Restrict file sizes to this because of RAM.,///
 
-
-
+CHECKSUM_PARAM = 'HERECOMESTHECUBESATHERECOMESTHECUBESATHERECOMESTHECUBESATHERECOMESTHECUBESATHERECOMESTHECUBESATHERECOMESTHECUBESATHERECOMESTHECUBESATHERECOMESTHECUBESATHERECOMESTHECUBESAT'
 
 
 class DataPacket():
@@ -125,9 +124,7 @@ class DataPacket():
 			raise ValueError("Packet size is too large for the current header information ("+str(len(data))+"). Data input restricted to " + str(self.data_size) + " Bytes.")
 
 	def generateDownloadChecksum(self, data):
-		m = hashlib.md5()
-		m.update(data)
-		checksum = m.digest() # Returns 16 Bytes
+		checksum = data ^ CHECKSUM_PARAM
 		return checksum[-4:] # Can only store 4 Bytes so take the last four
 		
 
