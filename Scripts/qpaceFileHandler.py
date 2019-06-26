@@ -125,7 +125,7 @@ class DataPacket():
 
 	def generateDownloadChecksum(self, data):
 		checksum = int.from_bytes(data,  'big') ^ int.from_bytes(CHECKSUM_PARAM, 'big')
-		return bytearray(checksum)[:-4] # Can only store 4 Bytes so take the last four
+		return bytearray(checksum.to_bytes(175, 'big'))[-4:] # Can only store 4 Bytes so take the last four
 		
 
 	def build(self):
