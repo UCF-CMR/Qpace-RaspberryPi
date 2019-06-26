@@ -124,7 +124,7 @@ class DataPacket():
 			raise ValueError("Packet size is too large for the current header information ("+str(len(data))+"). Data input restricted to " + str(self.data_size) + " Bytes.")
 
 	def generateDownloadChecksum(self, data):
-		checksum = int.from_bytes(data,  'big') ^ CHECKSUM_PARAM
+		checksum = int.from_bytes(data,  'big') ^ int.from_bytes(CHECKSUM_PARAM, 'big')
 		return bytearray(checksum)[:-4] # Can only store 4 Bytes so take the last four
 		
 
