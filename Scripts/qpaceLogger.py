@@ -10,7 +10,8 @@
 
 import os
 import datetime
-from time import strftime,gmtime,time
+from time import strftime,gmtime,time, sleep
+
 import sys
 import pigpio
 import SC16IS750
@@ -254,7 +255,9 @@ class Logger():
             f.write(log)
             f.write(traceback.format_exc())
             f.close()
-            
+
+            if "I2C" in description:
+                print("Critical Error encountered - Restarting script")
             return self.logData('error', log) # Actually log the data.
         except Exception:
             Logger.LOG_ATTEMPTS += 1
@@ -399,3 +402,20 @@ class Logger():
             return self.logData('debug', log)
         except Exception as e:
             Logger.LOG_ATTEMPTS += 1
+
+# Utiliy script
+def restart_script():
+    """
+    Forcefully restarts the python script - should only be done in an emergency 
+    TODO: Need to cleanup threads, as well as let the WTC and ground know whats 
+    going on
+    """
+    pi = pigpio.pi()
+    sleep(1)
+
+
+    # Kill the heartbeat
+    pi.write(21, 0)
+
+    python = sys.executable
+    os.execl(python, python, *sys.argv)

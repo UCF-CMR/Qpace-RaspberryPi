@@ -717,6 +717,9 @@ if __name__ == '__main__':
 		except Exception as e:
 			logger.logSystem("SpecialTasks: Got an exception. {}".format(str(e)))
 		# Main script.
+
 		run(logger)
+		# Turn the heartbeat on
+		gpio.write(21, 1)
 	else:
 		logger.logSystem('HealthCheck: Failed. Aborting QPACE.')
