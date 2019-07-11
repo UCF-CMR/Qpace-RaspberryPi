@@ -702,6 +702,11 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent,disa
 							pass
 							#TODO Alert the WTC? Send OKAY back to ground?
 							logger.logFailure('Packet did not pass validation.')
+							# Hijack the Dummy packet to send something to ground
+							failValidPacket = fh.DummyPacket()
+							failValidPacket.rid = b'\x00' 
+							failValidPacket.opcode = b'~NVAL' # Not Valid -- OP can only be 5-byte
+							packetQueue.enqueue(failValidPacket.build()) # Add failed packet to send queue
 
 		except KeyboardInterrupt: # Really only needed for DEBUG. Forces a re-check for shutdownEvent.
 			continue
