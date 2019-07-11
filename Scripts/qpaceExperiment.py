@@ -250,7 +250,7 @@ class Camera():
 		if self.attr['roi']:
 			query.append('-roi')
 			x, y, w, h = self.attr['roi'] 
-			query.append("{},{},{},{}".format((x,y,w,h)))
+			query.append("{},{},{},{}".format(x,y,w,h))
 		else:
 			query.append('-q')
 			query.append('75')
