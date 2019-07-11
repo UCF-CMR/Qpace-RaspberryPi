@@ -14,6 +14,7 @@ from time import strftime,gmtime,time
 import sys
 import pigpio
 import SC16IS750
+import traceback
 
 class Colors():
     # Foreground:
@@ -239,11 +240,21 @@ class Logger():
         All exceptions raised by this function are ignored.
 
         """
+
+
         try:
+
             if exception is not None:
                 description += ' {}'.format(str(exception.args))
             self.Errors.inc()
             log = Colors.RED + description + Colors.DEFAULT 
+
+            # Write the error to the error logger
+            f = open("ErrorLog.txt", "a")
+            f.write(log)
+            f.write(traceback.format_exc())
+            f.close()
+            
             return self.logData('error', log) # Actually log the data.
         except Exception:
             Logger.LOG_ATTEMPTS += 1
