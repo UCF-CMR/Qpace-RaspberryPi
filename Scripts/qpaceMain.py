@@ -662,6 +662,15 @@ def run(logger):
 			logger.logSystem('Main: Shutting down RaspberryPi...')
 			os.system('sudo halt') # Shutdown.
 
+def restart_script():
+	"""
+	Forcefully restarts the python script - should only be done in an emergency 
+	TODO: Need to cleanup threads, as well as let the WTC and ground know whats 
+	going on
+	"""
+
+	python = sys.executable
+	os.execl(python, python, *sys.agrv)
 if __name__ == '__main__':
 	time.sleep(1)
 	logger = qpaceLogger.Logger()
