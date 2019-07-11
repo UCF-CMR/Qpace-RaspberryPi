@@ -85,7 +85,7 @@ class Camera():
 			'rot': None,
 			'hf': None,
 			'vf': None,
-			'roi': None, #tuple (x,y,w,h)
+			'roi': (0.15,0.10,0.70,0.90), #tuple (x,y,w,h) DEFAULT VALUES (I spent a time on finding these so please use them)
 			'md': 0,  # check documentation.
 			'a': None, # Annotations. Verification does not cover this. Only use when using the documentation to support you.
 			'ae': None # Annotation Parameters. Verification does not cover this. Only use when using the documentation to support you.
@@ -247,6 +247,10 @@ class Camera():
 		if self.attr['q']:
 			query.append('-q')
 			query.append(str(self.attr['q']))
+		if self.attr['roi']:
+			query.append('-roi')
+			x, y, w, h = self.attr['roi'] 
+			query.append("{},{},{},{}".format((x,y,w,h)))
 		else:
 			query.append('-q')
 			query.append('75')
