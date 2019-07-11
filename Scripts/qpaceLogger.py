@@ -258,6 +258,7 @@ class Logger():
 
             if "I2C" in description:
                 print("Critical Error encountered - Restarting script")
+                restart_script()
             return self.logData('error', log) # Actually log the data.
         except Exception:
             Logger.LOG_ATTEMPTS += 1
