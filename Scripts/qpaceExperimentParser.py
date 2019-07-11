@@ -264,7 +264,6 @@ def run(filename, isRunningEvent, runEvent,logger,nextQueue,disableCallback):
 											exp.stepper_turn(delay,turns)
 
 						elif(instruction[0] == 'CAMERA'):
-							print("CAMERA")
 							try:
 								filename = 'exp_{}_{}'.format(title,str(round(time.time())))
 								if instruction[1] == 'CAPTURE':
@@ -279,12 +278,10 @@ def run(filename, isRunningEvent, runEvent,logger,nextQueue,disableCallback):
 										toRec = int(instruction[2])
 									except:
 										toRec = 300000 # 5 minutes
-									print(toRec)
 									try:
 										recFile = instruction[3]
 									except:
 										recFile = filename
-									print(recFile)
 									# This becomes a forked process... It can be shutdown by sending a signal to it with linux 'Kill'
 									picam.record(time=toRec,filename=recFile)
 								elif instruction[1] == 'SET':
