@@ -290,7 +290,8 @@ class Camera():
 				if option is 'cfx':
 					value = '{}:{}'.format(value[0],value[1])
 				if option is 'roi':
-					value = ','.join(value)
+					x, y, w, h = self.attr['roi'] 
+					value = "{},{},{},{}".format(x,y,w,h)
 
 				query.append('-{}'.format(option))
 				query.append(value)
