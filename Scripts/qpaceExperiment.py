@@ -133,7 +133,6 @@ class Camera():
 		"""
 		for key,value in kwargs.items():
 			if key in self.attr:
-				#print("Appending (Key, Value): ({0}, {1})".format(key, value))
 				self.attr[key] = value
 
 
@@ -257,7 +256,7 @@ class Camera():
 
 		query.append('-o')
 		query.append('{}{}.jpg'.format(PICTUREPATH,filename))
-		#print("QUERY: ", query)
+		print("QUERY: ", query)
 		ret = os.system(' '.join(query)) # Take the picture
 		if ret:
 			raise Camera.CameraProcessFailed('capture',ret)

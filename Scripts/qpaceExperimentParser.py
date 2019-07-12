@@ -294,6 +294,12 @@ def run(filename, isRunningEvent, runEvent,logger,nextQueue,disableCallback):
 												value = (int(value[0]),int(value[1]))
 											except:
 												value = (0,0)
+										elif option == 'roi':
+											value = value.split(',')
+											try:
+												value = (float(value[0]), float(value[1]), float(value[2]), float(value[3]))
+											except:
+												value = picam.attr['roi']
 										else:
 											value = int(value)
 											
