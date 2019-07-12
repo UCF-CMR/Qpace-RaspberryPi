@@ -625,8 +625,9 @@ class Command():
 		handbrakeCommand = 'HandBrakeCLI --preset-import-file qpace265.json -Z "qpace265" -i {} -o {} -e x265 > /dev/null 2>&1 &'.format(inputFile,outputFile)
 		os.system(handbrakeCommand)
 		if not silent:
-			data = 'HandBrake: In({}) Out({})'.format(inputFile,outputFile)
-			data = data.encode('ascii') + Command.PrivilegedPacket.padding_byte * (Command.PrivilegedPacket.encoded_data_length - len(data))
+			msg = 'HandBrake: In({}) Out({})'.format(inputFile,outputFile).encode('ascii')
+			data = msg + Command.PrivilegedPacket.padding_byte * (Command.CMDPacket.data_size - len(msg))
+			print(data)
 			Command.CMDPacket(opcode='HANDB',data=data).send()
 
 	def startExperiment(self,logger,args, silent=False):
