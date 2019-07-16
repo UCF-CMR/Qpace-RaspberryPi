@@ -333,7 +333,11 @@ class Command():
 		pathname = ROOTPATH + fileDir.decode('ascii').split(' ')[0]
 
 
-		lenstr = str(len(os.listdir(pathname))) # Get the number of files/directories in this directory.
+		try:
+			lenstr = str(len(os.listdir(pathname))) # Get the number of files/directories in this directory.
+		except FileNotFoundError:
+			lenstr = "Error in Directory List Set: No such file or directory {}.".format(fileDir)
+
 		if not silent:
 			padding = Command.CMDPacket.padding_byte*(Command.PrivilegedPacket.encoded_data_length-len(lenstr)) #98 due to specification of packet structure
 			plainText = lenstr.encode('ascii')
@@ -617,7 +621,7 @@ class Command():
 			Command.PrivilegedPacket(plainText=response).send()
 
 	def runHandbrake(self,logger,args, silent=False):
-		args = args.split(b' ')
+		args = args.replace(b'\x04', b'').decode('ascii').split(' ')
 		inputFile = args[0].decode('ascii')
 		outputFile = args[1].decode('ascii')
 		# > /dev/null 2>&1 to hide the command from terminal because it outputs gibberish
