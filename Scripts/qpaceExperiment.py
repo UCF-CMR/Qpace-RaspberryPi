@@ -298,10 +298,15 @@ class Camera():
 
 				query.append('-{}'.format(option))
 				query.append(value)
+		query.append('-ex')
+		query.append('auto')
 		query.append('-t')
 		query.append(str(time))
 		query.append('-o')
 		query.append('{}{}.h264'.format(VIDEOPATH,filename))
+
+
+
 
 		# Build the command to execute the raspivid stuffs
 		piCamQuery = ' '.join(query)
