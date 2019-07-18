@@ -224,7 +224,7 @@ def executeScheduleList(chip,nextQueue,schedule_list, shutdownEvent, experimentE
 			if len(schedule_list[0]) < 3:
 				raise SyntaxError()
 			runEvent.wait() # If we should be holding, do the hold.
-			wait_time = ceil((schedule_list[0][0] - datetime.now()).total_seconds()) # Determine how long to wait.
+			wait_time = ceil((datetime.now() - schedule_list[0][0]).total_seconds()) # Determine how long to wait.
 			if wait_time < 0 and wait_time > -timeDelta: # If the wait_time ends up being negative, but we're within' the delta, just start the task.
 				wait_time = 1
 			elif wait_time < -timeDelta: # If the wait_time is negative, but also less than then the time delta then we need to trash that task.
