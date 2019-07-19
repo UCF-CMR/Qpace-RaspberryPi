@@ -22,6 +22,7 @@ import traceback
 import qpaceExperimentParser as exp
 import socket
 import sys
+import ntpath
 
 try:
 	import xtea3
@@ -352,8 +353,9 @@ class Command():
 		fileDir = args.replace(b'\x04', b'')
 		pathname = ROOTPATH + fileDir.decode('ascii').split(' ')[0]
 
+
 		self.pathname = pathname
-		filepath = TEXTPATH+"someText.txt"
+		filepath = TEXTPATH+ntpath.basename(pathname[:-1]) + "dir.txt"
 		try:
 			pathList = check_output(['ls','-alh',pathname]).decode("utf-8")
 		except:
