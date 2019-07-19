@@ -591,7 +591,7 @@ class Scaffold():
 			scaffold.seek(0)
 			scaffold.write(scaffoldData)
 
-	def _updateMissedPackets(missed_packets,filename):
+	def _updateMissedPackets(self, missed_packets,filename):
 		"""
 		Update the .nore file with which packets are missing
 
@@ -613,7 +613,7 @@ class Scaffold():
 				f.write(to_write)
 		except:
 			pass
-	def _removeMissedPacket(received_packet,filename):
+	def _removeMissedPacket(self, received_packet,filename):
 		"""
 		Removes packets from the .nore file if they arrive
 

@@ -261,7 +261,7 @@ class Camera():
 		if ret:
 			raise Camera.CameraProcessFailed('capture',ret)
 
-	def record(self,time=None,filename=None):
+	def record(self,time=None,filename=None, chunks=0):
 		"""
 		Run raspivid and record a video
 
@@ -304,9 +304,6 @@ class Camera():
 		query.append(str(time))
 		query.append('-o')
 		query.append('{}{}.h264'.format(VIDEOPATH,filename))
-
-
-
 
 		# Build the command to execute the raspivid stuffs
 		piCamQuery = ' '.join(query)
