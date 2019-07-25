@@ -582,7 +582,9 @@ class Command():
 											)
 				#print("Trying to run transmitter")
 				try:
-					transmitter.run()
+					transmitterThread = threading.Thread(name='qpf Transmitter',target=transmitter.run, args=())
+					transmitterThread.start()
+					#transmitter.run()
 					logger.logSuccess("Transmitter Ran!")
 				except Exception as e:
 					logger.logError("Transmitter Failed to RUN")
