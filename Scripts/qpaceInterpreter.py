@@ -537,7 +537,7 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent,disa
 		if len(packetData) == 2: 
 			return None, configureTimestamp
 
-		if len(packetData) <= 2 or (len(packetData) == 4 and configureTimestamp):
+		if len(packetData) == 1 or (len(packetData) == 4 and configureTimestamp):
 			byte = int.from_bytes(packetData,byteorder='little')
 			logger.logResults('--Read from WTC: {} ({})'.format([ key for key,val in qpStates.items() if val==byte ], hex(byte)))
 			if len(packetData) == 4:
