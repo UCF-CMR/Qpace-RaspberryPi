@@ -533,7 +533,11 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent,disa
 		Any exception gets popped up the stack.
 		"""
 		# Start looking at a pseduo state machine so WTC code doesn't need to change
-		if len(packetData) == 1 or (len(packetData) == 4 and configureTimestamp):
+		#Check to see if Pi read 2-bytes for command instead of 1
+		if len(packetData) == 2: 
+			return None, configureTimestamp
+
+		if len(packetData) <= 2 or (len(packetData) == 4 and configureTimestamp):
 			byte = int.from_bytes(packetData,byteorder='little')
 			logger.logResults('--Read from WTC: {} ({})'.format([ key for key,val in qpStates.items() if val==byte ], hex(byte)))
 			if len(packetData) == 4:
@@ -606,6 +610,8 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent,disa
 					wtc_respond('DONE')
 				else:
 					logger.logSystem('PseudoSM: State existed for {} but a method is not written for it.'.format(hex(byte)))
+			else:
+				logger.logSystem('PseudoSM: Unknown value {}. Not command or timestamp.'.format(hex(byte)))
 		else:
 			return packetData, configureTimestamp # Return the data if it's not actually a control character.
 
