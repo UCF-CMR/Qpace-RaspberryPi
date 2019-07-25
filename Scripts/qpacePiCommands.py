@@ -486,23 +486,10 @@ class Command():
 			plainText = message + Command.CMDPacket.padding_byte * (Command.PrivilegedPacket.encoded_data_length - len(message))
 			Command.PrivilegedPacket(plainText=plainText).send()
 
-	def dlReq(self,logger,args, silent=False):
-		"""
-		Create a DownloadRequestPacket and respond with the response packet.
-		"""
+	
+	def encodeFile(self, path=None, silent=False):
 		import qpaceFileHandler as qfh
-		path = args[:].replace(b'\x04',b'').decode('ascii') # Now just reads the entire list
-
-
-		"""
-		Create Encoded file for possible transmission.
-		If the file is able to be sent, then we will send
-		down the encoded data for re-coding on ground
-
-		WARNING: Assumes path is in the local directory not in another
-		outside directory.
-		"""
-
+		
 		with open("{}{}".format(ROOTPATH, path), "rb") as dataFile:
 			data = base64.b64encode(dataFile.read())#, altchars='+/')
 
@@ -535,6 +522,58 @@ class Command():
 			padding = Command.CMDPacket.data_size - len(data)
 			data += Command.CMDPacket.padding_byte * padding if padding > 0 else 0
 			Command.CMDPacket(opcode='DOWNR',data=data).send()
+
+	def dlReq(self,logger,args, silent=False):
+		"""
+		Create a DownloadRequestPacket and respond with the response packet.
+		"""
+		import qpaceFileHandler as qfh
+		path = args[:].replace(b'\x04',b'').decode('ascii') # Now just reads the entire list
+
+		encodeThread = threading.Thread(name='file encoder',target=self.encodeFile, args=(path, silent))
+		encodeThread.start()
+		"""
+		Create Encoded file for possible transmission.
+		If the file is able to be sent, then we will send
+		down the encoded data for re-coding on ground
+
+		WARNING: Assumes path is in the local directory not in another
+		outside directory.
+		"""
+		'''
+		with open("{}{}".format(ROOTPATH, path), "rb") as dataFile:
+			data = base64.b64encode(dataFile.read())#, altchars='+/')
+
+		encoded_filename = "{0}.encode".format(path)
+
+		if os.path.isfile(encoded_filename):
+			os.remove(encoded_filename)
+
+		with open(encoded_filename, "wb") as encodedFile:
+			encodedFile.write(data)
+
+		path = encoded_filename
+
+		try:
+			size_of_file = os.path.getsize("{}{}".format(ROOTPATH,path))
+		except FileNotFoundError as e:
+			size_of_file = 0
+		# 114 is the maximum alotment of data space in the files. the other 14 bytes are header and checksum data
+		# Get the number of packets estimated to be in this thing.
+		data = ((size_of_file//qfh.DataPacket.data_size) + 1).to_bytes(4,'big')
+		self.NumPackets = ((size_of_file//qfh.DataPacket.data_size) + 1)
+		data += b'\n'
+		if size_of_file > qfh.MAX_FILE_SIZE:
+			data += ('File Too large. Send less than 400MB at a time.\n')
+		if size_of_file > 0:
+			data += check_output(['ls','-la',"{}{}".format(ROOTPATH,path)])
+		else:
+			data += ('FileNotFound:{}{}'.format(ROOTPATH,path)).encode('ascii')
+		if not silent:
+			padding = Command.CMDPacket.data_size - len(data)
+			data += Command.CMDPacket.padding_byte * padding if padding > 0 else 0
+			Command.CMDPacket(opcode='DOWNR',data=data).send()
+		'''
 
 	def dlFile(self,logger,args, silent=False):
 		"""
