@@ -86,7 +86,8 @@ def run(filename, isRunningEvent, runEvent,logger,nextQueue,disableCallback):
 			inputLines = inputFile.readlines()
 			# Look for SOLENOID or STEPPER. If we see that, we'll need to ask for them to turn on.
 			for line in inputLines:
-				instruction = line.upper().split()[0]
+				instruction = line.upper().split()
+				instruction = instruction[0] if instruction else None
 				if instruction == 'SOLENOID':
 					solenoidRequest = True
 				elif instruction == 'STEPPER':
@@ -119,7 +120,8 @@ def run(filename, isRunningEvent, runEvent,logger,nextQueue,disableCallback):
 				instruction = line
 				for delimiter in comment_tuple:
 					if delimiter in instruction:
-						instruction = instruction.split(delimiter)[0]
+						instruction = instruction.split(delimiter)
+						instruction = (instruction[0] if instruction else ' ')
 				instruction = instruction.upper().split()
 				runEvent.wait() # If we should be waiting, then wait.
 
