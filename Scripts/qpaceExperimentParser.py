@@ -283,7 +283,10 @@ def run(filename, isRunningEvent, runEvent,logger,nextQueue,disableCallback):
 									try:
 										recFile = instruction[3]
 										if '/' in recFile:
-											os.mkdir('/home/pi/data/vid/' + recFile[:recFile.rindex('/')])
+											directory = '/home/pi/data/vid/' + recFile[:recFile.rindex('/')]
+											print(directory)
+											if not os.pat.isdir(directory):
+												os.mkdir(directory)
 									except:
 										recFile = filename
 									# This becomes a forked process... It can be shutdown by sending a signal to it with linux 'Kill'
