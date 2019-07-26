@@ -285,7 +285,7 @@ def run(filename, isRunningEvent, runEvent,logger,nextQueue,disableCallback):
 										if '/' in recFile:
 											directory = '/home/pi/data/vid/' + recFile[:recFile.rindex('/')+1] # make sure to get the '/'
 											print(directory)
-											if not os.pat.isdir(directory):
+											if not os.path.isdir(directory):
 												os.mkdir(directory)
 									except:
 										recFile = filename
