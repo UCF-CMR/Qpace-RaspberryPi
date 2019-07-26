@@ -282,6 +282,8 @@ def run(filename, isRunningEvent, runEvent,logger,nextQueue,disableCallback):
 										toRec = 300000 # 5 minutes
 									try:
 										recFile = instruction[3]
+										if '/' in recFile:
+											os.mkdir('/home/pi/data/vid/' + recFile[:recFile.rindex('/')])
 									except:
 										recFile = filename
 									# This becomes a forked process... It can be shutdown by sending a signal to it with linux 'Kill'
