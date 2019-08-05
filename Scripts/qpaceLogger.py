@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# qpaceLogger.Logger.py by Jonathan Kessluk
+# qpaceLogger.Logger.py by Jonathan Kessluk and Connor Westcott
 # 2-20-2018, Rev. 3
 # Q-Pace project, Center for Microgravity Research
 # University of Central Florida

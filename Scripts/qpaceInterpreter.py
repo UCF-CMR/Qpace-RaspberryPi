@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# qpaceInterpreter.py by Jonathan Kessluk
+# qpaceInterpreter.py by Jonathan Kessluk and Connor Westcott
 # qpaceTagChecker by Eric Prather
 # 9-30-2018, Rev. 2
 # Q-Pace project, Center for Microgravity Research

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# qpaceFileHandler.py by Jonathan Kessluk with controbutions from Taesung Yoon and Eric Prather
+# qpaceFileHandler.py by Jonathan Kessluk and Connor Westcott with controbutions from Taesung Yoon and Eric Prather
 # 6-22-2018, Rev. 2
 # Q-Pace project, Center for Microgravity Research
 # University of Central Florida
