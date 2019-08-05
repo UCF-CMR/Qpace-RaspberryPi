@@ -251,6 +251,7 @@ def run(filename, isRunningEvent, runEvent,logger,nextQueue,disableCallback):
 									logger.logSystem(logMessage)
 									experimentLog.write('{}\n'.format(logMessage))
 									delay = 0.2
+									turns = 0
 									try:
 										if len(instruction) == 4:
 											delay = int(instruction[3])/1000
