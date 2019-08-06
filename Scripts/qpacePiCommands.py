@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# qpacePiCommands.py by Jonathan Kessluk and Minh Pham
+# qpacePiCommands.py by Jonathan Kessluk, Minh Pham, and Connor Westcott
 # qpaceTagChecker by Eric Prather
 # 9-3-2018, Rev. 2.5
 # Q-Pace project, Center for Microgravity Research

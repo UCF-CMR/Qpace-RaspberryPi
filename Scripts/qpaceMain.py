@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# qpaceMain.py by Jonathan Kessluk
+# qpaceMain.py by Jonathan Kessluk and Connor Westcott
 # 4-19-2018, Rev. 2
 # Q-Pace project, Center for Microgravity Research
 # University of Central Florida

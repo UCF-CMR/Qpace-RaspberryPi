@@ -1,5 +1,5 @@
 #! /usr/bin/env python3
-# qpaceScheduler.py by Jonathan Kessluk & Minh Pham
+# qpaceScheduler.py by Jonathan Kessluk, Minh Pham, and Connor Westcott
 # 2-13-2018, Rev. 2
 # Q-Pace project, Center for Microgravity Research
 # University of Central Florida

@@ -1,5 +1,5 @@
 #! /usr/bin/env python3
-# qpaceExperimentParser.py by Minh Pham, Chris Britt, Jonathn Kessluk
+# qpaceExperimentParser.py by Minh Pham, Chris Britt, Jonathn Kessluk, and Connor Westcott
 #3-06-2018, Rev. 2
 #Q-Pace project, Center for Microgravity Research
 #University of Central Florida
