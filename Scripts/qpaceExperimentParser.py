@@ -167,16 +167,16 @@ def run(filename, isRunningEvent, runEvent,logger,nextQueue,disableCallback):
 								if len(instruction) == 1:
 									who = 'all'
 									group = None
-								elif instruction[1] == 'SOLENOID':
+								if 'SOLENOID' in instruction:
 									who = 'solenoid'
 									group = expModule.PINGROUP.solenoid
-								elif instruction[1] == 'STEPPER':
+								if 'STEPPER' in instruction:
 									who = 'stepper'
 									group = expModule.PINGROUP.stepper
-								elif instruction[1] == 'LED':
+								if 'LED' in instruction:
 									who = 'LED'
 									group = expModule.PINGROUP.led
-								elif instruction[1] == 'GOPRO':
+								if 'GOPRO' in instruction:
 									who = 'GoPro'
 									group = expModule.PINGROUP.gopro
 
