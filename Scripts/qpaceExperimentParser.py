@@ -198,6 +198,8 @@ def run(filename, isRunningEvent, runEvent,logger,nextQueue,disableCallback):
 								try:
 									if len(instruction) > 1:
 										ms = int(instruction[1])
+									else:
+										logger.logSystem("No delay given, defaulting to 200 ms...")
 								except: pass
 								logMessage = 'ExpParser: Delay for {} ms'.format(ms)
 								logger.logSystem(logMessage)
@@ -217,33 +219,6 @@ def run(filename, isRunningEvent, runEvent,logger,nextQueue,disableCallback):
 									elif instruction[1] == 'STROBE':
 										# TODO: Write a seperate process for this to happen in the background.
 										pass
-						# elif(instruction[0] == 'GOPRO'):
-						# 	if isRunningEvent.is_set():
-						# 		# Modify gopro attributes
-						# 		if len(instruction)>1:
-						# 			startTime = datetime.datetime.now()
-						# 			logMessage = 'ExpParser: The GoPro has been set to {}.'.format(instruction[1])
-						# 			logger.logSystem(logMessage)
-						# 			experimentLog.write('{}\n'.format(logMessage))
-						# 			if instruction[1] == 'ON':
-						# 				if not exp.read(expModule.PIN.GOPPWR):
-						# 					exp.gopro_on()
-						# 			elif instruction[1] == 'OFF':
-						# 				if exp.read(expModule.PIN.GOPPWR):
-						# 					exp.reset(expModule.PINGROUP.gopro)
-						# 			elif instruction[1] == 'START':
-						# 				if exp.read(expModule.PIN.GOPPWR) and not isRecording:
-						# 					exp.press_capture()
-						# 			elif instruction[1] == 'STOP':
-						# 				if exp.read(expModule.PIN.GOPPWR) and isRecording:
-						# 					exp.press_capture()
-						# 			elif instruction[1] == 'TRANSFER':
-						# 				if exp.read(expModule.PIN.GOPPWR):
-						# 					exp.goProTransfer()
-						# 			duration = (datetime.datetime.now() - startTime).seconds
-						# 			logMessage = 'ExpControl: GoPro done. This took {} seconds.'.format(duration)
-						# 			logger.logSystem(logMessage)
-						# 			experimentLog.write('{}\n'.format(logMessage))
 						elif(instruction[0] == 'STEPPER'):
 							if isRunningEvent.is_set():
 								if len(instruction) > 3 and instruction[1] in ('QTURN','STEP'):
@@ -255,7 +230,9 @@ def run(filename, isRunningEvent, runEvent,logger,nextQueue,disableCallback):
 									try:
 										if len(instruction) == 4:
 											delay = int(instruction[3])/1000
-									except:pass
+									except:
+										log.logError("Problem parsing STEPPER command")
+										pass
 									try:
 										turns = int(instruction[2])
 									except:
