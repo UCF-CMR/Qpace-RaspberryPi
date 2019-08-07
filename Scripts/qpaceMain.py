@@ -544,10 +544,6 @@ def run(logger):
 			logger.logSystem('Interpeter: Connection could not be made to the SC16IS750. Attempt {}'.format(connectionAttempts))
 		if connectionAttempts > CONN_ATTEMPT_MAX:
 			logger.logSystem('Interpreter: Could not connect to SC17IS750. Max attemptes reached: {}'.format(connectionAttempts))
-
-
-
-
 	if chip is not None:
 		try:
 			# Begin running the rest of the code for the Pi.
@@ -617,10 +613,8 @@ def run(logger):
 					# If all the threads have tried to start and they couln't then just thrown an exception and leave. there's not point to life anymore.
 					if interpreterAttempts + schedulerAttempts + graveyardAttempts == THREAD_ATTEMPT_MAX * 3:
 						welp_oh_no = "Main: All threads are closed and could not be started. Exiting."
-						logger.logSystem(welp_oh_no)
 						logger.logError(welp_oh_no)
 						raise RuntimeError(welp_oh_no)
-
 
 				except KeyboardInterrupt:
 					shutdownEvent.set()

@@ -244,7 +244,6 @@ class Logger():
 
 
         try:
-
             if exception is not None:
                 description += ' {}'.format(str(exception.args))
             self.Errors.inc()
