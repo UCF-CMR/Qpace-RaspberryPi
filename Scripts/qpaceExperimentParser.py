@@ -174,13 +174,6 @@ def run(filename, isRunningEvent, runEvent,logger,nextQueue,disableCallback):
 								logger.logSystem(logMessage)
 								experimentLog.write('{}\n'.format(logMessage))
 								exp.reset(group)
-						# elif(instruction[0] == 'CLEANUP'):
-						# 	if isRunningEvent.is_set():
-						# 		# Clean up will turn off the LED, GoPro, and reset the pins.
-						# 		exp.reset()
-						# 		logMessage = 'ExpParser: Cleanup. I.e. reset the pins.'
-						# 		logger.logSystem(logMessage)
-						# 		experimentLog.write('{}\n'.format(logMessage))
 						elif(instruction[0] == 'DELAY'):
 							if isRunningEvent.is_set():
 								# Do a delay in ms
