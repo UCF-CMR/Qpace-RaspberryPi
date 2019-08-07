@@ -606,7 +606,7 @@ class Action():
 
 		"""
 		if hz < 1:
-			self.logger.logSystem('Solenoid: Hz was set <1. This makes no sense.')
+			self.logger.logError('Solenoid: Hz was set <1. This makes no sense.')
 			return
 		elif hz > 12 and not override:
 			self.logger.logSystem('Solenoid: Max is 12Hz, please override.')
