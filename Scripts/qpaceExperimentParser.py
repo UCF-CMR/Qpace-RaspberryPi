@@ -145,16 +145,6 @@ def run(filename, isRunningEvent, runEvent,logger,nextQueue,disableCallback):
 							logger.logSystem('ExpParser: Ending the experiment..')
 							exp.reset()
 							break
-						# elif(instruction[0] == 'INIT'):
-						# 	if isRunningEvent.is_set():
-						# 		# Initialize an Experiment.
-						# 		# Reset pins, turn on LED, start camera recording.
-						# 		logMessage = 'ExpParser: Initializing an Experiment. (Reset,LED,GoPro)'
-						# 		logger.logSystem(logMessage)
-						# 		experimentLog.write('{}\n'.format(logMessage))
-						# 		exp.reset()
-						# 		exp.led(1)
-						# 		# exp.gopro_on()
 						elif(instruction[0] == 'COMMENT' or instruction[0] == 'LOG'):
 							if isRunningEvent.is_set():
 								# Write to the log whatever comment is here.
@@ -184,13 +174,6 @@ def run(filename, isRunningEvent, runEvent,logger,nextQueue,disableCallback):
 								logger.logSystem(logMessage)
 								experimentLog.write('{}\n'.format(logMessage))
 								exp.reset(group)
-						# elif(instruction[0] == 'CLEANUP'):
-						# 	if isRunningEvent.is_set():
-						# 		# Clean up will turn off the LED, GoPro, and reset the pins.
-						# 		exp.reset()
-						# 		logMessage = 'ExpParser: Cleanup. I.e. reset the pins.'
-						# 		logger.logSystem(logMessage)
-						# 		experimentLog.write('{}\n'.format(logMessage))
 						elif(instruction[0] == 'DELAY'):
 							if isRunningEvent.is_set():
 								# Do a delay in ms
