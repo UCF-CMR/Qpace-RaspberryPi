@@ -151,12 +151,13 @@ def run(filename, isRunningEvent, runEvent,logger,nextQueue,disableCallback):
 								comment = ' '.join(instruction[1:])
 								experimentLog.write("Comment: {}\n".format(comment))
 
-						elif(instruction[0] == 'RESET'):
+						elif(instruction[0] == 'RESET'):                                                                      
 							if isRunningEvent.is_set():
 								# Just reset all the pins or one pin
-								if len(instruction) == 1:
+								if len(instruction) == 1 or 'ALL' in instruction:
 									who = 'all'
 									group = None
+								
 								if 'SOLENOID' in instruction:
 									who = 'solenoid'
 									group = expModule.PINGROUP.solenoid
