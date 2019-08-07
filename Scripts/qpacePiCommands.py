@@ -799,7 +799,7 @@ class Command():
 								uptime,ram_tot,ram_used,ram_free,disk_total,disk_free)
 		text_to_write += ps_data
 
-		timestamp = str(timestamp)
+		timestamp = str(timestamp).replace(' ', '_')
 		#print("WHAT IS THE TIME: %s" % timestamp)
 		logger.logSystem("saveStatus: Attempting to save the status to a file.")
 		try:

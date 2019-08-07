@@ -534,8 +534,8 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent,disa
 		"""
 		# Start looking at a pseduo state machine so WTC code doesn't need to change
 		#Check to see if Pi read 2-bytes for command instead of 1
-		if len(packetData) == 2: 
-			return None, configureTimestamp
+		#if len(packetData) == 2: 
+		#	return None, configureTimestamp
 
 		if len(packetData) == 1 or (len(packetData) == 4 and configureTimestamp):
 			byte = int.from_bytes(packetData,byteorder='little')
