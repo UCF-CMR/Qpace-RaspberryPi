@@ -110,7 +110,6 @@ def run(filename, isRunningEvent, runEvent,logger,nextQueue,disableCallback):
 					raise StopIteration('WTC denied access to the steppers.')
 			disableCallback.clear()
 
-
 			# At this point the solenoids and steppers should be enabled. NOW we can do some science!
 			logger.logSystem('ExpParser: Experiment is ready to begin. Time to do science!')
 			title = 'Unknown'
@@ -157,7 +156,6 @@ def run(filename, isRunningEvent, runEvent,logger,nextQueue,disableCallback):
 								if len(instruction) == 1 or 'ALL' in instruction:
 									who = 'all'
 									exp.reset(None)
-								
 								if 'SOLENOID' in instruction:
 									who = 'solenoid'
 									exp.reset(expModule.PINGROUP.solenoid)

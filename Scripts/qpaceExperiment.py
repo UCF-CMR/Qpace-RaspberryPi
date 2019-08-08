@@ -19,9 +19,6 @@ except:
 	#print("Unable to import RPi.GPIO")
 	pass
 
-# Go pro items are depreciated
-# GoProDirectory = '/home/pi/gopro/DCIM/101GOPRO/'
-# MountPoint = '/home/pi/gopro'
 PICTUREPATH = '/home/pi/data/pic/'
 VIDEOPATH = '/home/pi/data/vid/'
 MAX_PENDING_DELTA = 300 # in seconds
@@ -337,7 +334,6 @@ class PINGROUP():
 	"""
 	Tuples that represent functional groups of the pins.
 	"""
-	gopro = (PIN.GOPBUT,PIN.GOPCAP,PIN.GOPDEN)#,PIN.GOPPWR)
 	solenoid = (PIN.SOLX,PIN.SOLY,PIN.SOLZ)
 	stepper = (PIN.STPENA,PIN.STPENB)#,PIN.STPEN)
 	led = (PIN.LEDPWR,)
@@ -392,8 +388,6 @@ class Action():
 	Class that handles all the methods relating to the experiment control aspect of the spacecraft.
 	An object of this class must be created to run the ETC.
 	"""
-	#GoPro is Depreciated
-	GoProIsOn = False
 
 	def __init__(self,logger=None,queue=None):
 		"""
@@ -533,7 +527,6 @@ class Action():
 		else:
 
 			if pingroup is None: # If None, reset all pins
-				self.reset(PINGROUP.gopro)
 				self.reset(PINGROUP.stepper)
 				self.reset(PINGROUP.led)
 				self.reset(PINGROUP.solenoid)
