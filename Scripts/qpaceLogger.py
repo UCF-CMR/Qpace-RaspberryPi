@@ -17,6 +17,8 @@ import pigpio
 import SC16IS750
 import traceback
 
+ERROR_LOG = "ErrorLog.txt"
+
 class Colors():
     # Foreground:
     HEADER  = '\033[95m'
@@ -59,6 +61,27 @@ class Errors():
     @staticmethod
     def reset():
         Errors.error_count = 0
+    
+    @staticmethod
+    def record_error(log):
+            """
+            Wrties an error, as well as a traceback if it exists,
+            to the perm error logger 
+            """
+            f = open(ERROR_LOG, "a")
+            f.write(log)
+            try:
+                f.write(traceback.format_exc())
+            except:
+                pass
+            f.close()
+    
+    @staticmethod
+    def empty_error_log():
+        """
+        Wipes the error log file clean
+        """
+        open(ERROR_LOG, 'w').close()
 
 class Logger():
     """ Handles logging information to file and outputting to terminal during debug sessions"""
@@ -252,12 +275,6 @@ class Logger():
                 description += ' {}'.format(str(exception.args))
             self.Errors.inc()
             log = Colors.RED + description + Colors.DEFAULT 
-
-            # Write the error to the error logger
-            f = open("ErrorLog.txt", "a")
-            f.write(log)
-            f.write(traceback.format_exc())
-            f.close()
 
             if "I2C" in description:
                 print("Critical Error encountered - Restarting script")
