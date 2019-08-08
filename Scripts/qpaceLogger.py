@@ -55,6 +55,10 @@ class Errors():
     @staticmethod
     def set(n):
         Errors.error_count = n
+    
+    @staticmethod
+    def reset():
+        Errors.error_count = 0
 
 class Logger():
     """ Handles logging information to file and outputting to terminal during debug sessions"""
