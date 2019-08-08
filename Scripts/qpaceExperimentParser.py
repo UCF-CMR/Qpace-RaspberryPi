@@ -156,25 +156,21 @@ def run(filename, isRunningEvent, runEvent,logger,nextQueue,disableCallback):
 								# Just reset all the pins or one pin
 								if len(instruction) == 1 or 'ALL' in instruction:
 									who = 'all'
-									group = None
+									exp.reset(None)
 								
 								if 'SOLENOID' in instruction:
 									who = 'solenoid'
-									group = expModule.PINGROUP.solenoid
+									exp.reset(expModule.PINGROUP.solenoid)
 								if 'STEPPER' in instruction:
 									who = 'stepper'
-									group = expModule.PINGROUP.stepper
+									exp.reset(expModule.PINGROUP.stepper)
 								if 'LED' in instruction:
 									who = 'LED'
-									group = expModule.PINGROUP.led
-								if 'GOPRO' in instruction:
-									who = 'GoPro'
-									group = expModule.PINGROUP.gopro
+									exp.reset(expModule.PINGROUP.led)
 
 								logMessage = 'ExpParser: Resetting {} pins to their defaults.'.format(who)
 								logger.logSystem(logMessage)
 								experimentLog.write('{}\n'.format(logMessage))
-								exp.reset(group)
 						elif(instruction[0] == 'DELAY'):
 							if isRunningEvent.is_set():
 								# Do a delay in ms

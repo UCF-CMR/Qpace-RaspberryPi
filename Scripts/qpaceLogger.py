@@ -403,7 +403,7 @@ class Logger():
         except Exception as e:
             Logger.LOG_ATTEMPTS += 1
 
-# Utiliy script
+# Utility script
 def restart_script():
     """
     Forcefully restarts the python script - should only be done in an emergency 
