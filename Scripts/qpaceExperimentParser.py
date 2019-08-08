@@ -313,6 +313,9 @@ def run(filename, isRunningEvent, runEvent,logger,nextQueue,disableCallback):
 												exp.solenoid_ramp(group,int(instruction[3]),int(instruction[4]),override=override)
 											elif len(instruction) == 6:
 												exp.solenoid_ramp(group,int(instruction[3]),int(instruction[4]),int(instruction[5]),override=override)
+						else:
+							log.logError("Command {} not recognized...moving on...".format(instruction[0]))
+							pass
 
 					except StopIteration as e:
 						raise e
@@ -329,8 +332,6 @@ def run(filename, isRunningEvent, runEvent,logger,nextQueue,disableCallback):
 		logger.logError('ExpParser: Aborted the experiment. Error: {}'.format(e.__class__),e)
 	finally:
 		# Clean up and close out all nicely.
-		# if isRecording: # Ensure the gopro isn't recording anymore
-		# 	exp.press_capture()
 
 		if isRunningEvent.is_set(): # Ensure we are no longer running an experiment
 			isRunningEvent.clear()
