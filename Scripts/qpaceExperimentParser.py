@@ -275,11 +275,12 @@ def run(filename, isRunningEvent, runEvent,logger,nextQueue,disableCallback):
 
 										picam.verifySettings()
 							except picam.CameraConfigurationError as cce:
+								log.logError("Camera configuration failed - exiting experiment")
+								break
 								pass
-								#TODO do something with the error. back out of the experiment. log it.
 							except picam.CameraProcessFailed as cpe:
+								log.logError("Camera process failed when processing : {}".format(instruction))
 								pass
-								#TODO Handle this
 						elif(instruction[0] == 'SOLENOID'):
 							if isRunningEvent.is_set():
 								logMessage = 'ExpParser: Solenoid group {} will {} with these paramaters: {}'.format(instruction[1],instruction[2],instruction[3:])
