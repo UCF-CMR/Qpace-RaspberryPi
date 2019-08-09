@@ -84,7 +84,7 @@ class Camera():
 			'vf': None,
 			'roi': (0.15,0.10,0.70,0.90), #tuple (x,y,w,h) DEFAULT VALUES (I spent a time on finding these so please use them)
 			'md': 0,  # check documentation.
-			'a': None, # Annotations. Verification does not cover this. Only use when using the documentation to support you.
+			'a': 512, # Annotations. Verification does not cover this. Only use when using the documentation to support you. DEFAULT frame numbering
 			'ae': None # Annotation Parameters. Verification does not cover this. Only use when using the documentation to support you.
 		}
 
