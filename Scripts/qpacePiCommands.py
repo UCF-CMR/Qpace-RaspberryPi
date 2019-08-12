@@ -353,11 +353,16 @@ class Command():
 		fileDir = args.replace(b'\x04', b'')
 		pathname = ROOTPATH + fileDir.decode('ascii').split(' ')[0]
 
+		try:
+			recursive = fileDir.decode('ascii').split(' ')[1] + " "
+		except:
+			recursive = ""
+
 
 		self.pathname = pathname
 		filepath = TEXTPATH+ntpath.basename(pathname[:-1]) + "dir.txt"
 		try:
-			pathList = check_output(['ls','-alh',pathname]).decode("utf-8")
+			pathList = check_output(['ls','-alh',recursive+pathname]).decode("utf-8")
 		except:
 			pathList = "No such file or directory:'{}'".format(pathname)
 		with open(filepath, "w") as filestore:
