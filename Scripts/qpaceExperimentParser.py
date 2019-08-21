@@ -209,7 +209,7 @@ def run(filename, isRunningEvent, runEvent,logger,nextQueue,disableCallback):
 										if len(instruction) == 4:
 											delay = int(instruction[3])/1000
 									except:
-										log.logError("Problem parsing STEPPER command")
+										logger.logError("Problem parsing STEPPER command")
 										pass
 									try:
 										turns = int(instruction[2])
@@ -275,11 +275,11 @@ def run(filename, isRunningEvent, runEvent,logger,nextQueue,disableCallback):
 
 										picam.verifySettings()
 							except picam.CameraConfigurationError as cce:
-								log.logError("Camera configuration failed - exiting experiment")
+								logger.logError("Camera configuration failed - exiting experiment")
 								break
 								pass
 							except picam.CameraProcessFailed as cpe:
-								log.logError("Camera process failed when processing : {}".format(instruction))
+								logger.logError("Camera process failed when processing : {}".format(instruction))
 								pass
 						elif(instruction[0] == 'SOLENOID'):
 							if isRunningEvent.is_set():
@@ -314,7 +314,7 @@ def run(filename, isRunningEvent, runEvent,logger,nextQueue,disableCallback):
 											elif len(instruction) == 6:
 												exp.solenoid_ramp(group,int(instruction[3]),int(instruction[4]),int(instruction[5]),override=override)
 						else:
-							log.logError("Command {} not recognized...moving on...".format(instruction[0]))
+							logger.logError("Command {} not recognized...moving on...".format(instruction[0]))
 							pass
 
 					except StopIteration as e:
