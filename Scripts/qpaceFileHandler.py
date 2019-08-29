@@ -401,7 +401,11 @@ class Transmitter():
 		try:
 			sessionPackets = []
 			for pid in range(self.lastPacket-self.firstPacket): #range(self.firstPacket, self.lastPacket):#
-				
+				if Command._cantsend:
+					Command._cantsend = False
+					break
+					
+
 				# try:
 				try:
 					packet = DataPacket(data=packetData[pid], pid=pid+self.firstPacket, rid=self.route, opcode=None)

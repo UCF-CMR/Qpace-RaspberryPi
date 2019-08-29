@@ -74,6 +74,7 @@ class Command():
 	_packetQueue = None
 	_nextQueue = None
 	_tagChecker = None
+	_cantsend = False
 
 	def __init__(self,packetQueue=None,nextQueue=None,experimentEvent=None,shutdownEvent = None,disableCallback=None,tagChecker=None):
 		Command._packetQueue = packetQueue
@@ -603,7 +604,7 @@ class Command():
 		filename = filename.decode('ascii')
 		encoded_filename = "{0}.encode".format(filename)
 
-
+		print(Command._cantsend)
 		if not silent:
 			try:
 				#print("Creating transmitter")

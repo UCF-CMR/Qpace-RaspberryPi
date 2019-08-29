@@ -576,6 +576,11 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent,disa
 					if not next:
 						next = 'IDLE'
 					wtc_respond(next) # Respond with what the Pi would like the WTC to know.
+					'''
+					below is the process for sending the SOLON and STEPON commands
+					to the WTC because both of those commands requrie direct response
+					from the WTC in order to continue
+					'''
 					if next == qpStates['SOLON'] or next == qpStates['STEPON']:
 						# Wait for a response from the WTC.
 						logger.logSystem('PseudoSM: Waiting {}s for a response from WTC'.format(WHATISNEXT_WAIT))
@@ -600,6 +605,13 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent,disa
 				elif byte == qpStates['BUFFERFULL']:
 					wtc_respond('DONE')
 				elif byte == qpStates['CANTSEND']:
+					# Let COMMANDS know that the WTC cannot send packets
+					# wait 10 seconds in case the transimtter thread is running
+					# this will give everything enough time to shutdown 
+					# so that only one clear will be required for all packets
+					Command._cantsend = True
+					time.sleep(2)
+					Command._cantsend = False
 					packetQueue.clear()
 					wtc_respond('DONE')
 				elif byte == qpStates['ACCEPTED']:
