@@ -171,6 +171,10 @@ class Queue():
 	# def NextQueue.isFull():
 	# 	return len(internalQueue) >= NextQueue.MAX
 
+	def clear(self):
+		""" empty the list and leave it nice and cleared out :) """
+		self.internalQueue.clear()
+
 	def enqueue(self,item,prepend=False):
 		"""
 		Enqueue an item to the queue.
