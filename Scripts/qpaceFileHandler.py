@@ -396,6 +396,7 @@ class Transmitter():
 		packetData = self.getPacketData()
 		packet = None
 		# Get the length of all the packets if NONE was supplied as the last packet.
+		from  qpacePiCommands import Command
 		if self.lastPacket == None:
 			self.lastPacket = len(packetData)
 		try:
