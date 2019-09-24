@@ -664,8 +664,8 @@ class Command():
 
 	def runHandbrake(self,logger,args, silent=False):
 		args = args.replace(b'\x04', b'').decode('ascii').split(' ')
-		inputFile = args[0].decode('ascii')
-		outputFile = args[1].decode('ascii')
+		inputFile = args[0]
+		outputFile = args[1]
 		# > /dev/null 2>&1 to hide the command from terminal because it outputs gibberish
 		# the '&' is so the command runs in the background.
 		handbrakeCommand = 'HandBrakeCLI -a none -q 10 -vfr -g -i {} -o {} -e x264 > /dev/null 2>&1 &'.format(inputFile,outputFile)
