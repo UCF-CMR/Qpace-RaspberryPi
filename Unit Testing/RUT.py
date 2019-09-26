@@ -59,7 +59,7 @@ class RPUT(unittest.TestCase):
 		self.ser.write(b'J')
 		time.sleep(2)
 		resp = self.ser.read(128)
-		self.assertEqual(resp, b'0x48')
+		self.assertEqual(resp, b'H')
 		
 if __name__ == '__main__':
 	unittest.main()
