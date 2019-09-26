@@ -131,6 +131,7 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent,disa
 
 	global packetBuffer #TODO Possibly remove for flight. Not really an issue used for debugging
 	packetBuffer = []
+	chip.packetBuffer = packetBuffer
 	callback = None
 
 	checker = tagChecker.TagChecker()

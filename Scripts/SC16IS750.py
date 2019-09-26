@@ -2,6 +2,7 @@ import sys
 import time
 try:
 	import pigpio
+	import serial
 except:pass
 # General Registers (Require LCR[7] = 0)
 REG_RHR       = 0x00 # Receive Holding Register (R)
@@ -204,6 +205,8 @@ I2C_WRITE   = 0x07 # Write P bytes of data
 PI_WRITE = 20
 PI_READ = 21
 
+UNITTEST = True
+
 class SC16IS750:
 
 	pi = None
@@ -216,6 +219,10 @@ class SC16IS750:
 
 	def __init__(self, pi, i2cbus = 1, i2caddr = 0x48, xtalfreq = 11059200, baudrate = 115200, databits = LCR_DATABITS_8, stopbits = LCR_STOPBITS_1, parity = LCR_PARITY_NONE):
 
+		if UNITTEST:
+			self.ser = serial.Serial("/dev/ttyAMA0", 115200, timeout=1.0)
+			return
+
 		self.pi = pi
 		self.i2c = pi.i2c_open(i2cbus, i2caddr)
 		self.xtalfreq = xtalfreq
@@ -223,12 +230,35 @@ class SC16IS750:
 		self.databits = databits
 		self.stopbits = stopbits
 		self.parity = parity
+		self.packetBuffer = None
+
+
 
 		self.pi.set_mode(PI_WRITE, pigpio.OUTPUT)
 		self.pi.set_mode(PI_READ, pigpio.INPUT)
 
 		self.reset()
 		self.init_uart()
+
+	def unitTestRead(self, shutdownEvent=None):
+		if not UNITTEST:
+			return
+		while not shutdownEvent.is_set():
+			if self.packetBuffer == None:
+				continue
+
+			data = self.ser.read(128)
+			if data == b'':
+				continue
+			print(data)
+			self.packetBuffer.append(data)
+
+	def unitTestWrite(self, data):
+		if not UNITTEST:
+			return
+		self.ser.write(data)
+			
+		
 
 	def inWaiting(self):
 		return self.byte_read(REG_RXLVL)
@@ -342,6 +372,9 @@ class SC16IS750:
 	# Return tuple indicating (boolean success, new value in register)
 	def byte_write_verify(self, reg, byte):
 
+		if UNITTEST:
+			return True
+
 		n, d = self.pi.i2c_zip(self.i2c, [I2C_WRITE, 2, self.reg_conv(reg), byte, I2C_READ, 1, I2C_END])
 		if n < 0: raise pigpio.error(pigpio.error_text(n))
 		elif n != 1: raise ValueError("unexpected number of bytes received")
@@ -352,11 +385,15 @@ class SC16IS750:
 	def byte_write(self, reg, byte):
 		print("Byte Writing", byte)
 
-		n, d = self.pi.i2c_zip(self.i2c, [I2C_WRITE, 2, self.reg_conv(reg), byte, I2C_END])
-
 		if isinstance(byte, int):
 			byte = bytes([byte])
-		
+
+		if UNITTEST:
+			self.unitTestWrite(byte)
+			return
+
+		n, d = self.pi.i2c_zip(self.i2c, [I2C_WRITE, 2, self.reg_conv(reg), byte, I2C_END])
+
 		try:
 			self.pi.wave_clear()
 			self.pi.wave_add_serial(PI_WRITE, 115200, byte)
@@ -373,11 +410,18 @@ class SC16IS750:
 	# Read I2C byte from specified register
 	# Return byte received from driver
 	def byte_read(self, reg):
+		if UNITTEST:
+			return 128
 		return self.pi.i2c_read_byte_data(self.i2c, self.reg_conv(reg))
+		
 
 	# Write I2C block to specified register
 	def block_write(self, reg, bytestring):
 		print(bytestring)
+
+		if UNITTEST:
+			self.unitTestWrite(bytestring)
+
 		self.pi.wave_clear()
 		self.pi.wave_add_serial(PI_WRITE, 115200, bytestring)
 		wid = self.pi.wave_create()
@@ -401,6 +445,9 @@ class SC16IS750:
 	# Read I2C block from specified register
 	# Return block received from driver
 	def block_read(self, reg, num):
+		if UNITTEST:
+			print(self.ser.read(128))
+			return None
 		n, d = self.pi.i2c_zip(self.i2c, [I2C_WRITE, 1, self.reg_conv(reg), I2C_READ, num, I2C_END])
 		if n < 0: raise pigpio.error(pigpio.error_text(n))
 		elif n != num: raise ValueError("all available bytes were not successfully read")

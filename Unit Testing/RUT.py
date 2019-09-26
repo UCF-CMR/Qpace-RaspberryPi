@@ -10,6 +10,7 @@
 
 import serial
 import unittest
+import time
 
 class RPUT(unittest.TestCase):
 	'''
@@ -23,17 +24,19 @@ class RPUT(unittest.TestCase):
 	commands and sequences that are expected for 
 	successful mission on the RPi's part.
 	'''
-
-	def setUp(self, COM, baud=115200):
+	@classmethod
+	def setUpClass(self, baud=115200):
 		'''
 		Open up the serial port to connect
 		to the RPi on the Unit for testing
 		to begin. 
 		Note: Serial port will be supplied by user
 		'''
-		self.ser = serial.Serial(COM, baud)
+		COM = input("WHAT IS SER PORT? ")
+		self.ser = serial.Serial(COM, baud, timeout=1.0)
 		
-	def tearDown(self):
+	@classmethod
+	def tearDownClass(self):
 		'''
 		Close the serial port to release any
 		permissions that may have been caused 
@@ -53,6 +56,10 @@ class RPUT(unittest.TestCase):
 		be done, then the Pi is remembering things it should
 		not and there is next queue failure. 
 		'''
-		self.ser.write(0x4A)
-		resp = self.ser.read(128, timeout=1.0)
-		self.assertEqual(resp, 0x48)
+		self.ser.write(b'J')
+		time.sleep(2)
+		resp = self.ser.read(128)
+		self.assertEqual(resp, b'0x48')
+		
+if __name__ == '__main__':
+	unittest.main()
