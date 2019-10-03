@@ -421,6 +421,7 @@ class SC16IS750:
 
 		if UNITTEST:
 			self.unitTestWrite(bytestring)
+			return
 
 		self.pi.wave_clear()
 		self.pi.wave_add_serial(PI_WRITE, 115200, bytestring)

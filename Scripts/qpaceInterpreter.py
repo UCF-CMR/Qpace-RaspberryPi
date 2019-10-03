@@ -543,7 +543,7 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent,disa
 			logger.logResults('--Read from WTC: {} ({})'.format([ key for key,val in qpStates.items() if val==byte ], hex(byte)))
 			if len(packetData) == 4:
 				logger.logSystem('PseudoSM: Configuring the timestamp.')
-				os.system("sudo date -s '@" + str(byte) +"'")
+				os.system("sudo date -s '@" + str(byte) +"' >/dev/null")
 				chip.block_write(SC16IS750.REG_THR,packetData)
 				configureTimestamp = False
 				logger.setBoot(newTimestamp=byte)
@@ -563,7 +563,7 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent,disa
 					wtc_respond('DONE')
 					shutdownEvent.set() # Set for shutdown
 				elif byte == qpStates['TIMESTAMP']:
-					print("Test: We got the timestamp from the WTC")
+					#print("Test: We got the timestamp from the WTC")
 					logger.logSystem('PseudoSM: TIMESTAMP from WTC.')
 					wtc_respond('TIMESTAMP')
 					# Yo, configure the timestamp after this
