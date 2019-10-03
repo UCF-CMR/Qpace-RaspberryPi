@@ -34,7 +34,7 @@ class RPUT(unittest.TestCase):
 		Note: Serial port will be supplied by user
 		'''
 		COM = input("WHAT IS SER PORT? ")
-		self.ser = serial.Serial(COM, baud, timeout=1.0)
+		self.ser = serial.Serial(COM, baud, timeout=2.0)
 		
 	@classmethod
 	def tearDownClass(self):
@@ -58,25 +58,26 @@ class RPUT(unittest.TestCase):
 		not and there is next queue failure. 
 		'''
 		self.ser.write(b'J')
-		time.sleep(2)
+		#time.sleep(2)
 		resp = self.ser.read(128)
 		self.assertEqual(resp, b'H')
 		
+
 	def test_Timestamp(self):
 		'''Test to configure the timestamp
 		on the Pi in order to move forward with other tests'''
 		
-		self.ser.write(b'*')
+		self.ser.write(b'B')
 		resp = self.ser.read(128)
-		self.assertEqual(resp, b'*') # Pi should return timestamp back to 'wtc'
+		print(resp)
+		self.assertEqual(resp, b'B') # Pi should return timestamp back to 'wtc'
 		
 		curTime = int(time.time())
 		curTime = struct.pack(">I", curTime)
 		self.ser.write(curTime)
 		
 		resp = self.ser.read(128)
-		self.assertEqual(resp, curTime)
-        
+		self.assertEqual(resp, curTime)    
 		
 if __name__ == '__main__':
 	unittest.main()
