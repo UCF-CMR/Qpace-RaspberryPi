@@ -9,6 +9,7 @@
 
 
 import serial
+import struct
 import unittest
 import time
 
@@ -60,6 +61,22 @@ class RPUT(unittest.TestCase):
 		time.sleep(2)
 		resp = self.ser.read(128)
 		self.assertEqual(resp, b'H')
+		
+	def test_Timestamp(self):
+		'''Test to configure the timestamp
+		on the Pi in order to move forward with other tests'''
+		
+		self.ser.write(b'*')
+		resp = self.ser.read(128)
+		self.assertEqual(resp, b'*') # Pi should return timestamp back to 'wtc'
+		
+		curTime = int(time.time())
+		curTime = struct.pack(">I", curTime)
+		self.ser.write(curTime)
+		
+		resp = self.ser.read(128)
+		self.assertEqual(resp, curTime)
+        
 		
 if __name__ == '__main__':
 	unittest.main()
