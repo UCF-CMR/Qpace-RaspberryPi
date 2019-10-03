@@ -69,13 +69,12 @@ class RPUT(unittest.TestCase):
 		
 		self.ser.write(b'B')
 		resp = self.ser.read(128)
-		print(resp)
 		self.assertEqual(resp, b'B') # Pi should return timestamp back to 'wtc'
 		
 		curTime = int(time.time())
-		curTime = struct.pack(">I", curTime)
-		self.ser.write(curTime)
+		curTime = struct.pack("I", curTime)
 		
+		self.ser.write(curTime)
 		resp = self.ser.read(128)
 		self.assertEqual(resp, curTime)    
 		
