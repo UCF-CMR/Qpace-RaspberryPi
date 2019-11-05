@@ -7,6 +7,5 @@
 # Startup shell script to envoke python modules
 
 cd /home/pi/Scripts
-python3 setON.py &
-python3 qpaceMain.py &
+python3 qpaceMain.py 
 cd /home/pi
