@@ -299,7 +299,8 @@ class Queue():
 		"""
 		if type(response) is int:
 			response = hex(response)
-		self.logger.logSystem("{}: Adding a response. '{}' must be read before continuing... Will wait {} seconds before removing the response".format(self.name,response,timeout))
+		if not self.suppress:
+			self.logger.logSystem("{}: Adding a response. '{}' must be read before continuing... Will wait {} seconds before removing the response".format(self.name,response,timeout))
 		try:
 			self.response = response
 			pollingDelay = .5
@@ -307,15 +308,15 @@ class Queue():
 			counter = 0
 			while True:
 				if self.response is None:
-					self.logger.logSystem("{}: Response was read... continuing on.".format(self.name))
+					if not self.suppress: self.logger.logSystem("{}: Response was read... continuing on.".format(self.name))
 					break
 				if counter >= fragments:
-					self.logger.logSystem("{}: Response was not read: Timeout!".format(self.name))
+					if not self.suppress: self.logger.logSystem("{}: Response was not read: Timeout!".format(self.name))
 					break
 				time.sleep(pollingDelay)
 				counter+=1
 		except:
-			self.logger.logError("{}: Was not able to wait for response to be read.".format(self.name))
+			if not self.suppress: self.logger.logError("{}: Was not able to wait for response to be read.".format(self.name))
 
 	def waitForResponse(self,timeout=WAIT_TIME):
 		"""
@@ -330,17 +331,17 @@ class Queue():
 		Raises:None
 
 		"""
-		self.logger.logSystem("{}: Someone is waiting for the response to be read. (Timeout={})".format(self.name,timeout))
+		if not self.suppress: self.logger.logSystem("{}: Someone is waiting for the response to be read. (Timeout={})".format(self.name,timeout))
 		try:
 			pollingDelay = .5
 			fragments = timeout/pollingDelay
 			counter = 0
 			while True:
 				if self.response is not None:
-					self.logger.logSystem("{}: Response was found... continuing on. Response: {}".format(self.name,self.response))
+					if not self.suppress: self.logger.logSystem("{}: Response was found... continuing on. Response: {}".format(self.name,self.response))
 					break
 				if counter >= fragments:
-					self.logger.logSystem("{}: Response was not read: Timeout!".format(self.name))
+					if not self.suppress: self.logger.logSystem("{}: Response was not read: Timeout!".format(self.name))
 					break
 				time.sleep(pollingDelay)
 				counter+=1
@@ -348,7 +349,7 @@ class Queue():
 			self.response = None
 			return response
 		except:
-			self.logger.logError("{}: Was not able to wait for response to be read.".format(self.name))
+			if not self.suppress: self.logger.logError("{}: Was not able to wait for response to be read.".format(self.name))
 
 	def clearResponse(self):
 		"""
