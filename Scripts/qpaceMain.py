@@ -570,11 +570,6 @@ def run(logger):
 			nextQueue = Queue(logger=logger,name='NextQueue')
 			packetQueue = Queue(logger=logger,name='PacketQueue',suppressLog=True)
 
-			# INIT FOR UNITTESTING
-			print(SC16IS750.UNITTEST)
-			if SC16IS750.UNITTEST:
-				reader = threading.Thread(name="UNITTEST",target=chip.unitTestRead, args=(shutdownEvent,))
-				reader.start() # Start the Reader
 			# Initialize threads
 			interpreter = threading.Thread(name='inter',target=qpi.run,args=(chip,nextQueue,packetQueue,experimentRunningEvent,runEvent,shutdownEvent,disableCallback,logger))
 			scheduler = threading.Thread(name='sched',target=schedule.run,args=(chip,nextQueue,packetQueue,experimentRunningEvent,runEvent,shutdownEvent,scheduleEmpty,disableCallback,logger))
@@ -655,7 +650,6 @@ def run(logger):
 	if interpreter.ident is not None: interpreter.join()
 	if scheduler.ident is not None: scheduler.join()
 	if graveyardThread.ident is not None: graveyardThread.join()
-	if SC16IS750.UNITTEST and reader.ident is not None: reader.join()
 
 	# If we want the pi to shutdown automattically, then do so.
 	if ALLOW_SHUTDOWN:
