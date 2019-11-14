@@ -649,7 +649,7 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent,disa
 				packetData, configureTimestamp = pseudoStateMachine(packetData,configureTimestamp,nextQueue)
 				# If the data was not a control character, then process it.
 				if packetData:
-					#print("Packet data chunk was received.")
+					print("Packet data chunk was received.")
 					# We'll just assume that the input is a chunk.
 					chunkPacket.push(packetData)
 					# If, after pushing, the chunk is complete continue on. Otherwise skip.
