@@ -201,7 +201,6 @@ I2C_FLAGS   = 0x05 # Set I2C flags to LSB + (MSB << 8)
 I2C_READ    = 0x06 # Read P bytes of data
 I2C_WRITE   = 0x07 # Write P bytes of data
 
-UNITTEST = True
 
 PI_WRITE = 20
 PI_READ = 21
@@ -220,7 +219,7 @@ class SC16IS750:
 	def __init__(self, pi, i2cbus = 1, i2caddr = 0x48, xtalfreq = 11059200, baudrate = 115200, databits = LCR_DATABITS_8, stopbits = LCR_STOPBITS_1, parity = LCR_PARITY_NONE):
 
 		self.pi = pi
-		self.i2c = pi.i2c_open(i2cbus, i2caddr) if not UNITTEST else None
+		self.i2c = pi.i2c_open(i2cbus, i2caddr)
 		self.xtalfreq = xtalfreq
 		self.baudrate = baudrate
 		self.databits = databits
@@ -261,8 +260,7 @@ class SC16IS750:
 		#self.gpio_write(bytestring)
 
 	def close(self):
-		if not UNITTEST:
-			self.pi.i2c_close(self.i2c)
+		self.pi.i2c_close(self.i2c)
 		self.pi.bb_serial_read_close(PI_READ)
 
 	def print_register(self, reg, prefix):
@@ -347,10 +345,6 @@ class SC16IS750:
 	# Write I2C byte to specified register and read it back
 	# Return tuple indicating (boolean success, new value in register)
 	def byte_write_verify(self, reg, byte):
-
-		if UNITTEST:
-			return True, 0
-
 		n, d = self.pi.i2c_zip(self.i2c, [I2C_WRITE, 2, self.reg_conv(reg), byte, I2C_READ, 1, I2C_END])
 		if n < 0: raise pigpio.error(pigpio.error_text(n))
 		elif n != 1: raise ValueError("unexpected number of bytes received")
@@ -359,7 +353,7 @@ class SC16IS750:
 
 	# Write I2C byte to specified register
 	def byte_write(self, reg, byte):
-		#print("Byte Writing", byte)
+		print("Byte Writing", byte)
 
 		if isinstance(byte, int):
 			byte = bytes([byte])
@@ -383,8 +377,6 @@ class SC16IS750:
 	# Read I2C byte from specified register
 	# Return byte received from driver
 	def byte_read(self, reg):
-		if UNITTEST:
-			return None
 		return self.pi.i2c_read_byte_data(self.i2c, self.reg_conv(reg))
 		
 
@@ -415,9 +407,6 @@ class SC16IS750:
 	# Read I2C block from specified register
 	# Return block received from driver
 	def block_read(self, reg, num):
-		if UNITTEST:
-			return None
-
 		n, d = self.pi.i2c_zip(self.i2c, [I2C_WRITE, 1, self.reg_conv(reg), I2C_READ, num, I2C_END])
 		if n < 0: raise pigpio.error(pigpio.error_text(n))
 		elif n != num: raise ValueError("all available bytes were not successfully read")
