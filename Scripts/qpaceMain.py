@@ -345,6 +345,7 @@ class Queue():
 					break
 				time.sleep(pollingDelay)
 				counter+=1
+			# We finally give the response back to the calling method
 			response = self.response
 			self.response = None
 			return response

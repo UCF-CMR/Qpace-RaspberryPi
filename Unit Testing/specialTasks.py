@@ -1,6 +1,8 @@
 from qpacePiCommands import *
 from qpaceLogger import *
-from qpaceMain import Queue
+from qpaceMain import Queue, initWTCConnection
+import qpaceControl as qpc
+from qpaceInterpreter import *
 import os
 import threading
 
@@ -11,6 +13,8 @@ cmd = Command()
 cmd.experimentEvent = threading.Event()
 cmd.disableCallback = threading.Event()
 cmd.nextQueue = Queue(logger)
+
+chip = initWTCConnection()
 
 
 def task_HealthCheck():
@@ -50,6 +54,17 @@ END
     
 def task_RunExp():
     try:
-        cmd.startExperiment(logger, 'UT.ep'.encode('ascii'), silent=True)
+        cmd.startExperiment(logger, 'UT.ep'.encode('ascii'),cmd.nextQueue, silent=True)
+        
+        while experimentEvent.is_set():
+            next = cmd.nextQueue.peek()
+            if next == qpc['SOLON'] or next == qpc['STEPON']:
+                wtc_respond(next)
+                if waitForBytesFromCCDR(chip,1,timeout=WHATISNEXT_WAIT): # Wait for 15s for a response from the WTC
+                    response = chip.byte_read(SC16IS750.REG_RHR)
+                    # THIS IS A BLOCKING CALL
+                    cmd.nextQueue.blockWithResponse(response,timeout=1) # Blocking until the response is read or timeout.
+        
     except Exception as e:
         print(e)
+    

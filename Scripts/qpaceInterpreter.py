@@ -576,6 +576,7 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent,disa
 						next = 'SENDPACKET'
 					if not next:
 						next = 'IDLE'
+						
 					wtc_respond(next) # Respond with what the Pi would like the WTC to know.
 					'''
 					below is the process for sending the SOLON and STEPON commands
