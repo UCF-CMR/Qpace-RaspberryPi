@@ -412,7 +412,7 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent,disa
 			elif fieldData['TYPE'] == 'DLACK':
 				# Honestly, I don't think there's anything to do here...
 				checker.clearTagList()
-				
+
 		else:
 			isValid = False
 		logger.logInfo("Exited: checkValidity")
@@ -532,7 +532,7 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent,disa
 		"""
 		# Start looking at a pseduo state machine so WTC code doesn't need to change
 		#Check to see if Pi read 2-bytes for command instead of 1
-		#if len(packetData) == 2: 
+		#if len(packetData) == 2:
 		#	return None, configureTimestamp
 
 		if len(packetData) == 1 or (len(packetData) == 4 and configureTimestamp):
@@ -573,7 +573,7 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent,disa
 						next = 'SENDPACKET'
 					if not next:
 						next = 'IDLE'
-						
+
 					wtc_respond(next) # Respond with what the Pi would like the WTC to know.
 					'''
 					below is the process for sending the SOLON and STEPON commands
@@ -589,8 +589,15 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent,disa
 							response = chip.byte_read(SC16IS750.REG_RHR)
 							# THIS IS A BLOCKING CALL
 							nextQueue.blockWithResponse(response,timeout=1) # Blocking until the response is read or timeout.
+<<<<<<< HEAD
 
 						wtc_respond('DONE') # Always respond with done for an "ACCEPTED or PENDING"
+=======
+						# If we cancel the callback earlier, re-initialize it here.
+						disableCallback.clear()
+						wtc_respond('DONE') # Always respond with done for an "ACCEPTED or PENDING"
+						
+>>>>>>> UNITTESTING
 				elif byte == qpStates['NEXTPACKET']:
 					sendPacketToWTC()
 				elif byte == qpStates['BUFFERFULL']:
@@ -598,7 +605,7 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent,disa
 				elif byte == qpStates['CANTSEND']:
 					# Let COMMANDS know that the WTC cannot send packets
 					# wait 10 seconds in case the transimtter thread is running
-					# this will give everything enough time to shutdown 
+					# this will give everything enough time to shutdown
 					# so that only one clear will be required for all packets
 					Command._cantsend = True
 					time.sleep(2)
@@ -666,7 +673,31 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent,disa
 									# If the DLACK is good, then clear the queue of lastPackets.
 								if fieldData['response'] == b'GOOD':
 									lastPacketsSent.clear()
+<<<<<<< HEAD
 
+=======
+								'''
+								else:
+									# If it's not good, then we need to send those packets again...
+									# To do that, we will prepend the packetQueue with the packets from lastPacketsSent
+									# And then we will prepend the nextQueue with a 'SENDPACKET' for every BUFFERSIZE of packets.
+									# If the last packets sent's count is less than the buffer size
+									# Then we'll append dummy packets here to fill that buffer.
+
+									# Offload the last sent packets but don't clear them until we get a good.
+									lastPacketsSent_copy = lastPacketsSent[:] #Shallow copy to not affect the original list
+									if len(lastPacketsSent_copy) < fh.WTC_PACKET_BUFFER_SIZE: # If there's more buffer space than packets sent...
+										for i in range(fh.WTC_PACKET_BUFFER_SIZE - len(lastPacketsSent_copy)): # Append a dummy packet for every packet to send.
+											lastPacketsSent_copy.append(fh.DummyPacket().build())
+											lastPacketsSent_copy.reverse() # Reverse the list so the last packets get prepended first.
+									for pkt in lastPacketsSent_copy: # For every packet to send...
+										packetQueue.enqueue(pkt, prepend=True) # Prepend those packets
+
+									# For however many transactions the WTC can handle, enqueue a SENDPACKET so when the WTC asks "WHATISNEXT" the Pi can tell it it wants to send packets.
+									for x in range((len(self._packetQueue)//fh.WTC_PACKET_BUFFER_SIZE) + 1):
+										nextQueue.enqueue('SENDPACKET',prepend=True) # taken from qpaceControl
+								'''
+>>>>>>> UNITTESTING
 							elif fieldData['command'] in COMMANDS: # Double check to see if it's a command
 								try:
 									processCommand(chip,fieldData,fromWhom = 'GND')
@@ -680,7 +711,7 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent,disa
 							logger.logFailure('Packet did not pass validation.')
 							# Hijack the Dummy packet to send something to ground
 							failValidPacket = fh.DummyPacket()
-							failValidPacket.rid = b'\x00' 
+							failValidPacket.rid = b'\x00'
 							failValidPacket.opcode = b'~NVAL' # Not Valid -- OP can only be 5-byte
 							packetQueue.enqueue(failValidPacket.build()) # Add failed packet to send queue
 
