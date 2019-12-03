@@ -421,5 +421,5 @@ if __name__ == '__main__':
 	chip = SC16IS750(pi)
 	chip.packetBuffer = []
 	while True:
-		print(chip.read(32))
+		print(chip.byte_write(None, 'B'.encode('ascii')))
 	chip.close()
