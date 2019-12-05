@@ -414,7 +414,7 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent,disa
 			elif fieldData['TYPE'] == 'DLACK':
 				# Honestly, I don't think there's anything to do here...
 				checker.clearTagList()
-				
+
 		else:
 			isValid = False
 		logger.logInfo("Exited: checkValidity")
@@ -534,7 +534,7 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent,disa
 		"""
 		# Start looking at a pseduo state machine so WTC code doesn't need to change
 		#Check to see if Pi read 2-bytes for command instead of 1
-		#if len(packetData) == 2: 
+		#if len(packetData) == 2:
 		#	return None, configureTimestamp
 
 		if len(packetData) == 1 or (len(packetData) == 4 and configureTimestamp):
@@ -571,35 +571,23 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent,disa
 				elif byte == qpStates['WHATISNEXT']:
 					next = nextQueue.peek()
 
-					if not next and packetQueue.peek():
-						next = 'SENDPACKET'
 					if not next:
-						next = 'IDLE'
+						if packetQueue.peek():
+							next = 'SENDPACKET'
+						else:
+							next = 'IDLE'
+					else:
+						nextQueue.dequeue()
 					wtc_respond(next) # Respond with what the Pi would like the WTC to know.
 					'''
 					below is the process for sending the SOLON and STEPON commands
 					to the WTC because both of those commands requrie direct response
 					from the WTC in order to continue
 					'''
+
 					if next == qpStates['SOLON'] or next == qpStates['STEPON']:
 						# Wait for a response from the WTC.
-						logger.logSystem('PseudoSM: Waiting {}s for a response from WTC'.format(WHATISNEXT_WAIT))
-						# Possibly might need to cancel the callback and restart it here.
-						disableCallback.set()
-						if waitForBytesFromCCDR(chip,1,timeout=WHATISNEXT_WAIT): # Wait for 15s for a response from the WTC
-							response = chip.byte_read(SC16IS750.REG_RHR)
-							# THIS IS A BLOCKING CALL
-							nextQueue.blockWithResponse(response,timeout=1) # Blocking until the response is read or timeout.
-
-							if not nextQueue.isEmpty():
-								# If SENDPACKET was queued, but a BUFFERFUL came in as a response, then dont dequeue the SENDPACKET
-								if (next == 'SENDPACKET' or next == qpStates['SENDPACKET']) and response != qpStates['BUFFERFULL']:
-									nextQueue.dequeue() # After "waiting" for the bytes, dequeue the items.
-
-						# If we cancel the callback earlier, re-initialize it here.
-						disableCallback.clear()
-						if next != 'SENDPACKET' and next != qpStates['SENDPACKET']:
-							wtc_respond('DONE') # Always respond with done for an "ACCEPTED or PENDING"
+						wtc_respond('DONE') # Always respond with done for an "ACCEPTED or PENDING"
 				elif byte == qpStates['NEXTPACKET']:
 					sendPacketToWTC()
 				elif byte == qpStates['BUFFERFULL']:
@@ -607,7 +595,7 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent,disa
 				elif byte == qpStates['CANTSEND']:
 					# Let COMMANDS know that the WTC cannot send packets
 					# wait 10 seconds in case the transimtter thread is running
-					# this will give everything enough time to shutdown 
+					# this will give everything enough time to shutdown
 					# so that only one clear will be required for all packets
 					Command._cantsend = True
 					time.sleep(2)
@@ -615,10 +603,12 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent,disa
 					packetQueue.clear()
 					wtc_respond('DONE')
 				elif byte == qpStates['ACCEPTED']:
-					wtc_respond('DONE')
+					nextQueue.response = qpStates['ACCEPTED']
 				elif byte == qpStates['DENIED']:
+					nextQueue.response = qpStates['DENIED']
 					wtc_respond('DONE')
 				elif byte == qpStates['PENDING']:
+					nextQueue.response = qpStates['PENDING']
 					wtc_respond('DONE')
 				else:
 					logger.logSystem('PseudoSM: State existed for {} but a method is not written for it.'.format(hex(byte)))
@@ -688,7 +678,7 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent,disa
 									# If the DLACK is good, then clear the queue of lastPackets.
 								if fieldData['response'] == b'GOOD':
 									lastPacketsSent.clear()
-								'''	
+								'''
 								else:
 									# If it's not good, then we need to send those packets again...
 									# To do that, we will prepend the packetQueue with the packets from lastPacketsSent
@@ -722,7 +712,7 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent,disa
 							logger.logFailure('Packet did not pass validation.')
 							# Hijack the Dummy packet to send something to ground
 							failValidPacket = fh.DummyPacket()
-							failValidPacket.rid = b'\x00' 
+							failValidPacket.rid = b'\x00'
 							failValidPacket.opcode = b'~NVAL' # Not Valid -- OP can only be 5-byte
 							packetQueue.enqueue(failValidPacket.build()) # Add failed packet to send queue
 

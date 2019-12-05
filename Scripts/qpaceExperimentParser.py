@@ -95,7 +95,6 @@ def run(filename, isRunningEvent, runEvent,logger,nextQueue,disableCallback):
 
 				if solenoidRequest and stepperRequest:
 					break
-			disableCallback.set()
 			time.sleep(.35)
 			# If we want the solenoids, let's request them. Failure to enable will abort the experiment.
 			if solenoidRequest:
@@ -108,7 +107,6 @@ def run(filename, isRunningEvent, runEvent,logger,nextQueue,disableCallback):
 				logger.logSystem('ExpParser: WTC... may I have the steppers please?')
 				if not exp.wtc_request('STEPON'):
 					raise StopIteration('WTC denied access to the steppers.')
-			disableCallback.clear()
 
 			# At this point the solenoids and steppers should be enabled. NOW we can do some science!
 			logger.logSystem('ExpParser: Experiment is ready to begin. Time to do science!')
@@ -327,8 +325,6 @@ def run(filename, isRunningEvent, runEvent,logger,nextQueue,disableCallback):
 		logger.logError("ExpParser: Could not open experiment file at {}. {}".format(str(expLocation + filename),str(e)))
 
 	except StopIteration as e:
-		# Ensure that callbacks get re-enabled if a Stop iteration is thrown
-		disableCallback.clear()
 		logger.logSystem('ExpParser: Aborted the experiment. {}'.format(str(e)))
 	except Exception as e:
 		logger.logError('ExpParser: Aborted the experiment. Error: {}'.format(e.__class__),e)
