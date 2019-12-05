@@ -150,7 +150,7 @@ def run(filename, isRunningEvent, runEvent,logger,nextQueue,disableCallback):
 								comment = ' '.join(instruction[1:])
 								experimentLog.write("Comment: {}\n".format(comment))
 
-						elif(instruction[0] == 'RESET'):                                                                      
+						elif(instruction[0] == 'RESET'):
 							if isRunningEvent.is_set():
 								# Just reset all the pins or one pin
 								if len(instruction) == 1 or 'ALL' in instruction:
@@ -269,7 +269,7 @@ def run(filename, isRunningEvent, runEvent,logger,nextQueue,disableCallback):
 												value = picam.attr['roi']
 										else:
 											value = int(value)
-											
+
 										if option in picam.attr:
 											picam.attr[option] = value
 
@@ -327,6 +327,8 @@ def run(filename, isRunningEvent, runEvent,logger,nextQueue,disableCallback):
 		logger.logError("ExpParser: Could not open experiment file at {}. {}".format(str(expLocation + filename),str(e)))
 
 	except StopIteration as e:
+		# Ensure that callbacks get re-enabled if a Stop iteration is thrown
+		disableCallback.clear()
 		logger.logSystem('ExpParser: Aborted the experiment. {}'.format(str(e)))
 	except Exception as e:
 		logger.logError('ExpParser: Aborted the experiment. Error: {}'.format(e.__class__),e)
