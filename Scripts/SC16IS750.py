@@ -1,9 +1,8 @@
 import sys
 import time
-
-import pigpio
-#import serial
-
+try:
+	import pigpio
+except:pass
 # General Registers (Require LCR[7] = 0)
 REG_RHR       = 0x00 # Receive Holding Register (R)
 REG_THR       = 0x00 # Transmit Holding Register (W)
@@ -201,10 +200,9 @@ I2C_FLAGS   = 0x05 # Set I2C flags to LSB + (MSB << 8)
 I2C_READ    = 0x06 # Read P bytes of data
 I2C_WRITE   = 0x07 # Write P bytes of data
 
-
+#PIGPIO CONSTANTS
 PI_WRITE = 20
 PI_READ = 21
-
 
 class SC16IS750:
 
@@ -225,14 +223,13 @@ class SC16IS750:
 		self.databits = databits
 		self.stopbits = stopbits
 		self.parity = parity
-		self.packetBuffer = None
 
 		self.pi.set_mode(PI_WRITE, pigpio.OUTPUT)
 		self.pi.set_mode(PI_READ, pigpio.INPUT)
-		self.pi.bb_serial_read_open(PI_READ, 115200,8)
+
 		self.reset()
 		self.init_uart()
-	
+
 	def inWaiting(self):
 		return self.byte_read(REG_RXLVL)
 
@@ -261,7 +258,6 @@ class SC16IS750:
 
 	def close(self):
 		self.pi.i2c_close(self.i2c)
-		self.pi.bb_serial_read_close(PI_READ)
 
 	def print_register(self, reg, prefix):
 		print("%s 0x%02X" % (prefix, self.byte_read(reg)))
@@ -345,6 +341,7 @@ class SC16IS750:
 	# Write I2C byte to specified register and read it back
 	# Return tuple indicating (boolean success, new value in register)
 	def byte_write_verify(self, reg, byte):
+
 		n, d = self.pi.i2c_zip(self.i2c, [I2C_WRITE, 2, self.reg_conv(reg), byte, I2C_READ, 1, I2C_END])
 		if n < 0: raise pigpio.error(pigpio.error_text(n))
 		elif n != 1: raise ValueError("unexpected number of bytes received")
@@ -355,15 +352,15 @@ class SC16IS750:
 	def byte_write(self, reg, byte):
 		print("Byte Writing", byte)
 
+		n, d = self.pi.i2c_zip(self.i2c, [I2C_WRITE, 2, self.reg_conv(reg), byte, I2C_END])
+
 		if isinstance(byte, int):
 			byte = bytes([byte])
-
-		#n, d = self.pi.i2c_zip(self.i2c, [I2C_WRITE, 2, self.reg_conv(reg), byte, I2C_END])
-
+		
 		try:
 			self.pi.wave_clear()
 			self.pi.wave_add_serial(PI_WRITE, 115200, byte)
-			#print("added wave")
+			print("added wave")
 			wid = self.pi.wave_create()
 			cbs = self.pi.wave_send_once(wid)
 
@@ -371,30 +368,27 @@ class SC16IS750:
 				print("waveform tx busy ", self.pi.wave_tx_at(), " ", self.pi.wave_get_cbs())
 				time.sleep(.1)
 		except Exception as e:
-			pass
-			#print(e)
+			print(e)
 
 	# Read I2C byte from specified register
 	# Return byte received from driver
 	def byte_read(self, reg):
 		return self.pi.i2c_read_byte_data(self.i2c, self.reg_conv(reg))
-		
 
 	# Write I2C block to specified register
 	def block_write(self, reg, bytestring):
-		#print(bytestring)
-
+		print(bytestring)
 		self.pi.wave_clear()
 		self.pi.wave_add_serial(PI_WRITE, 115200, bytestring)
 		wid = self.pi.wave_create()
 		cbs = self.pi.wave_send_once(wid)
 		while self.pi.wave_tx_busy():
-			#print("waveform tx busy ", self.pi.wave_tx_at(), " ", self.pi.wave_get_cbs())
+			print("waveform tx busy ", self.pi.wave_tx_at(), " ", self.pi.wave_get_cbs())
 			time.sleep(.1)
 
 		
-		#n, d = self.pi.i2c_zip(self.i2c, [I2C_WRITE, len(bytestring)+1, self.reg_conv(reg)] + list(bytestring) + [I2C_END])
-		#if n < 0: raise pigpio.error(pigpio.error_text(n))
+		n, d = self.pi.i2c_zip(self.i2c, [I2C_WRITE, len(bytestring)+1, self.reg_conv(reg)] + list(bytestring) + [I2C_END])
+		if n < 0: raise pigpio.error(pigpio.error_text(n))
 	"""
 	# Writes bytestring to the GPIO output pin
 	def gpio_write(self, bytestring):
@@ -418,8 +412,9 @@ class SC16IS750:
 
 if __name__ == '__main__':
 	pi = pigpio.pi()
+	pi.set_mode(20, pigpio.OUTPUT)
 	chip = SC16IS750(pi)
-	chip.packetBuffer = []
-	while True:
-		print(chip.byte_write(None, 'B'.encode('ascii')))
-	chip.close()
+	for i in range(8):
+		string = str(i)+"Hello World"+"\x04"*116
+		chip.block_write(1, string.encode('utf-8'))
+		#time.sleep(.5)
