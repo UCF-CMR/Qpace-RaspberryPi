@@ -299,7 +299,8 @@ class Queue():
 		"""
 		if type(response) is int:
 			response = hex(response)
-		self.logger.logSystem("{}: Adding a response. '{}' must be read before continuing... Will wait {} seconds before removing the response".format(self.name,response,timeout))
+		if not self.suppress:
+			self.logger.logSystem("{}: Adding a response. '{}' must be read before continuing... Will wait {} seconds before removing the response".format(self.name,response,timeout))
 		try:
 			self.response = response
 			pollingDelay = .5
@@ -307,15 +308,15 @@ class Queue():
 			counter = 0
 			while True:
 				if self.response is None:
-					self.logger.logSystem("{}: Response was read... continuing on.".format(self.name))
+					if not self.suppress: self.logger.logSystem("{}: Response was read... continuing on.".format(self.name))
 					break
 				if counter >= fragments:
-					self.logger.logSystem("{}: Response was not read: Timeout!".format(self.name))
+					if not self.suppress: self.logger.logSystem("{}: Response was not read: Timeout!".format(self.name))
 					break
 				time.sleep(pollingDelay)
 				counter+=1
 		except:
-			self.logger.logError("{}: Was not able to wait for response to be read.".format(self.name))
+			if not self.suppress: self.logger.logError("{}: Was not able to wait for response to be read.".format(self.name))
 
 	def waitForResponse(self,timeout=WAIT_TIME):
 		"""
@@ -330,25 +331,26 @@ class Queue():
 		Raises:None
 
 		"""
-		self.logger.logSystem("{}: Someone is waiting for the response to be read. (Timeout={})".format(self.name,timeout))
+		if not self.suppress: self.logger.logSystem("{}: Someone is waiting for the response to be read. (Timeout={})".format(self.name,timeout))
 		try:
 			pollingDelay = .5
 			fragments = timeout/pollingDelay
 			counter = 0
 			while True:
 				if self.response is not None:
-					self.logger.logSystem("{}: Response was found... continuing on. Response: {}".format(self.name,self.response))
+					if not self.suppress: self.logger.logSystem("{}: Response was found... continuing on. Response: {}".format(self.name,self.response))
 					break
 				if counter >= fragments:
-					self.logger.logSystem("{}: Response was not read: Timeout!".format(self.name))
+					if not self.suppress: self.logger.logSystem("{}: Response was not read: Timeout!".format(self.name))
 					break
 				time.sleep(pollingDelay)
 				counter+=1
+			# We finally give the response back to the calling method
 			response = self.response
 			self.response = None
 			return response
 		except:
-			self.logger.logError("{}: Was not able to wait for response to be read.".format(self.name))
+			if not self.suppress: self.logger.logError("{}: Was not able to wait for response to be read.".format(self.name))
 
 	def clearResponse(self):
 		"""
@@ -571,9 +573,9 @@ def run(logger):
 			packetQueue = Queue(logger=logger,name='PacketQueue',suppressLog=True)
 
 			# Initialize threads
-			interpreter = threading.Thread(target=qpi.run,args=(chip,nextQueue,packetQueue,experimentRunningEvent,runEvent,shutdownEvent,disableCallback,logger))
-			scheduler = threading.Thread(target=schedule.run,args=(chip,nextQueue,packetQueue,experimentRunningEvent,runEvent,shutdownEvent,scheduleEmpty,disableCallback,logger))
-			graveyardThread = threading.Thread(target=graveyardHandler,args=(runEvent,shutdownEvent,logger))
+			interpreter = threading.Thread(name='inter',target=qpi.run,args=(chip,nextQueue,packetQueue,experimentRunningEvent,runEvent,shutdownEvent,disableCallback,logger))
+			scheduler = threading.Thread(name='sched',target=schedule.run,args=(chip,nextQueue,packetQueue,experimentRunningEvent,runEvent,shutdownEvent,scheduleEmpty,disableCallback,logger))
+			graveyardThread = threading.Thread(name='reaper',target=graveyardHandler,args=(runEvent,shutdownEvent,logger))
 
 			logger.logSystem("Main: Starting up threads.")
 			interpreter.start() # Run the Interpreter

@@ -11,11 +11,8 @@
 # Figure out if they are packets or commands. If it's a command it will execute the command
 # and if they are packets it will direct them to the packet directory and then decode it.
 
-try:
-	import pigpio
-except:
-	pass
 
+import pigpio
 try:
 	import xtea3
 except:
@@ -131,6 +128,7 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent,disa
 
 	global packetBuffer #TODO Possibly remove for flight. Not really an issue used for debugging
 	packetBuffer = []
+	chip.packetBuffer = packetBuffer
 	callback = None
 
 	checker = tagChecker.TagChecker()
@@ -542,7 +540,7 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent,disa
 			logger.logResults('--Read from WTC: {} ({})'.format([ key for key,val in qpStates.items() if val==byte ], hex(byte)))
 			if len(packetData) == 4:
 				logger.logSystem('PseudoSM: Configuring the timestamp.')
-				os.system("sudo date -s '@" + str(byte) +"'")
+				os.system("sudo date -s '@" + str(byte) +"' >/dev/null")
 				chip.block_write(SC16IS750.REG_THR,packetData)
 				configureTimestamp = False
 				logger.setBoot(newTimestamp=byte)
@@ -562,7 +560,7 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent,disa
 					wtc_respond('DONE')
 					shutdownEvent.set() # Set for shutdown
 				elif byte == qpStates['TIMESTAMP']:
-					print("Test: We got the timestamp from the WTC")
+					#print("Test: We got the timestamp from the WTC")
 					logger.logSystem('PseudoSM: TIMESTAMP from WTC.')
 					wtc_respond('TIMESTAMP')
 					# Yo, configure the timestamp after this
@@ -638,7 +636,7 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent,disa
 				packetData, configureTimestamp = pseudoStateMachine(packetData,configureTimestamp,nextQueue)
 				# If the data was not a control character, then process it.
 				if packetData:
-					#print("Packet data chunk was received.")
+					print("Packet data chunk was received.")
 					# We'll just assume that the input is a chunk.
 					chunkPacket.push(packetData)
 					# If, after pushing, the chunk is complete continue on. Otherwise skip.
@@ -649,19 +647,6 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent,disa
 						# Check if the packet is valid.
 						# If it's XTEA, decode it at this step and modify the field data appropriately.
 						isValid,fieldData = checkValidity(fieldData, packetData)
-
-						"""
-						try:
-							if fieldData['TYPE'] == 'DATA':
-								if fieldData['opcode'] == b'NOOP>':
-									if isValid:
-										response = b'GOOD'
-									else:
-										response = b'REPT'
-									Command.PrivilegedPacket(opcode="NOOP>",plainText=fieldData['pid'] + response + Command.PrivilegedPacket.returnRandom(86)).send()
-									#nextQueue.enqueue('SENDPACKET')
-						except:pass
-						"""
 
 						if isValid:
 							#TODO These prints are for DEBUG only.
@@ -678,27 +663,6 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent,disa
 									# If the DLACK is good, then clear the queue of lastPackets.
 								if fieldData['response'] == b'GOOD':
 									lastPacketsSent.clear()
-								'''
-								else:
-									# If it's not good, then we need to send those packets again...
-									# To do that, we will prepend the packetQueue with the packets from lastPacketsSent
-									# And then we will prepend the nextQueue with a 'SENDPACKET' for every BUFFERSIZE of packets.
-									# If the last packets sent's count is less than the buffer size
-									# Then we'll append dummy packets here to fill that buffer.
-
-									# Offload the last sent packets but don't clear them until we get a good.
-									lastPacketsSent_copy = lastPacketsSent[:] #Shallow copy to not affect the original list
-									if len(lastPacketsSent_copy) < fh.WTC_PACKET_BUFFER_SIZE: # If there's more buffer space than packets sent...
-										for i in range(fh.WTC_PACKET_BUFFER_SIZE - len(lastPacketsSent_copy)): # Append a dummy packet for every packet to send.
-											lastPacketsSent_copy.append(fh.DummyPacket().build())
-											lastPacketsSent_copy.reverse() # Reverse the list so the last packets get prepended first.
-									for pkt in lastPacketsSent_copy: # For every packet to send...
-										packetQueue.enqueue(pkt, prepend=True) # Prepend those packets
-
-									# For however many transactions the WTC can handle, enqueue a SENDPACKET so when the WTC asks "WHATISNEXT" the Pi can tell it it wants to send packets.
-									for x in range((len(self._packetQueue)//fh.WTC_PACKET_BUFFER_SIZE) + 1):
-										nextQueue.enqueue('SENDPACKET',prepend=True) # taken from qpaceControl
-								'''
 							elif fieldData['command'] in COMMANDS: # Double check to see if it's a command
 								try:
 									processCommand(chip,fieldData,fromWhom = 'GND')

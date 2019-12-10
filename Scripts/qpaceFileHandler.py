@@ -207,7 +207,7 @@ class DummyPacket(DataPacket):
 
 class ChunkPacket():
 	""" Helper class to take chunks and make them into a packet if 4 are received"""
-	TIMEDELAYDELTA = 1.5 # in seconds
+	TIMEDELAYDELTA = 3.5 # in seconds
 	chunks = []
 	complete = False
 	lastInputTime = None
@@ -249,6 +249,7 @@ class ChunkPacket():
 			self.chip.byte_write(SC16IS750.REG_THR,0x60 + len(ChunkPacket.chunks)) # Defined by WTC state machine
 			if len(ChunkPacket.chunks) == 4: # We are doing 4 chunks!
 				ChunkPacket.complete = True
+				print("CHUNKS RECV")
 
 		else:
 			self.logger.logSystem("ChunkPacket: Attempted to push when complete...")
@@ -277,7 +278,9 @@ class ChunkPacket():
 				if(packet[-4:] != generateChecksum(packet[:-4])):
 					packet = b''
 					#print("THE DATA SEND ISN'T VALID:\nCHECKSUMS DON'T MATCH")
-					Command.PrivilegedPacket(opcode=b"ERROR", plainText=b"ERROR OCCURING").send()
+					msg = "The data sent is not valid. Checksums do not match! :("
+					msg = msg.encode('utf8')
+					Command.PrivilegedPacket(opcode=b"ERROR", plainText=msg).send()
 				#else:
 					#print("QUICK FIX IS VALID")
 			ChunkPacket.chunks[:] = [] #reset chunks to empty
