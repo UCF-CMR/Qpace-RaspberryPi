@@ -95,7 +95,6 @@ def run(filename, isRunningEvent, runEvent,logger,nextQueue,disableCallback):
 
 				if solenoidRequest and stepperRequest:
 					break
-			disableCallback.set()
 			time.sleep(.35)
 			# If we want the solenoids, let's request them. Failure to enable will abort the experiment.
 			if solenoidRequest:
@@ -108,7 +107,6 @@ def run(filename, isRunningEvent, runEvent,logger,nextQueue,disableCallback):
 				logger.logSystem('ExpParser: WTC... may I have the steppers please?')
 				if not exp.wtc_request('STEPON'):
 					raise StopIteration('WTC denied access to the steppers.')
-			disableCallback.clear()
 
 			# At this point the solenoids and steppers should be enabled. NOW we can do some science!
 			logger.logSystem('ExpParser: Experiment is ready to begin. Time to do science!')
@@ -150,7 +148,7 @@ def run(filename, isRunningEvent, runEvent,logger,nextQueue,disableCallback):
 								comment = ' '.join(instruction[1:])
 								experimentLog.write("Comment: {}\n".format(comment))
 
-						elif(instruction[0] == 'RESET'):                                                                      
+						elif(instruction[0] == 'RESET'):
 							if isRunningEvent.is_set():
 								# Just reset all the pins or one pin
 								if len(instruction) == 1 or 'ALL' in instruction:
@@ -269,7 +267,7 @@ def run(filename, isRunningEvent, runEvent,logger,nextQueue,disableCallback):
 												value = picam.attr['roi']
 										else:
 											value = int(value)
-											
+
 										if option in picam.attr:
 											picam.attr[option] = value
 

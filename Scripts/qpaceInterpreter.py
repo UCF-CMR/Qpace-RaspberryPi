@@ -569,29 +569,22 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent,disa
 				elif byte == qpStates['WHATISNEXT']:
 					next = nextQueue.peek()
 
-					if not next and packetQueue.peek():
-						next = 'SENDPACKET'
 					if not next:
-						next = 'IDLE'
-
+						if packetQueue.peek():
+							next = 'SENDPACKET'
+						else:
+							next = 'IDLE'
+					else:
+						nextQueue.dequeue()
 					wtc_respond(next) # Respond with what the Pi would like the WTC to know.
 					'''
 					below is the process for sending the SOLON and STEPON commands
 					to the WTC because both of those commands requrie direct response
 					from the WTC in order to continue
 					'''
+
 					if next == qpStates['SOLON'] or next == qpStates['STEPON']:
 						# Wait for a response from the WTC.
-						logger.logSystem('PseudoSM: Waiting {}s for a response from WTC'.format(WHATISNEXT_WAIT))
-						# Possibly might need to cancel the callback and restart it here.
-						disableCallback.set()
-						if waitForBytesFromCCDR(chip,1,timeout=WHATISNEXT_WAIT): # Wait for 15s for a response from the WTC
-							response = chip.byte_read(SC16IS750.REG_RHR)
-							# THIS IS A BLOCKING CALL
-							nextQueue.blockWithResponse(response,timeout=1) # Blocking until the response is read or timeout.
-			
-						# If we cancel the callback earlier, re-initialize it here.
-						disableCallback.clear()
 						wtc_respond('DONE') # Always respond with done for an "ACCEPTED or PENDING"
 				elif byte == qpStates['NEXTPACKET']:
 					sendPacketToWTC()
@@ -608,10 +601,12 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent,disa
 					packetQueue.clear()
 					wtc_respond('DONE')
 				elif byte == qpStates['ACCEPTED']:
-					wtc_respond('DONE')
+					nextQueue.response = qpStates['ACCEPTED']
 				elif byte == qpStates['DENIED']:
+					nextQueue.response = qpStates['DENIED']
 					wtc_respond('DONE')
 				elif byte == qpStates['PENDING']:
+					nextQueue.response = qpStates['PENDING']
 					wtc_respond('DONE')
 				else:
 					logger.logSystem('PseudoSM: State existed for {} but a method is not written for it.'.format(hex(byte)))
