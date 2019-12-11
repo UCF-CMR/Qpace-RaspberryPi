@@ -577,15 +577,6 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent,disa
 					else:
 						nextQueue.dequeue()
 					wtc_respond(next) # Respond with what the Pi would like the WTC to know.
-					'''
-					below is the process for sending the SOLON and STEPON commands
-					to the WTC because both of those commands requrie direct response
-					from the WTC in order to continue
-					'''
-
-					if next == qpStates['SOLON'] or next == qpStates['STEPON']:
-						# Wait for a response from the WTC.
-						wtc_respond('DONE') # Always respond with done for an "ACCEPTED or PENDING"
 				elif byte == qpStates['NEXTPACKET']:
 					sendPacketToWTC()
 				elif byte == qpStates['BUFFERFULL']:
@@ -602,6 +593,7 @@ def run(chip,nextQueue,packetQueue,experimentEvent, runEvent, shutdownEvent,disa
 					wtc_respond('DONE')
 				elif byte == qpStates['ACCEPTED']:
 					nextQueue.response = qpStates['ACCEPTED']
+					wtc_respond('DONE')
 				elif byte == qpStates['DENIED']:
 					nextQueue.response = qpStates['DENIED']
 					wtc_respond('DONE')

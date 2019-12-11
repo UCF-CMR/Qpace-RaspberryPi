@@ -356,7 +356,7 @@ class Command():
 		
 		filepath = TEXTPATH+ntpath.basename(pathname[:-1]) + "dir.txt"
 		try:
-			pathList = check_output(['ls','-alh',recursive+pathname]).decode("utf-8")
+			pathList = check_output(['ls','-alh',pathname]).decode("utf-8")
 		except:
 			pathList = "No such file or directory:'{}'".format(pathname)
 		with open(filepath, "w") as filestore:
