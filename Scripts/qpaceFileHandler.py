@@ -126,7 +126,7 @@ class DataPacket():
 	def generateDownloadChecksum(self, data):
 		checksum = int.from_bytes(data,  'big') ^ int.from_bytes(CHECKSUM_PARAM, 'big')
 		return bytearray(checksum.to_bytes(175, 'big'))[-4:] # Can only store 4 Bytes so take the last four
-		
+
 
 	def build(self):
 		"""
@@ -408,7 +408,7 @@ class Transmitter():
 				if Command._cantsend:
 					Command._cantsend = False
 					break
-					
+
 
 				# try:
 				try:
@@ -440,7 +440,7 @@ class Transmitter():
 			#StopIteration to stop iterating :) we are done here.
 			#print(e)
 			print("")
-			
+
 
 		#print("Last: {0} | Expected: {1}".format(self.lastPacket, self.expected_packets))
 
@@ -599,7 +599,8 @@ class Scaffold():
 			scaffold.seek(0)
 			scaffold.write(scaffoldData)
 
-	def _updateMissedPackets(self, missed_packets,filename):
+	@staticmethod
+	def _updateMissedPackets(missed_packets,filename):
 		"""
 		Update the .nore file with which packets are missing
 
@@ -621,7 +622,9 @@ class Scaffold():
 				f.write(to_write)
 		except:
 			pass
-	def _removeMissedPacket(self, received_packet,filename):
+
+	@staticmethod
+	def _removeMissedPacket(received_packet,filename):
 		"""
 		Removes packets from the .nore file if they arrive
 
