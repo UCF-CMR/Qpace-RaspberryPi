@@ -356,24 +356,15 @@ class Transmitter():
 
 		self.data_size = DataPacket.max_size - DataPacket.header_size
 		self.expected_packets = ((self.filesize // self.data_size) + 1) # This keeps it consitant with PiCommands.py #ceil(self.filesize / self.data_size)
-		try:
-			# Currently, all checksums are just thic, because the currnet checksum algorithm is too slow
-			# and doesn't get applied to 99% of files anyway
-			# We are working on a fix for this
-			self.checksum = b'THIC'
-			"""
-			if(self.expected_packets < 1000):   #Way too big to create checksum
-				print("Checksumming")
-				self.checksum = generateChecksum(open("{}{}".format(ROOTPATH,pathname),'rb').read())
-				print("Done checksum")
-			else:
-				self.checksum = b'THIC'
-			"""
-		except:
-			self.checksum = b'NONE' #Should we just not send the file? I think we should send it anyway.
-			#_, __, exc_traceback = sys.exc_info()
-			#logger.logError(exc_traceback)
-
+		
+		"""
+		Never forget the time that the packets
+		were forced to have the checksum 
+		'THICC' right here. We have moved
+		passed such things to acuatal checksums
+		that actually work. 
+		"""
+		
 		# if useFEC:
 		# 	self.data_size = (DataPacket.max_size - DataPacket.header_size) // 3
 		# else:
@@ -440,27 +431,15 @@ class Transmitter():
 			#StopIteration to stop iterating :) we are done here.
 			#print(e)
 			print("")
-			
 
-		#print("Last: {0} | Expected: {1}".format(self.lastPacket, self.expected_packets))
-
-		if(self.lastPacket == self.expected_packets):
-			#When it's done it needs to send a DONE packet
-			self.pkt_padding = self.data_size
-			#                     *below* mod by ten so that way we are always within packet specs and we do not really care about the last packet num so long as it is a DLACK
-			temp = [self.checksum, bytes(self.expected_packets%10), self.pathname.encode('ascii')[self.pathname.rfind('/')+1:], bytes([self.pkt_padding])]
-			data = b' '.join(temp)
-			# if useFEC:
-			# 	data += (36 - len(data)) * b'\x04' if len(data) < 36 else b''
-			# 	data = data[:36] # only get the first 116 chars. Defined by the packet document
-			# else:
-			# 	data += (116 - len(data)) * b'\x04' if len(data) < 116 else b''
-			# 	data = data[:116] # only get the first 116 chars. Defined by the packet document
-			# padding = 116 - len(data)
-			# data += DataPacket.padding_byte * padding
-			allDone = DataPacket(data=data,pid=self.expected_packets,rid=0x00,opcode=b'NOOP!').build()
-			self.packetQueue.enqueue(allDone)
-		DataPacket.last_id = 0
+		# When a "chuck" of packets are done send a DONE packet to acknoledge the packets have been sent
+		self.pkt_padding = self.data_size
+		#                     *below* mod by ten so that way we are always within packet specs and we do not really care about the last packet num so long as it is a DLACK
+		temp = [self.checksum, bytes(self.expected_packets), self.pathname.encode('ascii')[self.pathname.rfind('/')+1:], bytes([self.pkt_padding])]
+		data = b' '.join(temp)
+		allDone = DataPacket(data=data,pid=self.expected_packets,rid=0x00,opcode=b'NOOP!').build()
+		self.packetQueue.enqueue(allDone)
+		#DataPacket.last_id = 0
 
 	def getPacketData(self):
 		"""
