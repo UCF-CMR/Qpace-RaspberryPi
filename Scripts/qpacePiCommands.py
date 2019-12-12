@@ -353,10 +353,10 @@ class Command():
 		"""
 		fileDir = args.replace(b'\x04', b'')
 		pathname = ROOTPATH + fileDir.decode('ascii').split(' ')[0]
-		
+
 		filepath = TEXTPATH+ntpath.basename(pathname[:-1]) + "dir.txt"
 		try:
-			pathList = check_output(['ls','-alh',recursive+pathname]).decode("utf-8")
+			pathList = check_output(['ls','-alh',pathname]).decode("utf-8")
 		except:
 			pathList = "No such file or directory:'{}'".format(pathname)
 		with open(filepath, "w") as filestore:
@@ -377,7 +377,7 @@ class Command():
 		minute = args[1]
 		second = args[2]
 
-		os.system('cd ffmpeg -i {} -c copy -map 0 -segment_time 00:{}:{} -f segment {}_%03d.mp4 &> /dev/null'.format(path,minute,second,filename))
+		os.system('ffmpeg -i {} -c copy -map 0 -segment_time 00:{}:{} -f segment {}_%03d.mp4 &> /dev/null'.format(path,minute,second,filename))
 		if not silent:
 			self.directoryList(logger,bytes(args[0], 'ascii')) # pass in the path stated above without the file to get the directory list.
 		#NOTE: self.directoryList() will send a PrivilegedPacket back to the ground. This calls the directoryList command because we want the same behaviour
@@ -389,7 +389,7 @@ class Command():
 		ext_i = None if ext_i < 0 or ext_i < nam_i else ext_i # If it's -1 or if it's before the first slash, then ignore it.
 		filename = pathToVideo[nam_i+1:ext_i] #get the filename from the path, remove the extension if there is one.
 		pathToVideo = ROOTPATH + pathToVideo[:nam_i]
-		os.system('MP4Box -add {}{}.h264 {}{}.mp4 &> /dev/null'.format(pathToVideo,filename,pathToVideo,filename))
+		os.system('ffmpeg -i {}{}.h264 -c copy {}{}.mp4 &> /dev/null'.format(pathToVideo,filename,pathToVideo,filename))
 		returnValue = check_output(['ls','-la',"{}{}.mp4".format(pathToVideo,filename)])
 		returnValue += returnValue.encode('ascii') + Command.CMDPacket.padding_byte*(Command.CMDPacket.data_size - len(returnValue))
 		if not silent:
@@ -439,7 +439,7 @@ class Command():
 		"""
 		args = args.decode('ascii').split(' ')
 		inputFilename = ROOTPATH + args[0].replace('\x04', '')
-		
+
 		# Raise an error if the filename does not end in .tar
 		if (inputFilename[-4:] != '.tar'):
 			logger.logError("Error: Received request to extract a non-tar file")
@@ -485,10 +485,10 @@ class Command():
 			plainText = message + Command.CMDPacket.padding_byte * (Command.PrivilegedPacket.encoded_data_length - len(message))
 			Command.PrivilegedPacket(plainText=plainText).send()
 
-	
+
 	def encodeFile(self, path=None, silent=False):
 		import qpaceFileHandler as qfh
-		
+
 		with open("{}{}".format(ROOTPATH, path), "rb") as dataFile:
 			data = base64.b64encode(dataFile.read())#, altchars='+/')
 
