@@ -356,15 +356,15 @@ class Transmitter():
 
 		self.data_size = DataPacket.max_size - DataPacket.header_size
 		self.expected_packets = ((self.filesize // self.data_size) + 1) # This keeps it consitant with PiCommands.py #ceil(self.filesize / self.data_size)
-		
+
 		"""
 		Never forget the time that the packets
-		were forced to have the checksum 
+		were forced to have the checksum
 		'THICC' right here. We have moved
 		passed such things to acuatal checksums
-		that actually work. 
+		that actually work.
 		"""
-		
+
 		# if useFEC:
 		# 	self.data_size = (DataPacket.max_size - DataPacket.header_size) // 3
 		# else:
@@ -435,7 +435,7 @@ class Transmitter():
 		# When a "chuck" of packets are done send a DONE packet to acknoledge the packets have been sent
 		self.pkt_padding = self.data_size
 		#                     *below* mod by ten so that way we are always within packet specs and we do not really care about the last packet num so long as it is a DLACK
-		temp = [self.checksum, bytes(self.expected_packets), self.pathname.encode('ascii')[self.pathname.rfind('/')+1:], bytes([self.pkt_padding])]
+		temp = [b'JKCW', bytes([self.expected_packets]), self.pathname.encode('ascii')[self.pathname.rfind('/')+1:], bytes([self.pkt_padding])]
 		data = b' '.join(temp)
 		allDone = DataPacket(data=data,pid=self.expected_packets,rid=0x00,opcode=b'NOOP!').build()
 		self.packetQueue.enqueue(allDone)
